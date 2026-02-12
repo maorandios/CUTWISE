@@ -2691,55 +2691,31 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str, ker
                                 # But since we're cutting from the same stock, the actual length needed
                                 # is approximately: length1 + length2 - (cut_depth / sin(angle))
                                 
-                                # Estimate profile depth from profile name - generic for all profile types
-                                # Use CutPieceExtractor's method for generic profile depth estimation
-                                # This handles all profile types: IPE, HEA, RHS, SHS, CHS, Pipes (Ø), etc.
+                                # Get profile depth from actual geometry (not from name)
+                                # This works for ALL profiles including custom ones with non-standard names
                                 profile_name = part1.get("profile_name", "UNKNOWN")
-                                if extractor:
-                                    estimated_profile_depth = extractor._get_estimated_profile_depth(profile_name)
+                                
+                                # Try to get depth from geometry first (most accurate)
+                                estimated_profile_depth = part1.get("cross_section_depth")
+                                
+                                if estimated_profile_depth is None or estimated_profile_depth <= 0:
+                                    # Fallback: try to get from part2 if part1 doesn't have it
+                                    estimated_profile_depth = part2.get("cross_section_depth")
+                                
+                                if estimated_profile_depth is None or estimated_profile_depth <= 0:
+                                    # Last resort: use name-based estimation
+                                    nesting_log(f"[NESTING] Warning: No geometry-based depth found, falling back to name-based estimation")
+                                    if extractor:
+                                        estimated_profile_depth = extractor._get_estimated_profile_depth(profile_name)
+                                    else:
+                                        estimated_profile_depth = 400.0  # Default
+                                    nesting_log(f"[NESTING] Profile detection: name='{profile_name}', depth (from name)={estimated_profile_depth:.1f}mm")
                                 else:
-                                    # Fallback: use simple regex-based detection if extractor is not available
-                                    estimated_profile_depth = 400.0  # Default
-                                    profile_name_upper = profile_name.upper()
-                                    import re
-                                    # Try to extract depth/diameter from common patterns
-                                    if "UPN" in profile_name_upper or "UPE" in profile_name_upper:
-                                        match = re.search(r'UP[NE]\s*(\d+)', profile_name_upper)
-                                        if match:
-                                            estimated_profile_depth = float(match.group(1))
-                                    elif "IPE" in profile_name_upper:
-                                        match = re.search(r'IPE\s*(\d+)', profile_name_upper)
-                                        if match:
-                                            estimated_profile_depth = float(match.group(1))
-                                    elif "HEA" in profile_name_upper or "HEB" in profile_name_upper or "HEM" in profile_name_upper:
-                                        match = re.search(r'HE[ABM]\s*(\d+)', profile_name_upper)
-                                        if match:
-                                            estimated_profile_depth = float(match.group(1))
-                                    elif "RHS" in profile_name_upper or "SHS" in profile_name_upper:
-                                        match = re.findall(r'(\d+\.?\d*)', profile_name_upper)
-                                        if match:
-                                            estimated_profile_depth = max([float(d) for d in match])
-                                    elif "Ø" in profile_name or "DIAMETER" in profile_name_upper or "CHS" in profile_name_upper:
-                                        # Try to extract diameter from circular profiles like Ø219.1*3
-                                        # First try with Ø symbol
-                                        match = re.search(r'Ø\s*(\d+\.?\d*)', profile_name)
-                                        if not match:
-                                            # Try DIAMETER keyword
-                                            match = re.search(r'DIAMETER\s*(\d+\.?\d*)', profile_name_upper)
-                                        if not match:
-                                            # Try CHS format
-                                            match = re.search(r'CHS\s*(\d+\.?\d*)', profile_name_upper)
-                                        if not match:
-                                            # Fallback: extract first number (should be diameter)
-                                            match = re.search(r'(\d+\.?\d*)', profile_name)
-                                        if match:
-                                            estimated_profile_depth = float(match.group(1))
+                                    nesting_log(f"[NESTING] Profile detection: name='{profile_name}', depth (from geometry)={estimated_profile_depth:.1f}mm")
                                 
-                                # GENERIC CALCULATION: Works for ALL profile types (IPE, HEA, RHS, SHS, CHS, Pipes, etc.)
+                                # GENERIC CALCULATION: Works for ALL profile types (IPE, HEA, RHS, SHS, CHS, Pipes, custom, etc.)
                                 # For complementary slopes, calculate the shared material length
-                                # This is a simple geometric calculation that works universally
-                                
-                                nesting_log(f"[NESTING] Profile detection: name='{profile_name}', depth={estimated_profile_depth:.1f}mm")
+                                # Using actual geometry-based depth ensures accuracy for all profiles
                                 
                                 # Initialize shared_linear_slopes_length
                                 shared_linear_slopes_length = 0.0

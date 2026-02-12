@@ -48,6 +48,7 @@ class CutPiece:
     end_world: np.ndarray    # [x, y, z] end point
     end_cuts: Dict[str, Optional[EndCut]]  # {"start": EndCut, "end": EndCut}
     source_method: str  # "ifc_native" or "mesh_based"
+    cross_section_depth: float  # Maximum cross-section dimension from geometry (mm)
     
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -63,7 +64,8 @@ class CutPiece:
                 "start": self.end_cuts["start"].to_dict() if self.end_cuts["start"] else None,
                 "end": self.end_cuts["end"].to_dict() if self.end_cuts["end"] else None
             },
-            "source_method": self.source_method
+            "source_method": self.source_method,
+            "cross_section_depth": float(self.cross_section_depth)
         }
 
 
@@ -360,10 +362,12 @@ class CutPieceExtractor:
                 start_world=start_world,
                 end_world=end_world,
                 end_cuts=end_cuts,
-                source_method="ifc_native"
+                source_method="ifc_native",
+                cross_section_depth=0.0  # Will be calculated from mesh geometry
             )
             
             # Now extract end cuts using mesh (hybrid approach)
+            # This will also update cross_section_depth from geometry
             cut_piece.end_cuts = self._detect_end_cuts_from_mesh(element, cut_piece)
             
             return cut_piece
@@ -448,12 +452,14 @@ class CutPieceExtractor:
             profile_key = self._extract_profile_key_from_element(element)
             
             # Detect end cuts (pass profile_key to help with circular beam detection)
-            end_cuts, actual_length = self._detect_end_cuts_from_vertices(vertices, axis_world, start_world, end_world, length, profile_key)
+            end_cuts, actual_length, cross_section_depth = self._detect_end_cuts_from_vertices(vertices, axis_world, start_world, end_world, length, profile_key)
             
             # Use actual length from vertices if different
             if actual_length != length:
                 print(f"[CUT_PIECE] Using actual length from vertices: {actual_length:.1f}mm (was {length:.1f}mm)")
                 length = actual_length
+            
+            print(f"[CUT_PIECE] Cross-section depth from geometry: {cross_section_depth:.1f}mm")
             
             return CutPiece(
                 express_id=element.id(),
@@ -464,7 +470,8 @@ class CutPieceExtractor:
                 start_world=start_world,
                 end_world=end_world,
                 end_cuts=end_cuts,
-                source_method="mesh_based"
+                source_method="mesh_based",
+                cross_section_depth=cross_section_depth
             )
             
         except Exception as e:
@@ -515,7 +522,7 @@ class CutPieceExtractor:
                 print(f"[CUT_PIECE] Vertex range: min={min_verts}, max={max_verts}")
                 print(f"[CUT_PIECE] Start point: {cut_piece.start_world}, End point: {cut_piece.end_world}")
             
-            end_cuts, actual_length = self._detect_end_cuts_from_vertices(
+            end_cuts, actual_length, cross_section_depth = self._detect_end_cuts_from_vertices(
                 vertices_mm, cut_piece.axis_world, 
                 cut_piece.start_world, cut_piece.end_world, cut_piece.length,
                 cut_piece.profile_key
@@ -530,6 +537,10 @@ class CutPieceExtractor:
                 projections = np.dot(vertices_mm - center, cut_piece.axis_world)
                 cut_piece.start_world = vertices_mm[np.argmin(projections)]
                 cut_piece.end_world = vertices_mm[np.argmax(projections)]
+            
+            # Update cross_section_depth from geometry
+            cut_piece.cross_section_depth = cross_section_depth
+            print(f"[CUT_PIECE] Cross-section depth from geometry: {cross_section_depth:.1f}mm")
             
             return end_cuts
         except Exception as e:
@@ -603,13 +614,16 @@ class CutPieceExtractor:
         self, vertices: np.ndarray, axis_world: np.ndarray,
         start_world: np.ndarray, end_world: np.ndarray, length: float,
         profile_key: str = "UNKNOWN"
-    ) -> tuple[Dict[str, Optional[EndCut]], float]:
+    ) -> tuple[Dict[str, Optional[EndCut]], float, float]:
         """Detect end cuts by fitting planes to end vertex slices.
         
         This method works generically for all steel profiles by:
         1. Calculating actual cross-section dimensions from geometry
         2. Scaling thresholds and tolerances based on actual size
         3. No profile-type-specific logic
+        
+        Returns:
+            (end_cuts, actual_length, cross_section_depth)
         """
         # Calculate actual cross-section dimensions from geometry
         cross_section_size, is_circular = self._calculate_cross_section_dimensions(vertices, axis_world)
@@ -852,7 +866,7 @@ class CutPieceExtractor:
         else:
             print(f"[CUT_PIECE] Not enough end vertices ({len(end_vertices)} < 3)")
         
-        return end_cuts, actual_length
+        return end_cuts, actual_length, cross_section_size
     
     def _fit_end_plane(
         self, vertices: np.ndarray, end_point: np.ndarray, axis_world: np.ndarray
