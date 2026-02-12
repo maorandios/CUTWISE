@@ -981,6 +981,12 @@ class CutPieceExtractor:
                 if diameter_match:
                     return float(diameter_match.group(1))
             
+            # UPN/UPE/INP profiles: UPN80 -> 80, INP600 -> 600
+            if "UPN" in profile_key_upper or "UPE" in profile_key_upper or "INP" in profile_key_upper:
+                upn_match = re.search(r'(?:UP[NE]|INP)\s*(\d+)', profile_key_upper)
+                if upn_match:
+                    return float(upn_match.group(1))
+            
             # IPE profiles: IPE400 -> 400
             if "IPE" in profile_key_upper:
                 ipe_match = re.search(r'IPE\s*(\d+)', profile_key_upper)

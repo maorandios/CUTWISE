@@ -2703,7 +2703,11 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str, ker
                                     profile_name_upper = profile_name.upper()
                                     import re
                                     # Try to extract depth/diameter from common patterns
-                                    if "IPE" in profile_name_upper:
+                                    if "UPN" in profile_name_upper or "UPE" in profile_name_upper:
+                                        match = re.search(r'UP[NE]\s*(\d+)', profile_name_upper)
+                                        if match:
+                                            estimated_profile_depth = float(match.group(1))
+                                    elif "IPE" in profile_name_upper:
                                         match = re.search(r'IPE\s*(\d+)', profile_name_upper)
                                         if match:
                                             estimated_profile_depth = float(match.group(1))
