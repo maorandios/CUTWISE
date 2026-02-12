@@ -993,8 +993,25 @@ class CutPieceExtractor:
                 if ipe_match:
                     return float(ipe_match.group(1))
             
+            # HEA/HEB/HEM profiles: Use actual dimensions, not just the nominal size
+            if "HEM" in profile_key_upper:
+                # HEM profiles: actual depth is slightly more than nominal
+                # HEM1000 -> 1008mm (not 1000mm)
+                hem_match = re.search(r'HEM\s*(\d+)', profile_key_upper)
+                if hem_match:
+                    nominal = int(hem_match.group(1))
+                    # HEM actual depths: nominal + 8mm for HEM1000
+                    if nominal == 1000:
+                        return 1008.0
+                    elif nominal >= 800:
+                        return float(nominal + 8)
+                    elif nominal >= 600:
+                        return float(nominal + 6)
+                    else:
+                        return float(nominal)  # Smaller HEM profiles are closer to nominal
+            
             # HEA/HEB profiles: HEA220 -> 220
-            if "HEA" in profile_key_upper or "HEB" in profile_key_upper or "HEM" in profile_key_upper:
+            if "HEA" in profile_key_upper or "HEB" in profile_key_upper:
                 hea_match = re.search(r'HE[ABM]\s*(\d+)', profile_key_upper)
                 if hea_match:
                     return float(hea_match.group(1))
