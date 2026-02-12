@@ -2284,6 +2284,455 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str, ker
                 detail=f"No parts found for selected profiles: {selected_profiles}. Make sure the profiles exist in the IFC file."
             )
         
+        # ========== POST-PROCESSING OPTIMIZATION FUNCTION ==========
+        def optimize_pattern_layout(pattern_parts: list, stock_length: float, kerf: float, estimated_profile_depth: float) -> tuple[list, float]:
+            """
+            Optimize the layout of parts in a pattern to minimize waste.
+            
+            This function performs global optimization on a greedy-generated pattern:
+            1. Smart reordering: straight-start parts first, straight-end parts last
+            2. Flip parts to move slopes to better positions
+            3. Try different permutations for small part counts
+            4. Local swaps for fine-tuning
+            
+            Args:
+                pattern_parts: List of parts in the pattern
+                stock_length: Length of the stock bar
+                kerf: Kerf width for cuts
+                estimated_profile_depth: Profile depth for slope calculations
+            
+            Returns:
+                Tuple of (optimized_pattern_parts, new_waste)
+            """
+            if len(pattern_parts) <= 1:
+                # Calculate waste for single part
+                waste = _calculate_pattern_waste(pattern_parts, stock_length, kerf, estimated_profile_depth)
+                return pattern_parts, waste
+            
+            nesting_log(f"[OPTIMIZATION] Starting pattern optimization with {len(pattern_parts)} parts")
+            
+            # Make a copy so we don't modify the original
+            original_parts = [p.copy() for p in pattern_parts]
+            
+            # STEP 1: Score-based heuristic reordering (GLOBAL)
+            # This is the key improvement over just adjacent swaps
+            def calculate_placement_score(part_entry, position, total_positions):
+                """
+                Calculate a score for placing a part at a given position.
+                Lower score = better placement.
+                """
+                slope_info = part_entry.get("slope_info", {})
+                start_has_slope = slope_info.get("start_has_slope", False)
+                end_has_slope = slope_info.get("end_has_slope", False)
+                is_complementary = slope_info.get("complementary_pair", False)
+                
+                score = 0
+                
+                # Position scoring
+                is_first = (position == 0)
+                is_last = (position == total_positions - 1)
+                
+                # CRITICAL PENALTIES:
+                # 1. Slope at bar start = BAD (creates waste)
+                if is_first and start_has_slope:
+                    score += 100  # Heavy penalty
+                
+                # 2. Slope at bar end = BAD (creates waste that can't be trimmed)
+                # ENHANCED: Increased penalty from 50 to 80 for Option 2 optimization
+                if is_last and end_has_slope:
+                    score += 80  # Heavy penalty (was 50, increased for better end optimization)
+                
+                # BONUSES:
+                # 3. Straight at bar start = GOOD
+                if is_first and not start_has_slope:
+                    score -= 20  # Bonus
+                
+                # 4. Straight at bar end = GOOD
+                if is_last and not end_has_slope:
+                    score -= 10  # Bonus
+                
+                # 5. Complementary pairs should stay together (don't penalize)
+                if is_complementary:
+                    score -= 5  # Small bonus to keep pairs
+                
+                # 6. Parts with both slopes in middle positions = GOOD
+                if not is_first and not is_last and start_has_slope and end_has_slope:
+                    score -= 5  # Prefer slopes in middle
+                
+                return score
+            
+            # Try smart reordering for small to medium size patterns
+            best_parts = original_parts.copy()
+            best_waste = _calculate_pattern_waste(best_parts, stock_length, kerf, estimated_profile_depth)
+            
+            if len(pattern_parts) <= 8:
+                # STRATEGY A: Try all permutations (small patterns only)
+                nesting_log(f"[OPTIMIZATION] Trying all permutations ({len(pattern_parts)} parts)")
+                from itertools import permutations as iter_permutations
+                
+                # Separate complementary pairs from single parts
+                paired_indices = set()
+                pairs = []
+                singles = []
+                
+                for i, part_entry in enumerate(original_parts):
+                    if i in paired_indices:
+                        continue
+                    slope_info = part_entry.get("slope_info", {})
+                    if slope_info.get("complementary_pair", False):
+                        # This part is paired - find its pair
+                        if i + 1 < len(original_parts):
+                            next_slope_info = original_parts[i + 1].get("slope_info", {})
+                            if next_slope_info.get("complementary_pair", False):
+                                pairs.append([original_parts[i], original_parts[i + 1]])
+                                paired_indices.add(i)
+                                paired_indices.add(i + 1)
+                            else:
+                                singles.append(part_entry)
+                        else:
+                            singles.append(part_entry)
+                    else:
+                        singles.append(part_entry)
+                
+                # Generate permutations of pairs and singles combined
+                # Treat each pair as a single unit
+                units = pairs + [[s] for s in singles]
+                
+                if len(units) <= 7:  # 7! = 5040 permutations (reasonable)
+                    perm_count = 0
+                    for perm in iter_permutations(units):
+                        # Flatten the permutation (expand pairs)
+                        test_parts = []
+                        for unit in perm:
+                            test_parts.extend(unit)
+                        
+                        waste = _calculate_pattern_waste(test_parts, stock_length, kerf, estimated_profile_depth)
+                        if waste < best_waste:
+                            best_waste = waste
+                            best_parts = test_parts
+                            nesting_log(f"[OPTIMIZATION] Found better permutation: waste={waste:.1f}mm")
+                        
+                        perm_count += 1
+                        if perm_count >= 5000:  # Safety limit
+                            break
+                    
+                    nesting_log(f"[OPTIMIZATION] Evaluated {perm_count} permutations")
+            
+            else:
+                # STRATEGY B: Smart heuristic reordering (for larger patterns)
+                nesting_log(f"[OPTIMIZATION] Using heuristic reordering ({len(pattern_parts)} parts)")
+                
+                # Separate parts by characteristics
+                straight_both = []  # straight-straight
+                straight_start = []  # straight-slope
+                straight_end = []   # slope-straight
+                slope_both = []     # slope-slope
+                complementary_pairs = []  # paired parts
+                
+                i = 0
+                while i < len(original_parts):
+                    part_entry = original_parts[i]
+                    slope_info = part_entry.get("slope_info", {})
+                    start_has_slope = slope_info.get("start_has_slope", False)
+                    end_has_slope = slope_info.get("end_has_slope", False)
+                    is_complementary = slope_info.get("complementary_pair", False)
+                    
+                    if is_complementary and i + 1 < len(original_parts):
+                        # Keep pairs together
+                        next_slope_info = original_parts[i + 1].get("slope_info", {})
+                        if next_slope_info.get("complementary_pair", False):
+                            complementary_pairs.append([part_entry, original_parts[i + 1]])
+                            i += 2
+                            continue
+                    
+                    # Classify single parts
+                    if not start_has_slope and not end_has_slope:
+                        straight_both.append(part_entry)
+                    elif not start_has_slope and end_has_slope:
+                        straight_start.append(part_entry)
+                    elif start_has_slope and not end_has_slope:
+                        straight_end.append(part_entry)
+                    else:
+                        slope_both.append(part_entry)
+                    
+                    i += 1
+                
+                # Smart ordering strategy:
+                # 1. Start with straight-start parts (straight at beginning of bar)
+                # 2. Place complementary pairs in middle
+                # 3. Add slope-both parts in middle
+                # 4. End with straight-end parts (straight at end of bar)
+                
+                reordered = []
+                
+                # Priority 1: Parts with straight start (best at beginning)
+                reordered.extend(straight_both)
+                reordered.extend(straight_start)
+                
+                # Priority 2: Complementary pairs in middle
+                for pair in complementary_pairs:
+                    reordered.extend(pair)
+                
+                # Priority 3: Parts with slopes on both ends
+                reordered.extend(slope_both)
+                
+                # Priority 4: Parts with straight end (best at end)
+                reordered.extend(straight_end)
+                
+                # Calculate waste with this ordering
+                waste = _calculate_pattern_waste(reordered, stock_length, kerf, estimated_profile_depth)
+                if waste < best_waste:
+                    best_waste = waste
+                    best_parts = reordered
+                    nesting_log(f"[OPTIMIZATION] Heuristic reordering improved waste: {waste:.1f}mm")
+            
+            # STEP 2: Complementary pair creation optimization
+            # Try to find parts that could form complementary pairs if placed adjacent
+            optimized_parts = [p.copy() for p in best_parts]
+            nesting_log(f"[OPTIMIZATION] Step 2: Looking for complementary pairing opportunities")
+            
+            # DEBUG: Log all parts and their slope info
+            for i, part_entry in enumerate(optimized_parts):
+                part = part_entry.get("part", {})
+                part_id = part.get("product_id") or part.get("reference") or "unknown"
+                slope_info = part_entry.get("slope_info", {})
+                start_slope = slope_info.get("start_has_slope", False)
+                end_slope = slope_info.get("end_has_slope", False)
+                start_angle = slope_info.get("start_angle")
+                end_angle = slope_info.get("end_angle")
+                nesting_log(f"[OPTIMIZATION DEBUG] Part {i+1} ({part_id}): start_slope={start_slope} ({start_angle}°), end_slope={end_slope} ({end_angle}°)")
+            
+            # Find all parts with slopes
+            parts_with_end_slopes = []
+            parts_with_start_slopes = []
+            for i, part_entry in enumerate(optimized_parts):
+                slope_info = part_entry.get("slope_info", {})
+                if slope_info.get("end_has_slope", False):
+                    end_angle = slope_info.get("end_angle", 0.0)
+                    parts_with_end_slopes.append((i, end_angle, part_entry))
+                if slope_info.get("start_has_slope", False):
+                    start_angle = slope_info.get("start_angle", 0.0)
+                    parts_with_start_slopes.append((i, start_angle, part_entry))
+            
+            nesting_log(f"[OPTIMIZATION DEBUG] Found {len(parts_with_end_slopes)} parts with end slopes, {len(parts_with_start_slopes)} parts with start slopes")
+            
+            # Try to find matching pairs (similar angles, opposite signs)
+            best_pair_waste = _calculate_pattern_waste(optimized_parts, stock_length, kerf, estimated_profile_depth)
+            nesting_log(f"[OPTIMIZATION DEBUG] Current best waste: {best_pair_waste:.1f}mm")
+            
+            for i_end, angle_end, part_end in parts_with_end_slopes:
+                part_end_id = part_end.get("part", {}).get("product_id") or part_end.get("part", {}).get("reference") or "unknown"
+                for i_start, angle_start, part_start in parts_with_start_slopes:
+                    if i_end == i_start:
+                        continue
+                    
+                    part_start_id = part_start.get("part", {}).get("product_id") or part_start.get("part", {}).get("reference") or "unknown"
+                    
+                    # Check if angles are complementary (similar magnitude, opposite signs)
+                    angle_diff = abs(abs(angle_end) - abs(angle_start))
+                    nesting_log(f"[OPTIMIZATION DEBUG] Checking: {part_end_id} (end={angle_end}°) vs {part_start_id} (start={angle_start}°), diff={angle_diff:.1f}°")
+                    
+                    if angle_diff < 5.0 and abs(angle_end) > 1.0:
+                        # Check opposite signs
+                        opposite_signs = (angle_end > 0 and angle_start < 0) or (angle_end < 0 and angle_start > 0)
+                        nesting_log(f"[OPTIMIZATION DEBUG] Angles similar (diff={angle_diff:.1f}°), opposite_signs={opposite_signs}")
+                        
+                        if opposite_signs:
+                            # These could be complementary! Try placing them adjacent
+                            nesting_log(f"[OPTIMIZATION] Potential complementary pair found! Testing arrangement...")
+                            
+                            # Move part at i_start to position i_end + 1
+                            test_parts = optimized_parts.copy()
+                            
+                            # Remove part from current position
+                            moving_part = test_parts.pop(i_start)
+                            # Insert after the part with end slope
+                            new_pos = i_end + 1 if i_start > i_end else i_end
+                            test_parts.insert(new_pos, moving_part)
+                            
+                            new_waste = _calculate_pattern_waste(test_parts, stock_length, kerf, estimated_profile_depth)
+                            nesting_log(f"[OPTIMIZATION DEBUG] After moving {part_start_id} next to {part_end_id}: waste={new_waste:.1f}mm (original={best_pair_waste:.1f}mm)")
+                            
+                            if new_waste < best_pair_waste - 0.1:
+                                nesting_log(f"[OPTIMIZATION] ✓ Found complementary pair: {part_end_id} (end={angle_end:.1f}°) + {part_start_id} (start={angle_start:.1f}°)")
+                                nesting_log(f"[OPTIMIZATION] ✓ Waste improved: {best_pair_waste:.1f}mm -> {new_waste:.1f}mm (saved {best_pair_waste - new_waste:.1f}mm)")
+                                optimized_parts = test_parts
+                                best_pair_waste = new_waste
+                                break
+                            else:
+                                nesting_log(f"[OPTIMIZATION DEBUG] No improvement from this arrangement")
+                        else:
+                            nesting_log(f"[OPTIMIZATION DEBUG] Skipped: angles not opposite signs")
+            
+            # STEP 3: Flip optimization on the best ordering found
+            improved = True
+            iterations = 0
+            max_iterations = 10
+            
+            while improved and iterations < max_iterations:
+                improved = False
+                iterations += 1
+                
+                # Try flipping individual parts
+                for i in range(len(optimized_parts)):
+                    part_entry = optimized_parts[i]
+                    slope_info = part_entry.get("slope_info", {})
+                    
+                    # Skip complementary pairs
+                    if slope_info.get("complementary_pair", False):
+                        continue
+                    
+                    start_has_slope = slope_info.get("start_has_slope", False)
+                    end_has_slope = slope_info.get("end_has_slope", False)
+                    
+                    # Only flip if asymmetric
+                    if start_has_slope != end_has_slope:
+                        current_waste = _calculate_pattern_waste(optimized_parts, stock_length, kerf, estimated_profile_depth)
+                        
+                        test_parts = [p.copy() for p in optimized_parts]
+                        flipped_entry = test_parts[i]
+                        flipped_slope_info = flipped_entry["slope_info"].copy()
+                        
+                        # Swap start/end
+                        flipped_slope_info["start_has_slope"] = end_has_slope
+                        flipped_slope_info["end_has_slope"] = start_has_slope
+                        flipped_slope_info["start_angle"] = slope_info.get("end_angle")
+                        flipped_slope_info["end_angle"] = slope_info.get("start_angle")
+                        flipped_entry["slope_info"] = flipped_slope_info
+                        flipped_entry["flipped"] = not flipped_entry.get("flipped", False)
+                        
+                        new_waste = _calculate_pattern_waste(test_parts, stock_length, kerf, estimated_profile_depth)
+                        
+                        if new_waste < current_waste - 0.1:
+                            part = part_entry.get("part", {})
+                            nesting_log(f"[OPTIMIZATION] Flipping part {i} (ID: {part.get('product_id')}): waste {current_waste:.1f}mm -> {new_waste:.1f}mm")
+                            optimized_parts = test_parts
+                            improved = True
+                
+                # STEP 4: Local swap optimization (fine-tuning)
+                for i in range(len(optimized_parts) - 1):
+                    current_waste = _calculate_pattern_waste(optimized_parts, stock_length, kerf, estimated_profile_depth)
+                    
+                    test_parts = optimized_parts.copy()
+                    test_parts[i], test_parts[i + 1] = test_parts[i + 1], test_parts[i]
+                    
+                    new_waste = _calculate_pattern_waste(test_parts, stock_length, kerf, estimated_profile_depth)
+                    
+                    if new_waste < current_waste - 0.1:
+                        part_i = optimized_parts[i].get("part", {})
+                        part_j = optimized_parts[i + 1].get("part", {})
+                        nesting_log(f"[OPTIMIZATION] Swapping parts {i} and {i+1} (IDs: {part_i.get('product_id')}, {part_j.get('product_id')}): waste {current_waste:.1f}mm -> {new_waste:.1f}mm")
+                        optimized_parts = test_parts
+                        improved = True
+            
+            # Calculate final waste
+            final_waste = _calculate_pattern_waste(optimized_parts, stock_length, kerf, estimated_profile_depth)
+            original_waste = _calculate_pattern_waste(original_parts, stock_length, kerf, estimated_profile_depth)
+            nesting_log(f"[OPTIMIZATION] Completed after {iterations} iterations. Original waste: {original_waste:.1f}mm, Final waste: {final_waste:.1f}mm, Saved: {original_waste - final_waste:.1f}mm")
+            
+            return optimized_parts, final_waste
+        
+        def _calculate_pattern_waste(pattern_parts: list, stock_length: float, kerf: float, estimated_profile_depth: float) -> float:
+            """
+            Calculate the waste for a given pattern layout.
+            
+            This replicates the waste calculation logic from the main nesting algorithm,
+            PLUS accounts for slope waste at bar ends.
+            """
+            if not pattern_parts:
+                return stock_length
+            
+            current_length = 0.0
+            
+            for idx, part_entry in enumerate(pattern_parts):
+                part = part_entry.get("part", {})
+                part_length = part.get("length", 0.0)
+                slope_info = part_entry.get("slope_info", {})
+                
+                # Add part length
+                current_length += part_length
+                
+                # Add kerf between parts (except after the last part)
+                if idx < len(pattern_parts) - 1:
+                    # Check if this part and the next can share a cut
+                    next_part_entry = pattern_parts[idx + 1]
+                    next_slope_info = next_part_entry.get("slope_info", {})
+                    
+                    current_end_has_slope = slope_info.get("end_has_slope", False)
+                    next_start_has_slope = next_slope_info.get("start_has_slope", False)
+                    
+                    # Calculate complementary slope length if both have slopes
+                    if current_end_has_slope and next_start_has_slope:
+                        current_end_angle = slope_info.get("end_angle", 0.0)
+                        next_start_angle = next_slope_info.get("start_angle", 0.0)
+                        
+                        # FIXED: Check if angles are SIMILAR (complementary slopes have similar angles, not opposite)
+                        # Complementary slopes that can share a cut have matching angles (within 5° tolerance)
+                        angle1_abs = abs(current_end_angle) if current_end_angle is not None else 0.0
+                        angle2_abs = abs(next_start_angle) if next_start_angle is not None else 0.0
+                        angle_diff = abs(angle1_abs - angle2_abs)
+                        
+                        # Check if angles match (similar angles) AND have opposite signs (complementary direction)
+                        angles_are_complementary = False
+                        if angle_diff < 5.0 and angle1_abs > 1.0:  # Angles are similar magnitude
+                            # Check if they have opposite signs (one positive, one negative = complementary)
+                            if (current_end_angle > 0 and next_start_angle < 0) or (current_end_angle < 0 and next_start_angle > 0):
+                                angles_are_complementary = True
+                        
+                        if angles_are_complementary:
+                            # Calculate shared slope length
+                            avg_angle = (angle1_abs + angle2_abs) / 2.0
+                            avg_angle_rad = math.radians(avg_angle)
+                            shared_slope_length = abs(estimated_profile_depth * math.tan(avg_angle_rad)) if avg_angle_rad > 0.01 else 0.0
+                            
+                            # Subtract shared length, then add kerf
+                            current_length -= shared_slope_length
+                            current_length += kerf
+                        else:
+                            # Not complementary, just add kerf
+                            current_length += kerf
+                    else:
+                        # At least one is straight, add kerf
+                        current_length += kerf
+            
+            # ========== ENHANCED: Add waste penalty for slopes at bar ends ==========
+            # This is critical for Option 2 optimization - penalize slopes at ends
+            # If first part has a slope at start, add the slope waste
+            if pattern_parts:
+                first_part = pattern_parts[0]
+                first_slope_info = first_part.get("slope_info", {})
+                if first_slope_info.get("start_has_slope", False):
+                    start_angle = first_slope_info.get("start_angle", 0.0)
+                    if start_angle and abs(start_angle) > 1.0:
+                        import math
+                        angle_rad = abs(start_angle) * (math.pi / 180.0)
+                        # Waste material at start = depth * tan(angle)
+                        # This is material that extends beyond the usable part
+                        if math.tan(angle_rad) != 0:
+                            slope_waste_start = abs(estimated_profile_depth * math.tan(angle_rad))
+                            current_length += slope_waste_start
+                            # Uncomment for debugging: nesting_log(f"[OPTIMIZATION WASTE] Start slope waste: {slope_waste_start:.1f}mm (angle={start_angle:.1f}°)")
+                
+                # If last part has a slope at end, add the slope waste
+                last_part = pattern_parts[-1]
+                last_slope_info = last_part.get("slope_info", {})
+                if last_slope_info.get("end_has_slope", False):
+                    end_angle = last_slope_info.get("end_angle", 0.0)
+                    if end_angle and abs(end_angle) > 1.0:
+                        import math
+                        angle_rad = abs(end_angle) * (math.pi / 180.0)
+                        # Waste material at end = depth * tan(angle)
+                        if math.tan(angle_rad) != 0:
+                            slope_waste_end = abs(estimated_profile_depth * math.tan(angle_rad))
+                            current_length += slope_waste_end
+                            # Uncomment for debugging: nesting_log(f"[OPTIMIZATION WASTE] End slope waste: {slope_waste_end:.1f}mm (angle={end_angle:.1f}°)")
+            
+            # Waste is stock minus used length (including slope waste at ends)
+            waste = stock_length - current_length
+            return max(0.0, waste)  # Ensure non-negative
+        
+        # ========== END OPTIMIZATION FUNCTION ==========
+        
         # Generate nesting for each profile
         profile_nestings = []
         total_stock_bars = 0
@@ -2366,6 +2815,7 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str, ker
                 tolerance_mm = 0.1  # Minimal tolerance for floating point errors only - define early for use in loops
                 pending_complementary_pair = None  # Track a complementary pair that needs to be paired in this pattern
                 stock_to_use = best_stock  # Initialize stock_to_use to best_stock (will be overridden for complementary pairs if needed)
+                estimated_profile_depth = 400.0  # Default depth for profile, will be updated if geometry data is available
                 
                 # Strategy: Try to pair parts with complementary slopes first
                 # When pairing, check ALL available stock lengths to find the best fit
@@ -3292,6 +3742,11 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str, ker
                         # Part was filtered out (exceeds stock) - skip it
                         continue
                     
+                    # Update estimated_profile_depth from geometry if available
+                    part_depth = part.get("cross_section_depth")
+                    if part_depth is not None and part_depth > 0:
+                        estimated_profile_depth = part_depth
+                    
                     # CRITICAL SAFETY CHECK: Ensure current_length hasn't already exceeded stock
                     # This prevents adding more parts when current_length is already too high
                     # Maximum optimization: 0mm margin - only use tolerance for floating point errors
@@ -3608,8 +4063,24 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str, ker
                 # Post-optimization was causing premature use of shorter bars before filling them properly
                 optimal_stock = best_stock
                 
-                # Waste is already calculated correctly above with best_stock
-                # No need to recalculate
+                # ========== APPLY POST-PROCESSING OPTIMIZATION ==========
+                # Optimize the pattern layout to minimize waste
+                original_waste = waste
+                optimized_pattern_parts, optimized_waste = optimize_pattern_layout(
+                    pattern_parts, 
+                    optimal_stock, 
+                    kerf, 
+                    estimated_profile_depth
+                )
+                
+                # Log if optimization improved the layout
+                if optimized_waste < original_waste - 0.1:  # At least 0.1mm improvement
+                    nesting_log(f"[NESTING] Optimization improved waste: {original_waste:.1f}mm -> {optimized_waste:.1f}mm (saved {original_waste - optimized_waste:.1f}mm)")
+                    pattern_parts = optimized_pattern_parts
+                    waste = optimized_waste
+                    waste_percentage = (waste / optimal_stock * 100) if optimal_stock > 0 else 0
+                else:
+                    nesting_log(f"[NESTING] Optimization did not improve layout (waste remains {waste:.1f}mm)")
                 
                 cutting_patterns.append({
                     "stock_length": optimal_stock,
