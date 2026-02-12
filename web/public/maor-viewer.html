@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no">
+    <title>Maor IFC Viewer</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        #viewer {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+    <script type="text/javascript" src="/maor-viewer-lib/engine_dev/o3dv.min.js">
+</head>
+<body>
+    <div id="viewer"></div>
+    <script>
+        let viewer = null;
+        
+        // Initialize viewer
+        function initViewer() {
+            const viewerDiv = document.getElementById('viewer');
+            viewer = new OV.EmbeddedViewer(viewerDiv, {
+                backgroundColor: new OV.RGBAColor(255, 255, 255, 255),
+                defaultColor: new OV.RGBColor(200, 200, 200),
+                onModelLoaded: () => {
+                    console.log('[MaorViewerIframe] Model loaded');
+                    window.parent.postMessage({ type: 'modelLoaded' }, '*');
+                },
+                onModelLoadFailed: (error) => {
+                    console.error('[MaorViewerIframe] Load failed:', error);
+                    window.parent.postMessage({ 
+                        type: 'modelLoadFailed', 
+                        error: error ? error.toString() : 'Unknown error' 
+                    }, '*');
+                }
+            });
+            
+            window.parent.postMessage({ type: 'viewerReady' }, '*');
+        }
+        
+        // Listen for load commands from parent
+        window.addEventListener('message', async (event) => {
+            if (event.data.type === 'loadModel' && event.data.url) {
+                try {
+                    window.parent.postMessage({ type: 'loadingStarted' }, '*');
+                    
+                    const response = await fetch(event.data.url);
+                    const blob = await response.blob();
+                    const file = new File([blob], event.data.filename || 'model.ifc');
+                    
+                    if (viewer) {
+                        viewer.LoadModelFromFileList([file]);
+                    }
+                } catch (error) {
+                    console.error('[MaorViewerIframe] Error loading:', error);
+                    window.parent.postMessage({ 
+                        type: 'modelLoadFailed', 
+                        error: error.message 
+                    }, '*');
+                }
+            }
+        });
+        
+        // Init on load
+        window.addEventListener('load', initViewer);
+    </script>
+</body>
+</html>
+
