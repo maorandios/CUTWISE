@@ -100,6 +100,7 @@ export interface NestingReport {
   }
   settings: {
     stock_lengths: number[]  // in mm
+    kerf: number  // Kerf in mm (saw blade cutting width)
   }
 }
 

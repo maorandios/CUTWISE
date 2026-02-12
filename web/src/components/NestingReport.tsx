@@ -10,7 +10,7 @@ interface NestingReportProps {
   report: SteelReport | null  // Report data to get available profiles
 }
 
-type Step = 'select' | 'results'
+type Step = 'select' | 'configure-kerf' | 'results'
 
 export default function NestingReport({ filename, nestingReport: propNestingReport, onNestingReportChange, report }: NestingReportProps) {
   // Use prop as source of truth, but maintain local state for updates
@@ -20,6 +20,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedProfiles, setExpandedProfiles] = useState<Set<string>>(new Set())
+  const [kerfValue, setKerfValue] = useState<number>(3.0)
 
   // Get available profiles from report
   const availableProfiles = report?.profiles || []
@@ -135,7 +136,17 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       return
     }
     setError(null)
+    setCurrentStep('configure-kerf')
+  }
+
+  const handleGenerateNesting = () => {
+    setError(null)
     generateNesting()
+  }
+
+  const handleBackFromKerf = () => {
+    setCurrentStep('select')
+    setError(null)
   }
 
   const handleBack = () => {
@@ -195,7 +206,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       const encodedFilename = encodeURIComponent(filename)
       const params = new URLSearchParams({
         stock_lengths: stockLengths,
-        profiles: Array.from(selectedProfiles).join(',')  // Pass selected profiles
+        profiles: Array.from(selectedProfiles).join(','),  // Pass selected profiles
+        kerf: kerfValue.toString()  // Pass kerf value
       })
       const url = `/api/nesting/${encodedFilename}?${params.toString()}`
 
@@ -259,12 +271,24 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 Step 1: Select Profiles
               </div>
               <div className="text-gray-400">→</div>
+              <div className={`px-3 py-1 rounded text-sm ${currentStep === 'configure-kerf' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
+                Step 2: Configure Kerf
+              </div>
+              <div className="text-gray-400">→</div>
               <div className={`px-3 py-1 rounded text-sm ${currentStep === 'results' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
-                Step 2: Results
+                Step 3: Results
               </div>
             </div>
           </div>
           <div className="flex gap-2">
+            {currentStep === 'configure-kerf' && (
+              <button
+                onClick={handleBackFromKerf}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded"
+              >
+                ← Back
+              </button>
+            )}
             {currentStep === 'results' && (
               <>
                 <button
@@ -379,7 +403,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                       disabled={loading || selectedProfiles.size === 0}
                       className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded font-medium"
                     >
-                      {loading ? '⏳ Generating...' : 'Generate Nesting →'}
+                      Next: Configure Kerf →
                     </button>
                   </div>
                 </>
@@ -388,7 +412,86 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
           </div>
         )}
 
-        {/* Step 2: Results */}
+        {/* Step 2: Configure Kerf */}
+        {currentStep === 'configure-kerf' && (
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <h3 className="text-2xl font-bold mb-2">Configure Saw Kerf</h3>
+              <p className="text-gray-600 mb-6">
+                Kerf is the width of material removed by your saw blade during cutting. 
+                This is important for accurate nesting calculations.
+              </p>
+
+              <div className="max-w-md">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Kerf Width (mm)
+                </label>
+                <div className="flex items-center space-x-4">
+                  <input
+                    type="number"
+                    value={kerfValue}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value)
+                      setKerfValue(isNaN(val) ? 3.0 : val)
+                    }}
+                    min="0"
+                    max="20"
+                    step="0.5"
+                    className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <span className="text-gray-600">mm</span>
+                  <button
+                    onClick={() => setKerfValue(3.0)}
+                    className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    Reset to Default (3mm)
+                  </button>
+                </div>
+                <p className="text-sm text-gray-500 mt-2">
+                  Typical values: 2-4mm for standard steel cutting saws
+                </p>
+              </div>
+
+              {/* Info box */}
+              <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start">
+                  <svg className="w-5 h-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <h4 className="text-sm font-semibold text-blue-900 mb-1">
+                      What is Kerf?
+                    </h4>
+                    <p className="text-sm text-blue-800">
+                      When your saw cuts steel, it removes material equal to the blade width. 
+                      For each cut between parts, we subtract {kerfValue}mm to ensure accurate material calculations.
+                      Parts with complementary slopes can share boundaries, reducing the number of cuts needed.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="mt-6 flex justify-between">
+                <button
+                  onClick={handleBackFromKerf}
+                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                >
+                  ← Back to Profile Selection
+                </button>
+                <button
+                  onClick={handleGenerateNesting}
+                  disabled={loading}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? '⏳ Generating Nesting...' : 'Generate Nesting →'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Results */}
         {currentStep === 'results' && !nestingReport && !loading && (
           <div className="text-center text-gray-500 py-12">
             <p className="text-lg mb-2">No nesting data generated yet</p>
@@ -406,6 +509,32 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               >
                 Export to PDF
               </button>
+            </div>
+
+            {/* Configuration Summary */}
+            <div className="mb-6 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
+              <h3 className="text-lg font-bold text-gray-900 mb-3">Nesting Configuration</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white rounded-lg p-3 shadow-sm">
+                  <div className="text-sm text-gray-600 mb-1">Stock Lengths</div>
+                  <div className="text-lg font-bold text-gray-900">
+                    {nestingReport.settings.stock_lengths.map(l => `${l/1000}m`).join(', ')}
+                  </div>
+                </div>
+                <div className="bg-white rounded-lg p-3 shadow-sm">
+                  <div className="text-sm text-gray-600 mb-1">Saw Kerf</div>
+                  <div className="text-lg font-bold text-purple-600">
+                    {nestingReport.settings.kerf || 3.0}mm
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">Per cut between parts</div>
+                </div>
+                <div className="bg-white rounded-lg p-3 shadow-sm">
+                  <div className="text-sm text-gray-600 mb-1">Total Profiles</div>
+                  <div className="text-lg font-bold text-gray-900">
+                    {nestingReport.summary.total_profiles}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div id="nesting-report-content">

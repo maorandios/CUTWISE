@@ -305,7 +305,7 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
     controls.mouseButtons = {
       LEFT: THREE.MOUSE.ROTATE,     // Left-drag: rotate (orbit around model)
       MIDDLE: THREE.MOUSE.PAN,      // Middle-drag: pan (move view)
-      RIGHT: -1                      // Right-click: disabled (reserved for context menu)
+      RIGHT: null                    // Right-click: disabled (reserved for context menu)
     }
     
     // Enable pan for middle mouse button

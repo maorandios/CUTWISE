@@ -1877,13 +1877,14 @@ async def get_assembly_mapping(filename: str):
 
 
 @app.get("/api/nesting/{filename}")
-async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
+async def generate_nesting(filename: str, stock_lengths: str, profiles: str, kerf: float = 3.0):
     """Generate nesting optimization report for selected profiles with slope-aware cutting.
     
     Args:
         filename: IFC filename
         stock_lengths: Comma-separated list of stock lengths in mm (e.g., "6000,12000")
         profiles: Comma-separated list of profile names to nest (e.g., "IPE200,HEA300")
+        kerf: Saw blade cutting width in mm (default: 3.0)
     """
     import sys
     import traceback
@@ -1897,6 +1898,7 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
     nesting_log(f"[NESTING] Filename: {filename}", flush=True)
     nesting_log(f"[NESTING] Stock lengths: {stock_lengths}", flush=True)
     nesting_log(f"[NESTING] Profiles: {profiles}", flush=True)
+    nesting_log(f"[NESTING] Kerf: {kerf}mm", flush=True)
     nesting_log("=" * 60, flush=True)
     
     try:
@@ -2323,190 +2325,27 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                 iteration_count += 1
                 nesting_log(f"[NESTING] === WHILE LOOP ITERATION {iteration_count} - {len(remaining_parts)} parts remaining ===")
                 
-                # Find best stock length for remaining parts
-                # Strategy: Use 6M bars only if all remaining parts that fit in 6M can be packed into 6M
-                # Otherwise, use 12M bars to minimize waste
-                best_stock = None
+                # DYNAMIC STOCK SELECTION STRATEGY:
+                # 1. Calculate total length of remaining parts (including kerf)
+                # 2. If remaining parts fit in 6m (with kerf), use 6m
+                # 3. Otherwise, use 12m
+                num_parts_remaining = len(remaining_parts)
+                max_kerf_needed = (num_parts_remaining - 1) * kerf if num_parts_remaining > 1 else 0.0
+                total_length_remaining = sum(p["length"] for p in remaining_parts) + max_kerf_needed
                 
-                # Find the largest remaining part
-                largest_part_length = max(p["length"] for p in remaining_parts)
+                # Get stock lengths
+                shortest_stock = min(stock_lengths_list)  # 6m
+                longest_stock = max(stock_lengths_list)   # 12m
                 
-                # Get the shortest and longest stock lengths
-                shortest_stock = min(stock_lengths_list)
-                longest_stock = max(stock_lengths_list)
-                
-                # First, check if any parts exceed the longest stock - these cannot be nested
-                if largest_part_length > longest_stock:
-                    # Parts exceed longest stock - cannot nest these parts
-                    oversized_parts = [p for p in remaining_parts if p["length"] > longest_stock]
-                    nesting_log(f"[NESTING] ERROR: {len(oversized_parts)} parts exceed longest stock ({longest_stock:.0f}mm):")
-                    for p in oversized_parts:
-                        product_id = p.get('product_id')
-                        part_id = product_id or p.get('reference') or p.get('element_name') or 'unknown'
-                        # Get reference and element_name, handling None and empty strings
-                        reference = p.get('reference')
-                        if reference and isinstance(reference, str) and not reference.strip():
-                            reference = None
-                        element_name = p.get('element_name')
-                        if element_name and isinstance(element_name, str) and not element_name.strip():
-                            element_name = None
-                        nesting_log(f"[NESTING]   - Part {part_id}: {p['length']:.1f}mm > {longest_stock:.0f}mm, reference={reference}, element_name={element_name}")
-                        # Add to rejected parts list
-                        rejected_parts.append({
-                            "product_id": product_id,
-                            "part_id": part_id,
-                            "reference": reference,
-                            "element_name": element_name,
-                            "length": p['length'],
-                            "stock_length": longest_stock,
-                            "reason": f"Part length ({p['length']:.1f}mm) exceeds longest available stock ({longest_stock:.0f}mm)"
-                        })
-                    # Remove oversized parts from remaining_parts to prevent infinite loop
-                    for p in oversized_parts:
-                        if p in remaining_parts:
-                            remaining_parts.remove(p)
-                    # If all parts were oversized, break
-                    if not remaining_parts:
-                        nesting_log(f"[NESTING] All parts exceed stock length. Cannot nest.")
-                        break
-                    # Recalculate largest part length after removing oversized parts
-                    if remaining_parts:
-                        largest_part_length = max(p["length"] for p in remaining_parts)
-                
-                # Find the best stock for remaining parts
-                # STRATEGY: Choose the stock length that minimizes waste
-                # CRITICAL: Check if parts fit TOGETHER in one bar, not just individually
-                nesting_log(f"[NESTING] === ENTERING NEW STOCK SELECTION LOGIC (Iteration {iteration_count}) ===")
-                best_stock = None
-                total_length_all_remaining = sum(p["length"] for p in remaining_parts)
-                
-                # Get stock lengths (assuming 6m and 12m are available)
-                shortest_stock = min(stock_lengths_list)
-                longest_stock = max(stock_lengths_list)
-                
-                # CRITICAL: Check if all parts fit TOGETHER in one bar (not just individually)
-                # Check if total length fits in longest stock (12m)
-                all_fit_together_in_longest = total_length_all_remaining <= longest_stock
-                
-                # Check if total length fits in shortest stock (6m)
-                all_fit_together_in_shortest = total_length_all_remaining <= shortest_stock
-                
-                # Also check if individual parts fit (for validation)
-                parts_fitting_longest = [p for p in remaining_parts if p["length"] <= longest_stock]
-                all_parts_individually_fit_longest = len(parts_fitting_longest) == len(remaining_parts)
-                
-                parts_fitting_shortest = [p for p in remaining_parts if p["length"] <= shortest_stock]
-                all_parts_individually_fit_shortest = len(parts_fitting_shortest) == len(remaining_parts)
-                
-                # DEBUG: Log the decision process
-                nesting_log(f"[NESTING] === STOCK SELECTION DEBUG ===")
-                part_details = []
-                for p in remaining_parts:
-                    part_id = p.get("product_id") or "unknown"
-                    part_details.append(f"{part_id}({p['length']:.0f}mm)")
-                nesting_log(f"[NESTING] Remaining parts ({len(remaining_parts)}): {', '.join(part_details)}")
-                nesting_log(f"[NESTING] Total length: {total_length_all_remaining:.1f}mm")
-                nesting_log(f"[NESTING] Shortest stock: {shortest_stock:.0f}mm, Longest stock: {longest_stock:.0f}mm")
-                nesting_log(f"[NESTING] All fit together in {longest_stock:.0f}mm: {all_fit_together_in_longest} ({total_length_all_remaining:.1f}mm <= {longest_stock:.0f}mm)")
-                nesting_log(f"[NESTING] All fit together in {shortest_stock:.0f}mm: {all_fit_together_in_shortest} ({total_length_all_remaining:.1f}mm <= {shortest_stock:.0f}mm)")
-                nesting_log(f"[NESTING] All parts individually fit in {longest_stock:.0f}mm: {all_parts_individually_fit_longest}")
-                nesting_log(f"[NESTING] All parts individually fit in {shortest_stock:.0f}mm: {all_parts_individually_fit_shortest}")
-                
-                # NEW: Evaluate all stock lengths where ALL remaining parts fit together
-                # STRATEGY: Prefer longer stocks first (12m before 6m)
-                # Only use shorter stocks when leftover parts are <= shorter stock length
-                candidate_stocks = []
-                for stock_len in sorted(stock_lengths_list, reverse=True):  # Check longer stocks first
-                    all_fit_together_in_stock = total_length_all_remaining <= stock_len
-                    all_parts_individually_fit_stock = all(
-                        p["length"] <= stock_len for p in remaining_parts
-                    )
-                    if all_fit_together_in_stock and all_parts_individually_fit_stock:
-                        waste = stock_len - total_length_all_remaining
-                        waste_pct = (waste / stock_len * 100) if stock_len > 0 else 0
-                        candidate_stocks.append((stock_len, waste, waste_pct))
-
-                if candidate_stocks:
-                    # NEW STRATEGY: Prefer longer stocks first (12m before 6m)
-                    # Sort by stock length descending (longer first), then by waste ascending
-                    # This ensures we fill longer bars first, only using shorter bars for leftovers
-                    candidate_stocks.sort(key=lambda x: (-x[0], x[1]))  # Negative for descending stock length
-                    best_stock, best_waste, best_waste_pct = candidate_stocks[0]
-                    
-                    # Check if we should use a shorter stock instead
-                    # Only use shorter stock if ALL remaining parts fit in shorter stock
-                    if len(candidate_stocks) > 1:
-                        longer_stock = candidate_stocks[0][0]  # Already sorted descending (longest first)
-                        shorter_stock = candidate_stocks[-1][0]  # Shortest candidate
-                        
-                        # If ALL remaining parts fit in shorter stock, use shorter stock to minimize waste
-                        if total_length_all_remaining <= shorter_stock:
-                            # All parts fit in shorter stock - use it to minimize waste
-                            best_stock = shorter_stock
-                            best_waste = shorter_stock - total_length_all_remaining
-                            best_waste_pct = (best_waste / shorter_stock * 100) if shorter_stock > 0 else 0
-                            print(
-                                f"[NESTING] DECISION: Using {best_stock:.0f}mm stock (shorter preferred for leftovers): "
-                                f"all {len(remaining_parts)} parts fit in shorter stock "
-                                f"(total: {total_length_all_remaining:.1f}mm, "
-                                f"waste: {best_waste:.1f}mm, {best_waste_pct:.1f}%)"
-                            )
-                        else:
-                            # Not all parts fit in shorter stock - use longer stock and fill it
-                            best_stock = longer_stock
-                            print(
-                                f"[NESTING] DECISION: Using {best_stock:.0f}mm stock (longer preferred): "
-                                f"all {len(remaining_parts)} parts fit together "
-                                f"(total: {total_length_all_remaining:.1f}mm, "
-                                f"waste: {best_waste:.1f}mm, {best_waste_pct:.1f}%)"
-                            )
-                    else:
-                        # Only one candidate stock
-                        print(
-                            f"[NESTING] DECISION: Using {best_stock:.0f}mm stock: "
-                            f"all {len(remaining_parts)} parts fit together "
-                            f"(total: {total_length_all_remaining:.1f}mm, "
-                            f"waste: {best_waste:.1f}mm, {best_waste_pct:.1f}%)"
-                        )
-                
-                # If no stock fits all parts together in one bar, choose the best stock for the largest part by minimum waste
-                if best_stock is None:
-                    nesting_log(f"[NESTING] WARNING: No stock selected yet - parts don't all fit together in one bar")
-                    nesting_log(f"[NESTING]   - all_fit_together_in_longest: {all_fit_together_in_longest}")
-                    nesting_log(f"[NESTING]   - all_parts_individually_fit_longest: {all_parts_individually_fit_longest}")
-                    nesting_log(f"[NESTING]   - all_fit_together_in_shortest: {all_fit_together_in_shortest}")
-                    nesting_log(f"[NESTING]   - all_parts_individually_fit_shortest: {all_parts_individually_fit_shortest}")
-                    
-                    candidate_for_largest = []
-                    for stock_len in sorted(stock_lengths_list, reverse=True):  # Check longer stocks first
-                        if largest_part_length <= stock_len:
-                            waste_for_largest = stock_len - largest_part_length
-                            waste_pct_for_largest = (waste_for_largest / stock_len * 100) if stock_len > 0 else 0
-                            candidate_for_largest.append((stock_len, waste_for_largest, waste_pct_for_largest))
-                    
-                    if candidate_for_largest:
-                        # Sort by stock length descending (longer first), then by waste ascending
-                        # This prefers longer stocks first, only using shorter stocks when needed
-                        candidate_for_largest.sort(key=lambda x: (-x[0], x[1]))  # Negative for descending stock length
-                        best_stock, best_waste_largest, best_waste_pct_largest = candidate_for_largest[0]
-                        print(
-                            f"[NESTING] FALLBACK: Using {best_stock:.0f}mm stock for largest part "
-                            f"({largest_part_length:.1f}mm, waste: {best_waste_largest:.1f}mm, "
-                            f"{best_waste_pct_largest:.1f}%) - longer stock preferred"
-                        )
-                    else:
-                        print(
-                            f"[NESTING] ERROR: No stock length fits the largest part ({largest_part_length:.1f}mm). "
-                            f"Available stocks: {stock_lengths_list}"
-                        )
-                        # Skip this iteration - parts will remain in remaining_parts
-                        break
-                
-                # Final safety check
-                if best_stock is None:
-                    nesting_log(f"[NESTING] ERROR: No stock length fits the largest part ({largest_part_length:.1f}mm). Available stocks: {stock_lengths_list}")
-                    # Skip this iteration - parts will remain in remaining_parts
-                    break
+                # Check if remaining parts fit in shortest stock
+                if total_length_remaining <= shortest_stock:
+                    # All remaining parts fit in 6m - use 6m to minimize waste
+                    best_stock = shortest_stock
+                    nesting_log(f"[NESTING] DECISION: Using {best_stock:.0f}mm stock - remaining parts fit (total: {total_length_remaining:.1f}mm <= {shortest_stock:.0f}mm)")
+                else:
+                    # Remaining parts don't fit in 6m - use 12m
+                    best_stock = longest_stock
+                    nesting_log(f"[NESTING] DECISION: Using {best_stock:.0f}mm stock - remaining parts need longer bar (total: {total_length_remaining:.1f}mm > {shortest_stock:.0f}mm)")
                 
                 # CRITICAL: Filter out parts that exceed best_stock BEFORE pairing
                 # This prevents oversized parts from being nested
@@ -2650,8 +2489,9 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                         part1_start_conf = part1.get("start_confidence", 0.0)
                         part1_end_conf = part1.get("end_confidence", 0.0)
                         
-                        # For complementary pairing, also check low-confidence slopes (confidence > 0.2, angle > 5°)
+                        # For complementary pairing, also check low-confidence slopes (confidence > 0.1, angle > 1°)
                         # This catches real slopes on short parts that have low confidence but can still be paired
+                        # IMPORTANT: Use lower thresholds than high-confidence detection to catch all potential complementary pairs
                         part1_start_low_conf_slope = False
                         part1_end_low_conf_slope = False
                         if part1_start_angle is not None and not part1_start_slope:
@@ -2661,8 +2501,9 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                 deviation = abs(part1_start_angle - 90.0)
                             else:
                                 deviation = abs_angle
-                            # Low confidence threshold: 0.2 < confidence <= 0.5, deviation > 5° (more conservative)
-                            if deviation > 5.0 and 0.2 < part1_start_conf <= 0.5:
+                            # Low confidence threshold: 0.1 < confidence <= 0.5, deviation > 1° (more lenient for pairing)
+                            # Lowered from 5° to 1° to catch slopes that were missed by high-confidence detection
+                            if deviation > 1.0 and 0.1 < part1_start_conf <= 0.5:
                                 part1_start_low_conf_slope = True
                         
                         if part1_end_angle is not None and not part1_end_slope:
@@ -2671,11 +2512,14 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                 deviation = abs(part1_end_angle - 90.0)
                             else:
                                 deviation = abs_angle
-                            if deviation > 5.0 and 0.2 < part1_end_conf <= 0.5:
+                            if deviation > 1.0 and 0.1 < part1_end_conf <= 0.5:
                                 part1_end_low_conf_slope = True
                         
                         # Skip if no slopes at all (neither high confidence nor low confidence)
                         if not (part1_start_slope or part1_end_slope or part1_start_low_conf_slope or part1_end_low_conf_slope):
+                            # Log why this part was skipped (for debugging)
+                            part_ref = part1.get("reference", part1.get("product_id", "unknown"))
+                            nesting_log(f"[COMPLEMENTARY] Skipping part {part_ref}: No slopes detected (start_angle={part1_start_angle}, end_angle={part1_end_angle}, start_conf={part1_start_conf:.2f}, end_conf={part1_end_conf:.2f})")
                             continue  # Skip parts without slopes for pairing
                         
                         # Use combined slope flags (high or low confidence)
@@ -2695,7 +2539,7 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                             part2_start_conf = part2.get("start_confidence", 0.0)
                             part2_end_conf = part2.get("end_confidence", 0.0)
                             
-                            # Check for low-confidence slopes on part2
+                            # Check for low-confidence slopes on part2 (using same lenient thresholds as part1)
                             part2_start_low_conf_slope = False
                             part2_end_low_conf_slope = False
                             if part2_start_angle is not None and not part2_start_slope:
@@ -2704,7 +2548,8 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                     deviation = abs(part2_start_angle - 90.0)
                                 else:
                                     deviation = abs_angle
-                                if deviation > 5.0 and 0.2 < part2_start_conf <= 0.5:
+                                # Use same lenient threshold as part1: deviation > 1° and confidence > 0.1
+                                if deviation > 1.0 and 0.1 < part2_start_conf <= 0.5:
                                     part2_start_low_conf_slope = True
                             
                             if part2_end_angle is not None and not part2_end_slope:
@@ -2713,12 +2558,17 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                     deviation = abs(part2_end_angle - 90.0)
                                 else:
                                     deviation = abs_angle
-                                if deviation > 5.0 and 0.2 < part2_end_conf <= 0.5:
+                                if deviation > 1.0 and 0.1 < part2_end_conf <= 0.5:
                                     part2_end_low_conf_slope = True
                             
                             # Use combined slope flags (high or low confidence)
                             part2_start_slope_any = part2_start_slope or part2_start_low_conf_slope
                             part2_end_slope_any = part2_end_slope or part2_end_low_conf_slope
+                            
+                            # Log slope info for both parts being checked
+                            part1_ref = part1.get("reference", part1.get("product_id", "unknown"))
+                            part2_ref = part2.get("reference", part2.get("product_id", "unknown"))
+                            nesting_log(f"[COMPLEMENTARY] Checking pair: {part1_ref} (start={part1_start_slope_any}, end={part1_end_slope_any}) with {part2_ref} (start={part2_start_slope_any}, end={part2_end_slope_any})")
                             
                             # Check for complementary slopes
                             # Complementary means: one part's start slope matches another's end slope (or vice versa)
@@ -2735,11 +2585,16 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                 angle2_abs = abs(part2_end_angle)
                                 angle_diff = abs(angle1_abs - angle2_abs)
                                 
+                                nesting_log(f"[COMPLEMENTARY] Case 1 (start_end): part1_start={part1_start_angle:.1f}° (abs={angle1_abs:.1f}), part2_end={part2_end_angle:.1f}° (abs={angle2_abs:.1f}), diff={angle_diff:.1f}°")
+                                
                                 # Check if angles are similar (within 5 degrees) - they can be paired
                                 # The actual complementarity depends on how they're oriented in the stock bar
                                 if angle_diff < 5.0 and angle1_abs > 1.0:  # Both have significant slopes
                                     is_complementary = True
                                     pairing_type = "start_end"
+                                    nesting_log(f"[COMPLEMENTARY] ✓ MATCH found (start_end): angles match within tolerance")
+                                else:
+                                    nesting_log(f"[COMPLEMENTARY] ✗ No match (start_end): diff={angle_diff:.1f}° (threshold: 5.0°) or angle too small (abs={angle1_abs:.1f}°)")
                             
                             # Case 2: part1 end slope with part2 start slope (use combined flags)
                             if not is_complementary and part1_end_slope_any and part2_start_slope_any and part1_end_angle is not None and part2_start_angle is not None:
@@ -2747,9 +2602,14 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                 angle2_abs = abs(part2_start_angle)
                                 angle_diff = abs(angle1_abs - angle2_abs)
                                 
+                                nesting_log(f"[COMPLEMENTARY] Case 2 (end_start): part1_end={part1_end_angle:.1f}° (abs={angle1_abs:.1f}), part2_start={part2_start_angle:.1f}° (abs={angle2_abs:.1f}), diff={angle_diff:.1f}°")
+                                
                                 if angle_diff < 5.0 and angle1_abs > 1.0:  # Both have significant slopes
                                     is_complementary = True
                                     pairing_type = "end_start"
+                                    nesting_log(f"[COMPLEMENTARY] ✓ MATCH found (end_start): angles match within tolerance")
+                                else:
+                                    nesting_log(f"[COMPLEMENTARY] ✗ No match (end_start): diff={angle_diff:.1f}° (threshold: 5.0°) or angle too small (abs={angle1_abs:.1f}°)")
                             
                             # Case 2b: part1 end slope with part2 end slope (use combined flags)
                             # This handles cases where both parts have end cuts that can be complementary
@@ -2916,10 +2776,15 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                     nesting_log(f"[NESTING] Complementary slopes: angle={angle_for_calculation:.1f}°, depth={estimated_profile_depth:.1f}mm")
                                     nesting_log(f"[NESTING]   Part 1: {length1:.1f}mm, Part 2: {length2:.1f}mm")
                                     nesting_log(f"[NESTING]   Shared: {shared_linear_slopes_length:.1f}mm (depth * tan(angle) = {estimated_profile_depth:.1f} * tan({angle_for_calculation:.1f}°))")
-                                    nesting_log(f"[NESTING]   Combined: {length1:.1f} + {length2:.1f} - {shared_linear_slopes_length:.1f} = {combined_length:.1f}mm")
+                                    nesting_log(f"[NESTING]   Combined (before kerf): {length1:.1f} + {length2:.1f} - {shared_linear_slopes_length:.1f} = {combined_length:.1f}mm")
+                                    # Add kerf for the cut between the two complementary parts
+                                    combined_length += kerf
+                                    nesting_log(f"[NESTING]   Combined (after kerf): {combined_length:.1f}mm (added {kerf:.1f}mm kerf)")
                                 else:
                                     # Fallback: use linear sum if angle is not available
                                     combined_length = length1 + length2
+                                    # Add kerf for the cut between parts
+                                    combined_length += kerf
                                     # shared_linear_slopes_length is already 0.0 from initialization
                                 
                                 angle1_str = f"{angle1_val:.1f}°" if angle1_val is not None else "N/A"
@@ -2930,12 +2795,12 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                 # CRITICAL: Parts must fit within stock length - no tolerance for exceeding stock
                                 best_stock_for_pair = None
                                 
-                                # FIXED: Find the LONGEST stock that fits to minimize number of bars
-                                # Prefer longer stock (12M) when pair fits, to minimize number of bars
+                                # FIXED: Find the SHORTEST stock that fits to minimize waste
+                                # Prefer shorter stock (6M over 12M) when pair fits, to minimize waste
                                 # Use minimal tolerance (0.1mm) only for floating point rounding errors
                                 tolerance_mm = 0.1  # Minimal tolerance for floating point errors only
                                 
-                                for stock_len in sorted(stock_lengths_list, reverse=True):  # Check longer stocks first (12M before 6M)
+                                for stock_len in sorted(stock_lengths_list):  # Check shorter stocks first (6M before 12M)
                                     if combined_length <= stock_len + tolerance_mm:
                                         # Additional strict check: combined_length must not exceed stock_len
                                         if combined_length > stock_len:
@@ -2944,8 +2809,8 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                         best_stock_for_pair = stock_len
                                         waste = stock_len - combined_length
                                         waste_pct = (waste / stock_len * 100) if stock_len > 0 else 0
-                                        nesting_log(f"[NESTING] Pair fits in {stock_len:.1f}mm stock: {combined_length:.1f}mm <= {stock_len:.1f}mm (waste: {waste:.1f}mm, {waste_pct:.1f}%) - preferring longer stock to minimize bars")
-                                        break  # Use the longest stock that fits
+                                        nesting_log(f"[NESTING] Pair fits in {stock_len:.1f}mm stock: {combined_length:.1f}mm <= {stock_len:.1f}mm (waste: {waste:.1f}mm, {waste_pct:.1f}%) - preferring shorter stock to minimize waste")
+                                        break  # Use the shortest stock that fits
                                 
                                 if best_stock_for_pair:
                                     # Calculate waste, but ensure it's not negative (due to tolerance)
@@ -3253,12 +3118,10 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                 next_part = next_candidates[0]
                                 next_start_slope = next_part.get("start_has_slope", False)
                                 
-                                # Calculate kerf
-                                kerf = 3.0  # Default kerf
-                                if next_part in can_flush_now:
-                                    kerf = 0.0  # Can flush, no kerf
+                                # Calculate kerf - always apply between parts
+                                kerf_value = kerf if simulated_parts else 0.0  # Kerf between parts, no kerf for first part
                                 
-                                new_length = simulated_length + next_part["length"] + kerf
+                                new_length = simulated_length + next_part["length"] + kerf_value
                                 if new_length <= best_stock:
                                     simulated_length = new_length
                                     simulated_parts.append(next_part)
@@ -3460,84 +3323,16 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                     # CRITICAL FIX: For individual parts (not paired), always use full part length
                     part_length = part["length"]
                     
-                    # CRITICAL: Check if this part can share boundary with previous part
-                    # If boundaries can't be shared (non-complementary slopes), add kerf
-                    kerf_mm = 0.0  # Default: no kerf if boundaries can be shared
+                    # CRITICAL: Always apply kerf between parts
+                    # Kerf represents the material removed by the saw blade
+                    kerf_mm = 0.0  # Default: no kerf for first part
                     
                     if len(pattern_parts) > 0:
-                        # Check if previous part's end and current part's start can share boundary
-                        prev_part = pattern_parts[-1]
-                        prev_slope_info = prev_part.get("slope_info", {})
-                        curr_slope_info = {
-                            "start_angle": part.get("start_angle"),
-                            "end_angle": part.get("end_angle"),
-                            "start_has_slope": part.get("start_has_slope", False),
-                            "end_has_slope": part.get("end_has_slope", False)
-                        }
-                        
-                        prev_end_has_slope = prev_slope_info.get("end_has_slope", False)
-                        prev_end_angle = prev_slope_info.get("end_angle")
-                        curr_start_has_slope = curr_slope_info.get("start_has_slope", False)
-                        curr_start_angle = curr_slope_info.get("start_angle")
-                        
-                        # Determine if boundaries can share
-                        can_share = False
-                        
-                        if not prev_end_has_slope and not curr_start_has_slope:
-                            # Both straight - can share
-                            can_share = True
-                        elif prev_end_has_slope and curr_start_has_slope:
-                            # Both sloped - check if complementary
-                            if prev_end_angle is not None and curr_start_angle is not None:
-                                # Check if angles are complementary (opposite signs, similar magnitude)
-                                angle_diff = abs(abs(prev_end_angle) - abs(curr_start_angle))
-                                # If angles are within 2 degrees and have opposite signs, they're complementary
-                                if angle_diff <= 2.0:
-                                    # Check if they have opposite signs (complementary)
-                                    if (prev_end_angle > 0 and curr_start_angle < 0) or (prev_end_angle < 0 and curr_start_angle > 0):
-                                        can_share = True
-                        
-                        # If boundaries can't be shared, CHECK IF FLIPPING THE PART WOULD HELP
-                        if not can_share:
-                            # Try flipping the part: swap start and end
-                            flipped_start_has_slope = curr_slope_info.get("end_has_slope", False)
-                            flipped_start_angle = curr_slope_info.get("end_angle")
-                            
-                            # Check if flipped part CAN share boundary with previous part
-                            can_share_if_flipped = False
-                            if not prev_end_has_slope and not flipped_start_has_slope:
-                                can_share_if_flipped = True  # Both straight
-                            elif prev_end_has_slope and flipped_start_has_slope:
-                                if prev_end_angle is not None and flipped_start_angle is not None:
-                                    angle_diff = abs(abs(prev_end_angle) - abs(flipped_start_angle))
-                                    if angle_diff <= 2.0:
-                                        if (prev_end_angle > 0 and flipped_start_angle < 0) or (prev_end_angle < 0 and flipped_start_angle > 0):
-                                            can_share_if_flipped = True
-                            
-                            # If flipping helps, FLIP THE PART!
-                            if can_share_if_flipped:
-                                nesting_log(f"[NESTING] Flipping part to enable boundary sharing (swap start<->end)")
-                                # Swap start and end properties
-                                part["start_angle"], part["end_angle"] = part.get("end_angle"), part.get("start_angle")
-                                part["start_has_slope"], part["end_has_slope"] = part.get("end_has_slope", False), part.get("start_has_slope", False)
-                                part["flipped"] = True
-                                # Update curr_slope_info for this iteration
-                                curr_slope_info["start_angle"] = part["start_angle"]
-                                curr_slope_info["end_angle"] = part["end_angle"]
-                                curr_slope_info["start_has_slope"] = part["start_has_slope"]
-                                curr_slope_info["end_has_slope"] = part["end_has_slope"]
-                                curr_start_has_slope = part["start_has_slope"]
-                                can_share = True  # Now it can share!
-                                kerf_mm = 0.0
-                            else:
-                                # Can't flip to help, add kerf
-                                kerf_mm = 3.0  # Standard kerf for steel cutting (adjust as needed)
-                                nesting_log(f"[NESTING] Parts cannot share boundary - adding {kerf_mm:.1f}mm kerf")
-                        else:
-                            # Already can share, no kerf needed
-                            kerf_mm = 0.0
+                        # Always apply kerf between parts (saw blade removes material)
+                        kerf_mm = kerf
+                        nesting_log(f"[NESTING] Adding {kerf_mm:.1f}mm kerf between parts")
                     else:
-                        # No previous part, no kerf needed
+                        # First part in pattern - no kerf needed
                         kerf_mm = 0.0
                     
                     # STRICT VALIDATION: Check if adding this part (with kerf if needed) would exceed stock
@@ -3747,7 +3542,7 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                 
                 # ADDITIONAL VALIDATION: Check if current_length is unreasonably larger than total_parts_length
                 # This catches calculation errors where kerf is added incorrectly
-                max_expected_kerf = (len(pattern_parts) - 1) * 3.0  # Maximum kerf if NO boundaries can share
+                max_expected_kerf = (len(pattern_parts) - 1) * kerf  # Maximum kerf if NO boundaries can share
                 if current_length > total_parts_length + max_expected_kerf + 10.0:  # Allow 10mm tolerance
                     nesting_log(f"[NESTING] ERROR: current_length ({current_length:.1f}mm) is unreasonably larger than total_parts_length ({total_parts_length:.1f}mm)")
                     nesting_log(f"[NESTING]   - Expected max difference (all kerf, no sharing): {max_expected_kerf:.1f}mm")
@@ -3822,24 +3617,31 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                 nesting_log(f"[NESTING]   - Difference: {current_length - total_parts_length:.1f}mm", flush=True)
                 nesting_log(f"[NESTING]   - Stock length: {best_stock:.1f}mm", flush=True)
                 if current_length > total_parts_length:
-                    expected_kerf = (len(pattern_parts) - 1) * 3.0  # Maximum kerf if no boundaries can share
+                    expected_kerf = (len(pattern_parts) - 1) * kerf  # Maximum kerf if no boundaries can share
                     nesting_log(f"[NESTING]   - WARNING: current_length > total_parts_length by {current_length - total_parts_length:.1f}mm", flush=True)
                     nesting_log(f"[NESTING]   - Expected max kerf (if no sharing): {expected_kerf:.1f}mm", flush=True)
                     nesting_log(f"[NESTING]   - Actual difference: {current_length - total_parts_length:.1f}mm", flush=True)
                     if (current_length - total_parts_length) > expected_kerf + 10.0:  # Allow 10mm tolerance
                         nesting_log(f"[NESTING]   - ERROR: Difference is too large - possible calculation error!", flush=True)
                 
+                # Use the originally selected best_stock (no post-optimization)
+                # Post-optimization was causing premature use of shorter bars before filling them properly
+                optimal_stock = best_stock
+                
+                # Waste is already calculated correctly above with best_stock
+                # No need to recalculate
+                
                 cutting_patterns.append({
-                    "stock_length": best_stock,
+                    "stock_length": optimal_stock,
                     "parts": pattern_parts,
                     "waste": waste,
                     "waste_percentage": waste_percentage
                 })
                 
-                # Track stock usage
-                if best_stock not in stock_lengths_used:
-                    stock_lengths_used[best_stock] = 0
-                stock_lengths_used[best_stock] += 1
+                # Track stock usage (use optimal_stock)
+                if optimal_stock not in stock_lengths_used:
+                    stock_lengths_used[optimal_stock] = 0
+                stock_lengths_used[optimal_stock] += 1
                 total_stock_bars += 1
                 total_waste += waste
             
@@ -3888,7 +3690,8 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                 "average_waste_percentage": average_waste_percentage
             },
             "settings": {
-                "stock_lengths": stock_lengths_list
+                "stock_lengths": stock_lengths_list,
+                "kerf": kerf
             }
         }
         
