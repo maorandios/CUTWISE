@@ -2604,20 +2604,48 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                 for part in remaining:
                                     curr_start_slope = part.get("start_has_slope", False)
                                     curr_start_angle = part.get("start_angle")
+                                    curr_end_slope = part.get("end_has_slope", False)
+                                    curr_end_angle = part.get("end_angle")
                                     
-                                    # Check compatibility
-                                    is_compatible = False
+                                    # Check compatibility with ORIGINAL orientation
+                                    is_compatible_original = False
                                     if not prev_end_slope and not curr_start_slope:
-                                        is_compatible = True  # Both straight - can flush
+                                        is_compatible_original = True  # Both straight - can flush
                                     elif prev_end_slope and curr_start_slope:
                                         if prev_end_angle is not None and curr_start_angle is not None:
                                             angle_diff = abs(abs(prev_end_angle) - abs(curr_start_angle))
                                             if angle_diff <= 2.0:
-                                                is_compatible = True  # Complementary slopes
+                                                is_compatible_original = True  # Complementary slopes
                                     
-                                    if is_compatible:
+                                    # Check compatibility with FLIPPED orientation
+                                    # When flipped: start becomes end, end becomes start
+                                    is_compatible_flipped = False
+                                    flipped_start_slope = curr_end_slope
+                                    flipped_start_angle = curr_end_angle
+                                    
+                                    if not prev_end_slope and not flipped_start_slope:
+                                        is_compatible_flipped = True  # Both straight - can flush
+                                    elif prev_end_slope and flipped_start_slope:
+                                        if prev_end_angle is not None and flipped_start_angle is not None:
+                                            angle_diff = abs(abs(prev_end_angle) - abs(flipped_start_angle))
+                                            if angle_diff <= 2.0:
+                                                is_compatible_flipped = True  # Complementary slopes
+                                    
+                                    # Add to appropriate list
+                                    if is_compatible_original:
+                                        # Original orientation works
                                         compatible_parts.append(part)
+                                    elif is_compatible_flipped:
+                                        # Flipped orientation works - create flipped copy
+                                        flipped_part = part.copy()
+                                        flipped_part["start_angle"], flipped_part["end_angle"] = part.get("end_angle"), part.get("start_angle")
+                                        flipped_part["start_has_slope"], flipped_part["end_has_slope"] = part.get("end_has_slope", False), part.get("start_has_slope", False)
+                                        flipped_part["flipped"] = True
+                                        flipped_part["original_part_id"] = part.get("product_id")  # Track original for removal
+                                        compatible_parts.append(flipped_part)
+                                        nesting_log(f"[NESTING] Part {part.get('part_name', 'unknown')} ({part['length']:.0f}mm) will be FLIPPED for compatibility")
                                     else:
+                                        # Neither orientation works
                                         incompatible_parts.append(part)
                                 
                                 # Choose next part: prefer compatible parts
@@ -2630,7 +2658,12 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                     
                                     for candidate in compatible_parts:
                                         # Simulate: if we place this candidate, what's next?
-                                        remaining_after = [p for p in remaining if p != candidate]
+                                        # Handle flipped parts - exclude by product_id
+                                        if candidate.get("flipped", False):
+                                            candidate_id = candidate.get("original_part_id")
+                                            remaining_after = [p for p in remaining if p.get("product_id") != candidate_id]
+                                        else:
+                                            remaining_after = [p for p in remaining if p != candidate]
                                         if not remaining_after:
                                             # Last part - prefer longest to fill bar
                                             if best_next is None or candidate["length"] > best_next["length"]:
@@ -2682,7 +2715,15 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                     break
                                 
                                 ordering.append(next_part)
-                                remaining.remove(next_part)
+                                # Remove the part from remaining (handle flipped parts)
+                                if next_part.get("flipped", False):
+                                    # This is a flipped part - remove the original part by product_id
+                                    original_id = next_part.get("original_part_id")
+                                    remaining = [p for p in remaining if p.get("product_id") != original_id]
+                                else:
+                                    # Normal part - remove directly
+                                    if next_part in remaining:
+                                        remaining.remove(next_part)
                             
                             # Calculate waste score for this ordering
                             # Score = number of incompatible transitions weighted by position
@@ -2867,22 +2908,46 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                             prev_end_slope = ordering[-1].get("end_has_slope", False)
                             prev_end_angle = ordering[-1].get("end_angle")
                             
-                            # Find compatible parts
+                            # Find compatible parts (try both original and flipped orientations)
                             compatible = []
                             for part in remaining:
                                 curr_start_slope = part.get("start_has_slope", False)
                                 curr_start_angle = part.get("start_angle")
+                                curr_end_slope = part.get("end_has_slope", False)
+                                curr_end_angle = part.get("end_angle")
                                 
-                                is_compat = False
+                                # Check original orientation
+                                is_compat_original = False
                                 if not prev_end_slope and not curr_start_slope:
-                                    is_compat = True
+                                    is_compat_original = True
                                 elif prev_end_slope and curr_start_slope:
                                     if prev_end_angle is not None and curr_start_angle is not None:
                                         if abs(abs(prev_end_angle) - abs(curr_start_angle)) <= 2.0:
-                                            is_compat = True
+                                            is_compat_original = True
                                 
-                                if is_compat:
+                                # Check flipped orientation
+                                is_compat_flipped = False
+                                flipped_start_slope = curr_end_slope
+                                flipped_start_angle = curr_end_angle
+                                
+                                if not prev_end_slope and not flipped_start_slope:
+                                    is_compat_flipped = True
+                                elif prev_end_slope and flipped_start_slope:
+                                    if prev_end_angle is not None and flipped_start_angle is not None:
+                                        if abs(abs(prev_end_angle) - abs(flipped_start_angle)) <= 2.0:
+                                            is_compat_flipped = True
+                                
+                                if is_compat_original:
                                     compatible.append(part)
+                                elif is_compat_flipped:
+                                    # Create flipped version
+                                    flipped_part = part.copy()
+                                    flipped_part["start_angle"], flipped_part["end_angle"] = part.get("end_angle"), part.get("start_angle")
+                                    flipped_part["start_has_slope"], flipped_part["end_has_slope"] = part.get("end_has_slope", False), part.get("start_has_slope", False)
+                                    flipped_part["flipped"] = True
+                                    flipped_part["original_part_id"] = part.get("product_id")
+                                    compatible.append(flipped_part)
+                                    nesting_log(f"[NESTING] Large list: Part {part.get('part_name', 'unknown')} will be FLIPPED")
                             
                             if compatible:
                                 # Choose best compatible part (not just longest)
@@ -2891,7 +2956,12 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                 best_score = float('inf')
                                 
                                 for candidate in compatible:
-                                    remaining_after = [p for p in remaining if p != candidate]
+                                    # Handle flipped parts when calculating remaining_after
+                                    if candidate.get("flipped", False):
+                                        candidate_id = candidate.get("original_part_id")
+                                        remaining_after = [p for p in remaining if p.get("product_id") != candidate_id]
+                                    else:
+                                        remaining_after = [p for p in remaining if p != candidate]
                                     if not remaining_after:
                                         if best_next is None or candidate["length"] > best_next["length"]:
                                             best_next = candidate
@@ -2926,7 +2996,13 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                 next_part = remaining[0]
                             
                             ordering.append(next_part)
-                            remaining.remove(next_part)
+                            # Remove part from remaining (handle flipped parts)
+                            if next_part.get("flipped", False):
+                                original_id = next_part.get("original_part_id")
+                                remaining = [p for p in remaining if p.get("product_id") != original_id]
+                            else:
+                                if next_part in remaining:
+                                    remaining.remove(next_part)
                         
                         return ordering
                 
