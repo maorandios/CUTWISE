@@ -230,9 +230,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   }
 
   const formatLength = (mm: number) => {
-    if (mm >= 1000) {
-      return `${(mm / 1000).toFixed(2)}m`
-    }
+    // Always display in mm (never convert to meters)
     return `${mm.toFixed(0)}mm`
   }
 
