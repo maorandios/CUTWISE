@@ -2554,15 +2554,36 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                     
                     if len(parts) <= 10:
                         # Try multiple starting parts and choose the best overall ordering
-                        # Start with parts that have straight start (avoids start waste)
-                        straight_start_parts = [p for p in parts if not p.get("start_has_slope", False)]
+                        # PRIORITY ORDER for starting parts:
+                        # 1. Parts with straight cuts on BOTH ends (most flexible, can flush on both sides)
+                        # 2. Parts with straight start only (one slope end)
+                        # 3. Parts with slope start (as last resort)
+                        
+                        straight_both_sides = [p for p in parts if not p.get("start_has_slope", False) and not p.get("end_has_slope", False)]
+                        straight_start_only = [p for p in parts if not p.get("start_has_slope", False) and p.get("end_has_slope", False)]
                         slope_start_parts = [p for p in parts if p.get("start_has_slope", False)]
                         
-                        # Prefer straight start, use length as tiebreaker
-                        if straight_start_parts:
-                            start_candidates = sorted(straight_start_parts, key=lambda p: p["length"], reverse=True)[:3]
-                        else:
-                            start_candidates = sorted(slope_start_parts, key=lambda p: p["length"], reverse=True)[:3]
+                        start_candidates = []
+                        
+                        # Priority 1: Straight-both-sides parts (e.g., Part 2 in user's example)
+                        # These should go first because they can flush perfectly with any following part
+                        if straight_both_sides:
+                            start_candidates.extend(sorted(straight_both_sides, key=lambda p: p["length"], reverse=True)[:2])
+                            nesting_log(f"[NESTING] Added {len(straight_both_sides)} straight-both-sides parts as start candidates")
+                        
+                        # Priority 2: Straight-start-only parts (e.g., Part 1 with one slope)
+                        if straight_start_only:
+                            start_candidates.extend(sorted(straight_start_only, key=lambda p: p["length"], reverse=True)[:2])
+                            nesting_log(f"[NESTING] Added {len(straight_start_only)} straight-start-only parts as start candidates")
+                        
+                        # Priority 3: Slope-start parts (last resort)
+                        if slope_start_parts and not start_candidates:
+                            start_candidates.extend(sorted(slope_start_parts, key=lambda p: p["length"], reverse=True)[:2])
+                            nesting_log(f"[NESTING] Added {len(slope_start_parts)} slope-start parts as start candidates")
+                        
+                        # Ensure we have at least one candidate
+                        if not start_candidates:
+                            start_candidates = sorted(parts, key=lambda p: p["length"], reverse=True)[:3]
                         
                         best_ordering = None
                         best_waste_score = float('inf')
@@ -2816,18 +2837,30 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                     
                     else:
                         # For larger part lists, use simpler greedy heuristic
-                        # Start with longest part that has straight start
-                        straight_start = [p for p in parts if not p.get("start_has_slope", False)]
+                        # PRIORITY ORDER: straight-both-sides > straight-start-only > slope-start
+                        straight_both_sides = [p for p in parts if not p.get("start_has_slope", False) and not p.get("end_has_slope", False)]
+                        straight_start_only = [p for p in parts if not p.get("start_has_slope", False) and p.get("end_has_slope", False)]
+                        slope_start = [p for p in parts if p.get("start_has_slope", False)]
                         
-                        if straight_start:
-                            straight_start.sort(key=lambda p: p["length"], reverse=True)
-                            ordering = [straight_start[0]]
-                            remaining = [p for p in parts if p != straight_start[0]]
+                        # Choose starting part with priority order
+                        if straight_both_sides:
+                            # Prefer straight-both-sides parts (most flexible)
+                            straight_both_sides.sort(key=lambda p: p["length"], reverse=True)
+                            ordering = [straight_both_sides[0]]
+                            remaining = [p for p in parts if p != straight_both_sides[0]]
+                            nesting_log(f"[NESTING] Large list: Starting with straight-both-sides part")
+                        elif straight_start_only:
+                            # Next preference: straight-start-only
+                            straight_start_only.sort(key=lambda p: p["length"], reverse=True)
+                            ordering = [straight_start_only[0]]
+                            remaining = [p for p in parts if p != straight_start_only[0]]
+                            nesting_log(f"[NESTING] Large list: Starting with straight-start-only part")
                         else:
-                            # All have slope start - start with longest
+                            # Last resort: slope-start parts
                             sorted_parts = sorted(parts, key=lambda p: p["length"], reverse=True)
                             ordering = [sorted_parts[0]]
                             remaining = sorted_parts[1:]
+                            nesting_log(f"[NESTING] Large list: Starting with slope-start part (last resort)")
                         
                         # Greedily add parts, prioritizing compatibility
                         while remaining:
