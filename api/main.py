@@ -4010,6 +4010,26 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                         curr_start_has_slope = curr_slope_info.get("start_has_slope", False)
                         curr_start_angle = curr_slope_info.get("start_angle")
                         
+                        # CONSECUTIVE IDENTICAL PARTS: Check if this is the same part as previous
+                        # If so, we should alternate flipping to create optimal zigzag pattern
+                        prev_part_ref = prev_part.get("part", {})
+                        is_same_part_as_prev = False
+                        if prev_part_ref:
+                            # Check if same part by comparing length and angles
+                            same_length = abs(prev_part_ref.get("length", 0) - part.get("length", 0)) < 1.0
+                            same_start_angle = abs((prev_part_ref.get("start_angle") or 0) - (part.get("start_angle") or 0)) < 0.5
+                            same_end_angle = abs((prev_part_ref.get("end_angle") or 0) - (part.get("end_angle") or 0)) < 0.5
+                            is_same_part_as_prev = same_length and same_start_angle and same_end_angle
+                        
+                        # If this is the same part type as previous, check if we should alternate flip
+                        should_flip_for_alternation = False
+                        if is_same_part_as_prev:
+                            prev_was_flipped = prev_part_ref.get("flipped", False)
+                            # Alternate: if prev was flipped, don't flip this one; if prev wasn't flipped, flip this one
+                            should_flip_for_alternation = not prev_was_flipped
+                            if should_flip_for_alternation:
+                                nesting_log(f"[NESTING] ALTERNATION: Same part as previous - flipping to create zigzag pattern")
+                        
                         # Determine if boundaries can be flushed (for optimal positioning)
                         can_flush = False
                         
@@ -4024,8 +4044,11 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                     if (prev_end_angle > 0 and curr_start_angle < 0) or (prev_end_angle < 0 and curr_start_angle > 0):
                                         can_flush = True
                         
+                        # FLIPPING DECISION: Flip if alternation is needed OR if it helps with flushing
+                        should_flip = should_flip_for_alternation
+                        
                         # If boundaries can't flush, CHECK IF FLIPPING THE PART WOULD HELP
-                        if not can_flush:
+                        if not can_flush and not should_flip:
                             # Try flipping the part: swap start and end
                             flipped_start_has_slope = curr_slope_info.get("end_has_slope", False)
                             flipped_start_angle = curr_slope_info.get("end_angle")
@@ -4041,20 +4064,33 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                         if (prev_end_angle > 0 and flipped_start_angle < 0) or (prev_end_angle < 0 and flipped_start_angle > 0):
                                             can_flush_if_flipped = True
                             
-                            # If flipping helps, FLIP THE PART!
+                            # If flipping helps, mark for flipping
                             if can_flush_if_flipped:
+                                should_flip = True
                                 nesting_log(f"[NESTING] Flipping part to enable optimal flush positioning (swap start<->end)")
-                                # Swap start and end properties
-                                part["start_angle"], part["end_angle"] = part.get("end_angle"), part.get("start_angle")
-                                part["start_has_slope"], part["end_has_slope"] = part.get("end_has_slope", False), part.get("start_has_slope", False)
-                                part["flipped"] = True
-                                # Update curr_slope_info for this iteration
-                                curr_slope_info["start_angle"] = part["start_angle"]
-                                curr_slope_info["end_angle"] = part["end_angle"]
-                                curr_slope_info["start_has_slope"] = part["start_has_slope"]
-                                curr_slope_info["end_has_slope"] = part["end_has_slope"]
-                                curr_start_has_slope = part["start_has_slope"]
-                                can_flush = True  # Now it can flush!
+                        
+                        # Apply the flip if needed
+                        if should_flip:
+                            # Swap start and end properties
+                            part["start_angle"], part["end_angle"] = part.get("end_angle"), part.get("start_angle")
+                            part["start_has_slope"], part["end_has_slope"] = part.get("end_has_slope", False), part.get("start_has_slope", False)
+                            part["flipped"] = True
+                            # Update curr_slope_info for this iteration
+                            curr_slope_info["start_angle"] = part["start_angle"]
+                            curr_slope_info["end_angle"] = part["end_angle"]
+                            curr_slope_info["start_has_slope"] = part["start_has_slope"]
+                            curr_slope_info["end_has_slope"] = part["end_has_slope"]
+                            curr_start_has_slope = part["start_has_slope"]
+                            
+                            # Recheck if we can flush after flipping
+                            if not prev_end_has_slope and not curr_start_has_slope:
+                                can_flush = True
+                            elif prev_end_has_slope and curr_start_has_slope:
+                                if prev_end_angle is not None and part["start_angle"] is not None:
+                                    angle_diff = abs(abs(prev_end_angle) - abs(part["start_angle"]))
+                                    if angle_diff <= 2.0:
+                                        if (prev_end_angle > 0 and part["start_angle"] < 0) or (prev_end_angle < 0 and part["start_angle"] > 0):
+                                            can_flush = True
                     
                     # Kerf is always applied (saw blade removes material on every cut)
                     nesting_log(f"[NESTING] Adding {kerf_mm:.1f}mm kerf for this cut")
