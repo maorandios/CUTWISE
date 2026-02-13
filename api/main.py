@@ -2274,26 +2274,6 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
             
             type_summary = ", ".join([f"{k}: {v}" for k, v in element_types.items()])
             nesting_log(f"[NESTING]   {prof_name}: {len(prof_parts)} parts total (merged from: {type_summary})")
-            
-            # Log slope detection details for each part
-            for part in prof_parts:
-                part_name = part.get("reference") or part.get("element_name") or part.get("assembly_mark") or f"ID{part.get('product_id')}"
-                start_slope = part.get("start_has_slope", False)
-                end_slope = part.get("end_has_slope", False)
-                start_angle = part.get("start_angle")
-                end_angle = part.get("end_angle")
-                length = part.get("length", 0)
-                
-                slope_info = []
-                if start_slope:
-                    slope_info.append(f"START:{start_angle:.1f}°")
-                if end_slope:
-                    slope_info.append(f"END:{end_angle:.1f}°")
-                
-                if slope_info:
-                    nesting_log(f"[NESTING]     • {part_name} ({length:.0f}mm) - SLOPES: {', '.join(slope_info)}")
-                else:
-                    nesting_log(f"[NESTING]     • {part_name} ({length:.0f}mm) - NO SLOPES (start:{start_angle}, end:{end_angle})")
         
         # Check if we found any parts
         if not parts_by_profile:
@@ -2535,496 +2515,8 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                     nesting_log(f"[NESTING] No parts fit in selected stock {best_stock:.0f}mm. Skipping this iteration.")
                     break
                 
-                # OPTIMIZED ORDERING: Instead of sorting by length only, optimize based on cut compatibility
-                # This allows small parts to be inserted between large parts if they have compatible cuts,
-                # minimizing waste from incompatible slope-to-straight transitions
-                nesting_log(f"[NESTING] Optimizing part ordering based on cut compatibility (not just length)...")
-                
-                def build_optimal_part_ordering(parts, stock_len):
-                    """
-                    Build optimal part ordering that minimizes waste from incompatible cut transitions.
-                    Key insight: A small part between two large parts can eliminate mid-bar waste
-                    if it has compatible cuts (e.g., straight-to-straight or complementary slopes).
-                    """
-                    if len(parts) <= 1:
-                        return parts
-                    
-                    # For small part lists (≤ 10 parts), try multiple starting configurations
-                    # For larger lists, use a greedy heuristic with compatibility prioritization
-                    
-                    if len(parts) <= 10:
-                        # Try multiple starting parts and choose the best overall ordering
-                        # PRIORITY ORDER for starting parts:
-                        # 1. Parts with straight cuts on BOTH ends (most flexible, can flush on both sides)
-                        # 2. Parts with straight start only (one slope end)
-                        # 3. Parts with slope start (as last resort)
-                        
-                        straight_both_sides = [p for p in parts if not p.get("start_has_slope", False) and not p.get("end_has_slope", False)]
-                        straight_start_only = [p for p in parts if not p.get("start_has_slope", False) and p.get("end_has_slope", False)]
-                        slope_start_parts = [p for p in parts if p.get("start_has_slope", False)]
-                        
-                        start_candidates = []
-                        
-                        # Priority 1: Straight-both-sides parts (e.g., Part 2 in user's example)
-                        # These should go first because they can flush perfectly with any following part
-                        if straight_both_sides:
-                            start_candidates.extend(sorted(straight_both_sides, key=lambda p: p["length"], reverse=True)[:2])
-                            nesting_log(f"[NESTING] Added {len(straight_both_sides)} straight-both-sides parts as start candidates")
-                        
-                        # Priority 2: Straight-start-only parts (e.g., Part 1 with one slope)
-                        if straight_start_only:
-                            start_candidates.extend(sorted(straight_start_only, key=lambda p: p["length"], reverse=True)[:2])
-                            nesting_log(f"[NESTING] Added {len(straight_start_only)} straight-start-only parts as start candidates")
-                        
-                        # Priority 3: Slope-start parts (last resort)
-                        if slope_start_parts and not start_candidates:
-                            start_candidates.extend(sorted(slope_start_parts, key=lambda p: p["length"], reverse=True)[:2])
-                            nesting_log(f"[NESTING] Added {len(slope_start_parts)} slope-start parts as start candidates")
-                        
-                        # Ensure we have at least one candidate
-                        if not start_candidates:
-                            start_candidates = sorted(parts, key=lambda p: p["length"], reverse=True)[:3]
-                        
-                        best_ordering = None
-                        best_waste_score = float('inf')
-                        
-                        for start_part in start_candidates:
-                            # Build ordering greedily, prioritizing compatibility over length
-                            ordering = [start_part]
-                            remaining = [p for p in parts if p != start_part]
-                            
-                            while remaining:
-                                prev_end_slope = ordering[-1].get("end_has_slope", False)
-                                prev_end_angle = ordering[-1].get("end_angle")
-                                
-                                # Separate parts into compatible and incompatible
-                                compatible_parts = []
-                                incompatible_parts = []
-                                
-                                for part in remaining:
-                                    curr_start_slope = part.get("start_has_slope", False)
-                                    curr_start_angle = part.get("start_angle")
-                                    curr_end_slope = part.get("end_has_slope", False)
-                                    curr_end_angle = part.get("end_angle")
-                                    
-                                    # Check compatibility with ORIGINAL orientation
-                                    is_compatible_original = False
-                                    if not prev_end_slope and not curr_start_slope:
-                                        is_compatible_original = True  # Both straight - can flush
-                                    elif prev_end_slope and curr_start_slope:
-                                        if prev_end_angle is not None and curr_start_angle is not None:
-                                            angle_diff = abs(abs(prev_end_angle) - abs(curr_start_angle))
-                                            if angle_diff <= 2.0:
-                                                is_compatible_original = True  # Complementary slopes
-                                    
-                                    # Check compatibility with FLIPPED orientation
-                                    # When flipped: start becomes end, end becomes start
-                                    is_compatible_flipped = False
-                                    flipped_start_slope = curr_end_slope
-                                    flipped_start_angle = curr_end_angle
-                                    
-                                    if not prev_end_slope and not flipped_start_slope:
-                                        is_compatible_flipped = True  # Both straight - can flush
-                                    elif prev_end_slope and flipped_start_slope:
-                                        if prev_end_angle is not None and flipped_start_angle is not None:
-                                            angle_diff = abs(abs(prev_end_angle) - abs(flipped_start_angle))
-                                            if angle_diff <= 2.0:
-                                                is_compatible_flipped = True  # Complementary slopes
-                                    
-                                    # Add to appropriate list
-                                    if is_compatible_original:
-                                        # Original orientation works
-                                        compatible_parts.append(part)
-                                    elif is_compatible_flipped:
-                                        # Flipped orientation works - create flipped copy
-                                        flipped_part = part.copy()
-                                        flipped_part["start_angle"], flipped_part["end_angle"] = part.get("end_angle"), part.get("start_angle")
-                                        flipped_part["start_has_slope"], flipped_part["end_has_slope"] = part.get("end_has_slope", False), part.get("start_has_slope", False)
-                                        flipped_part["flipped"] = True
-                                        flipped_part["original_part_id"] = part.get("product_id")  # Track original for removal
-                                        compatible_parts.append(flipped_part)
-                                        nesting_log(f"[NESTING] Part {part.get('part_name', 'unknown')} ({part['length']:.0f}mm) will be FLIPPED for compatibility")
-                                    else:
-                                        # Neither orientation works
-                                        incompatible_parts.append(part)
-                                
-                                # Choose next part: prefer compatible parts
-                                if compatible_parts:
-                                    # Among compatible parts, DON'T just pick longest
-                                    # Instead, pick the one that enables the best next transition
-                                    # This allows small parts to be inserted if they improve overall compatibility
-                                    best_next = None
-                                    best_next_score = float('inf')
-                                    
-                                    for candidate in compatible_parts:
-                                        # Simulate: if we place this candidate, what's next?
-                                        # Handle flipped parts - exclude by product_id
-                                        if candidate.get("flipped", False):
-                                            candidate_id = candidate.get("original_part_id")
-                                            remaining_after = [p for p in remaining if p.get("product_id") != candidate_id]
-                                        else:
-                                            remaining_after = [p for p in remaining if p != candidate]
-                                        if not remaining_after:
-                                            # Last part - prefer longest to fill bar
-                                            if best_next is None or candidate["length"] > best_next["length"]:
-                                                best_next = candidate
-                                                best_next_score = 0
-                                            continue
-                                        
-                                        # Check how many of the remaining parts are compatible with this candidate's end
-                                        cand_end_slope = candidate.get("end_has_slope", False)
-                                        cand_end_angle = candidate.get("end_angle")
-                                        
-                                        compatible_count = 0
-                                        for future_part in remaining_after:
-                                            future_start_slope = future_part.get("start_has_slope", False)
-                                            future_start_angle = future_part.get("start_angle")
-                                            
-                                            if not cand_end_slope and not future_start_slope:
-                                                compatible_count += 1
-                                            elif cand_end_slope and future_start_slope:
-                                                if cand_end_angle is not None and future_start_angle is not None:
-                                                    if abs(abs(cand_end_angle) - abs(future_start_angle)) <= 2.0:
-                                                        compatible_count += 1
-                                        
-                                        # Score: prefer parts that enable more future compatible transitions
-                                        # Higher compatible_count = better (lower score)
-                                        # Use negative length as minor tiebreaker (longer is slightly better)
-                                        score = -compatible_count * 1000 + (10000 - candidate["length"])
-                                        
-                                        if score < best_next_score:
-                                            best_next_score = score
-                                            best_next = candidate
-                                    
-                                    next_part = best_next if best_next else compatible_parts[0]
-                                elif incompatible_parts:
-                                    # No compatible parts - choose incompatible but prefer those with straight end
-                                    # (so they can be compatible with the NEXT part)
-                                    straight_end_incomp = [p for p in incompatible_parts if not p.get("end_has_slope", False)]
-                                    slope_end_incomp = [p for p in incompatible_parts if p.get("end_has_slope", False)]
-                                    
-                                    if straight_end_incomp:
-                                        # Prefer straight-end parts to enable next part to flush
-                                        straight_end_incomp.sort(key=lambda p: p["length"], reverse=True)
-                                        next_part = straight_end_incomp[0]
-                                    else:
-                                        # All have slope end - choose longest
-                                        slope_end_incomp.sort(key=lambda p: p["length"], reverse=True)
-                                        next_part = slope_end_incomp[0]
-                                else:
-                                    break
-                                
-                                ordering.append(next_part)
-                                # Remove the part from remaining (handle flipped parts)
-                                if next_part.get("flipped", False):
-                                    # This is a flipped part - remove the original part by product_id
-                                    original_id = next_part.get("original_part_id")
-                                    remaining = [p for p in remaining if p.get("product_id") != original_id]
-                                else:
-                                    # Normal part - remove directly
-                                    if next_part in remaining:
-                                        remaining.remove(next_part)
-                            
-                            # Calculate waste score for this ordering
-                            # Score = number of incompatible transitions weighted by position
-                            # Earlier incompatible transitions are worse (create mid-bar waste)
-                            waste_score = 0.0
-                            for i in range(len(ordering) - 1):
-                                part1 = ordering[i]
-                                part2 = ordering[i + 1]
-                                
-                                p1_end_slope = part1.get("end_has_slope", False)
-                                p1_end_angle = part1.get("end_angle")
-                                p2_start_slope = part2.get("start_has_slope", False)
-                                p2_start_angle = part2.get("start_angle")
-                                
-                                # Check if incompatible
-                                is_incompatible = False
-                                if (p1_end_slope and not p2_start_slope) or (not p1_end_slope and p2_start_slope):
-                                    # One slope, one straight - incompatible
-                                    is_incompatible = True
-                                elif p1_end_slope and p2_start_slope:
-                                    # Both slopes - check if angles match
-                                    if p1_end_angle is not None and p2_start_angle is not None:
-                                        angle_diff = abs(abs(p1_end_angle) - abs(p2_start_angle))
-                                        if angle_diff > 2.0:
-                                            is_incompatible = True
-                                
-                                if is_incompatible:
-                                    # Incompatible transition - add penalty
-                                    # Earlier positions get higher penalty (we want incompatible cuts at the end)
-                                    position_factor = (len(ordering) - i) / len(ordering)
-                                    waste_score += 20.0 * position_factor
-                            
-                            if waste_score < best_waste_score:
-                                best_waste_score = waste_score
-                                best_ordering = ordering
-                        
-                        if best_ordering:
-                            nesting_log(f"[NESTING] Optimal ordering found: {len(best_ordering)} parts, waste_score={best_waste_score:.1f}")
-                            
-                            # CRITICAL: For small patterns (≤6 parts), brute force test all combinations
-                            # This handles flipping parts and trying different orders
-                            if len(best_ordering) <= 6:
-                                from itertools import permutations, product
-                                
-                                nesting_log(f"[NESTING] Brute force optimization for {len(best_ordering)} parts pattern")
-                                
-                                # Identify which parts can benefit from flipping (have slopes)
-                                flippable_indices = []
-                                for i, part in enumerate(best_ordering):
-                                    has_slope = part.get("start_has_slope", False) or part.get("end_has_slope", False)
-                                    if has_slope:
-                                        flippable_indices.append(i)
-                                
-                                nesting_log(f"[NESTING] {len(flippable_indices)} out of {len(best_ordering)} parts can be flipped")
-                                
-                                # Get all permutations (different orders)
-                                all_permutations = list(permutations(best_ordering))
-                                nesting_log(f"[NESTING] Testing {len(all_permutations)} permutations")
-                                
-                                best_combo = None
-                                best_combo_waste = float('inf')
-                                best_combo_config = None
-                                
-                                for perm in all_permutations:
-                                    # For each permutation, try flipping flippable parts
-                                    # Generate all flip combinations for flippable parts only
-                                    num_flippable = len(flippable_indices)
-                                    if num_flippable > 0:
-                                        flip_combinations = product([False, True], repeat=num_flippable)
-                                    else:
-                                        flip_combinations = [[]]  # No flipping needed
-                                    
-                                    for flip_combo in flip_combinations:
-                                        # Create copies with flipping applied
-                                        test_parts = []
-                                        flip_config = []
-                                        
-                                        flip_idx = 0
-                                        for i, part in enumerate(perm):
-                                            test_part = part.copy()
-                                            should_flip = False
-                                            
-                                            # Check if this is a flippable part and if we should flip it
-                                            if i in [perm.index(best_ordering[fi]) for fi in flippable_indices]:
-                                                should_flip = flip_combo[flip_idx] if flip_idx < len(flip_combo) else False
-                                                flip_idx += 1
-                                            
-                                            if should_flip:
-                                                # Flip this part
-                                                test_part["start_angle"], test_part["end_angle"] = test_part.get("end_angle"), test_part.get("start_angle")
-                                                test_part["start_has_slope"], test_part["end_has_slope"] = test_part.get("end_has_slope", False), test_part.get("start_has_slope", False)
-                                                test_part["flipped"] = True
-                                            
-                                            test_parts.append(test_part)
-                                            flip_config.append(should_flip)
-                                        
-                                        # Calculate actual waste for this combination
-                                        total_length = 0.0
-                                        waste_penalty = 0.0
-                                        has_incompatible = False
-                                        
-                                        for i in range(len(test_parts)):
-                                            total_length += test_parts[i]["length"]
-                                            
-                                            # KERF: Add kerf for every part (every cut loses material)
-                                            total_length += 3.0  # kerf applied to every cut
-                                            
-                                            if i < len(test_parts) - 1:
-                                                # Check if parts can flush (for penalty calculation, not kerf)
-                                                curr_end_slope = test_parts[i].get("end_has_slope", False)
-                                                curr_end_angle = test_parts[i].get("end_angle")
-                                                next_start_slope = test_parts[i+1].get("start_has_slope", False)
-                                                next_start_angle = test_parts[i+1].get("start_angle")
-                                                
-                                                # Check compatibility
-                                                compatible = False
-                                                if not curr_end_slope and not next_start_slope:
-                                                    compatible = True
-                                                elif curr_end_slope and next_start_slope:
-                                                    if curr_end_angle is not None and next_start_angle is not None:
-                                                        angle_diff = abs(abs(curr_end_angle) - abs(next_start_angle))
-                                                        if angle_diff <= 2.0:
-                                                            compatible = True
-                                                
-                                                # If incompatible, add penalty (kerf already added above)
-                                                if not compatible:
-                                                    # Earlier incompatible cuts are worse
-                                                    position_factor = (len(test_parts) - i) / len(test_parts)
-                                                    waste_penalty += 15.0 * position_factor
-                                                    has_incompatible = True
-                                        
-                                        # Penalty if last part has slope end (becomes end-waste)
-                                        if test_parts[-1].get("end_has_slope", False):
-                                            waste_penalty += 5.0
-                                        
-                                        # Check if pattern fits in stock
-                                        if total_length <= stock_len:
-                                            actual_waste = stock_len - total_length
-                                            total_waste_score = actual_waste + waste_penalty
-                                            
-                                            if total_waste_score < best_combo_waste:
-                                                best_combo_waste = total_waste_score
-                                                best_combo = test_parts
-                                                best_combo_config = flip_config
-                                
-                                if best_combo:
-                                    part_ids = [p.get("product_id", "unknown") for p in best_combo]
-                                    nesting_log(f"[NESTING] Best combination: order={part_ids}, flips={best_combo_config}, waste_score={best_combo_waste:.1f}mm")
-                                    return best_combo
-                            
-                            return best_ordering
-                        else:
-                            return parts
-                    
-                    else:
-                        # For larger part lists, use simpler greedy heuristic
-                        # PRIORITY ORDER: straight-both-sides > straight-start-only > slope-start
-                        straight_both_sides = [p for p in parts if not p.get("start_has_slope", False) and not p.get("end_has_slope", False)]
-                        straight_start_only = [p for p in parts if not p.get("start_has_slope", False) and p.get("end_has_slope", False)]
-                        slope_start = [p for p in parts if p.get("start_has_slope", False)]
-                        
-                        # Choose starting part with priority order
-                        if straight_both_sides:
-                            # Prefer straight-both-sides parts (most flexible)
-                            straight_both_sides.sort(key=lambda p: p["length"], reverse=True)
-                            ordering = [straight_both_sides[0]]
-                            remaining = [p for p in parts if p != straight_both_sides[0]]
-                            nesting_log(f"[NESTING] Large list: Starting with straight-both-sides part")
-                        elif straight_start_only:
-                            # Next preference: straight-start-only
-                            straight_start_only.sort(key=lambda p: p["length"], reverse=True)
-                            ordering = [straight_start_only[0]]
-                            remaining = [p for p in parts if p != straight_start_only[0]]
-                            nesting_log(f"[NESTING] Large list: Starting with straight-start-only part")
-                        else:
-                            # Last resort: slope-start parts
-                            sorted_parts = sorted(parts, key=lambda p: p["length"], reverse=True)
-                            ordering = [sorted_parts[0]]
-                            remaining = sorted_parts[1:]
-                            nesting_log(f"[NESTING] Large list: Starting with slope-start part (last resort)")
-                        
-                        # Greedily add parts, prioritizing compatibility
-                        while remaining:
-                            prev_end_slope = ordering[-1].get("end_has_slope", False)
-                            prev_end_angle = ordering[-1].get("end_angle")
-                            
-                            # Find compatible parts (try both original and flipped orientations)
-                            compatible = []
-                            for part in remaining:
-                                curr_start_slope = part.get("start_has_slope", False)
-                                curr_start_angle = part.get("start_angle")
-                                curr_end_slope = part.get("end_has_slope", False)
-                                curr_end_angle = part.get("end_angle")
-                                
-                                # Check original orientation
-                                is_compat_original = False
-                                if not prev_end_slope and not curr_start_slope:
-                                    is_compat_original = True
-                                elif prev_end_slope and curr_start_slope:
-                                    if prev_end_angle is not None and curr_start_angle is not None:
-                                        if abs(abs(prev_end_angle) - abs(curr_start_angle)) <= 2.0:
-                                            is_compat_original = True
-                                
-                                # Check flipped orientation
-                                is_compat_flipped = False
-                                flipped_start_slope = curr_end_slope
-                                flipped_start_angle = curr_end_angle
-                                
-                                if not prev_end_slope and not flipped_start_slope:
-                                    is_compat_flipped = True
-                                elif prev_end_slope and flipped_start_slope:
-                                    if prev_end_angle is not None and flipped_start_angle is not None:
-                                        if abs(abs(prev_end_angle) - abs(flipped_start_angle)) <= 2.0:
-                                            is_compat_flipped = True
-                                
-                                if is_compat_original:
-                                    compatible.append(part)
-                                elif is_compat_flipped:
-                                    # Create flipped version
-                                    flipped_part = part.copy()
-                                    flipped_part["start_angle"], flipped_part["end_angle"] = part.get("end_angle"), part.get("start_angle")
-                                    flipped_part["start_has_slope"], flipped_part["end_has_slope"] = part.get("end_has_slope", False), part.get("start_has_slope", False)
-                                    flipped_part["flipped"] = True
-                                    flipped_part["original_part_id"] = part.get("product_id")
-                                    compatible.append(flipped_part)
-                                    nesting_log(f"[NESTING] Large list: Part {part.get('part_name', 'unknown')} will be FLIPPED")
-                            
-                            if compatible:
-                                # Choose best compatible part (not just longest)
-                                # Pick the one that enables best future transitions
-                                best_next = None
-                                best_score = float('inf')
-                                
-                                for candidate in compatible:
-                                    # Handle flipped parts when calculating remaining_after
-                                    if candidate.get("flipped", False):
-                                        candidate_id = candidate.get("original_part_id")
-                                        remaining_after = [p for p in remaining if p.get("product_id") != candidate_id]
-                                    else:
-                                        remaining_after = [p for p in remaining if p != candidate]
-                                    if not remaining_after:
-                                        if best_next is None or candidate["length"] > best_next["length"]:
-                                            best_next = candidate
-                                            best_score = 0
-                                        continue
-                                    
-                                    cand_end_slope = candidate.get("end_has_slope", False)
-                                    cand_end_angle = candidate.get("end_angle")
-                                    
-                                    compat_count = 0
-                                    for future_part in remaining_after:
-                                        future_start_slope = future_part.get("start_has_slope", False)
-                                        future_start_angle = future_part.get("start_angle")
-                                        
-                                        if not cand_end_slope and not future_start_slope:
-                                            compat_count += 1
-                                        elif cand_end_slope and future_start_slope:
-                                            if cand_end_angle is not None and future_start_angle is not None:
-                                                if abs(abs(cand_end_angle) - abs(future_start_angle)) <= 2.0:
-                                                    compat_count += 1
-                                    
-                                    score = -compat_count * 1000 + (10000 - candidate["length"])
-                                    
-                                    if score < best_score:
-                                        best_score = score
-                                        best_next = candidate
-                                
-                                next_part = best_next if best_next else compatible[0]
-                            else:
-                                # No compatible - choose longest remaining
-                                remaining.sort(key=lambda p: p["length"], reverse=True)
-                                next_part = remaining[0]
-                            
-                            ordering.append(next_part)
-                            # Remove part from remaining (handle flipped parts)
-                            if next_part.get("flipped", False):
-                                original_id = next_part.get("original_part_id")
-                                remaining = [p for p in remaining if p.get("product_id") != original_id]
-                            else:
-                                if next_part in remaining:
-                                    remaining.remove(next_part)
-                        
-                        return ordering
-                
-                # Store original ordering for comparison
-                original_order_ids = [p.get("product_id", "unknown") for p in valid_parts_for_this_stock]
-                original_order_lengths = [p["length"] for p in valid_parts_for_this_stock]
-                
-                valid_parts_for_this_stock = build_optimal_part_ordering(valid_parts_for_this_stock, best_stock)
-                
-                # Log the optimization result
-                optimized_order_ids = [p.get("product_id", "unknown") for p in valid_parts_for_this_stock]
-                optimized_order_lengths = [p["length"] for p in valid_parts_for_this_stock]
-                
-                nesting_log(f"[NESTING] Original order (by length): {list(zip(original_order_ids, [f'{l:.0f}mm' for l in original_order_lengths]))}")
-                nesting_log(f"[NESTING] Optimized order: {list(zip(optimized_order_ids, [f'{l:.0f}mm' for l in optimized_order_lengths]))}")
-                
-                if original_order_ids != optimized_order_ids:
-                    nesting_log(f"[NESTING] *** ORDER CHANGED *** - Parts reordered for better compatibility")
-                else:
-                    nesting_log(f"[NESTING] Order unchanged - original order was already optimal")
+                # Sort valid parts by length descending so longest pieces are placed first
+                valid_parts_for_this_stock.sort(key=lambda p: p["length"], reverse=True)
                 
                 # Create a pattern for this stock bar
                 pattern_parts = []
@@ -3137,29 +2629,9 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                 # Step 1: Try to find complementary slope pairs (only from valid parts)
                 # For IPE600 and other large profiles, prioritize finding complementary pairs first
                 # First, find all complementary pairs and check which stock length they fit in
-                
-                # OPTIMIZATION STRATEGY: Skip complementary pairing when there are many parts
-                # This allows us to fill bars more densely with regular parts first
-                # Only use complementary pairing when:
-                # 1. Few parts remain (≤ 20), OR
-                # 2. Pattern is nearly full and pair would fit in remaining space
-                should_pair_complementary = False
-                
-                if len(remaining_parts) <= 20:
-                    # Few parts left - start using complementary pairs
-                    should_pair_complementary = True
-                    nesting_log(f"[NESTING] PAIRING STRATEGY: Few parts remaining ({len(remaining_parts)}), enabling complementary pairing")
-                elif current_length > 0 and (best_stock - current_length) < 3000:
-                    # Pattern already has parts and remaining space is small - try to fit a pair
-                    should_pair_complementary = True
-                    nesting_log(f"[NESTING] PAIRING STRATEGY: Small remaining space ({best_stock - current_length:.0f}mm), enabling complementary pairing")
-                else:
-                    # Many parts remaining - fill with regular parts first
-                    nesting_log(f"[NESTING] PAIRING STRATEGY: Many parts remaining ({len(remaining_parts)}), skipping complementary pairing to maximize bar density")
-                
                 complementary_pairs = []
                 # Only consider valid parts that fit in best_stock
-                if should_pair_complementary and len(valid_parts_for_this_stock) >= 2:
+                if len(valid_parts_for_this_stock) >= 2:
                     for i, part1 in enumerate(valid_parts_for_this_stock):
                         # CRITICAL CHECK: Ensure current_length hasn't already exceeded best_stock
                         # This prevents trying to add more pairs when current_length is already too high
@@ -3811,18 +3283,16 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                             nesting_log(f"[NESTING] Look-ahead selected: Start with part (length={best_start_part['length']:.0f}mm), predicted {len(best_configuration)} parts, waste={best_waste:.0f}mm")
                             
                             # CRITICAL: Reorder remaining_parts_sorted to follow the best configuration order
-                            # Put the simulated parts in order, then add the rest IN THEIR OPTIMIZED ORDER
-                            # DO NOT re-sort by length - that defeats the optimization!
+                            # Put the simulated parts in order, then add the rest sorted by length
                             # Use both id() and length matching for robustness
                             config_ids = {id(p): p for p in best_configuration}
                             remaining_not_in_config = []
                             for p in remaining_parts_sorted:
                                 if id(p) not in config_ids:
                                     remaining_not_in_config.append(p)
-                            # Keep the optimized order - DO NOT sort by length here!
-                            # The parts in remaining_not_in_config are already in optimized order from build_optimal_part_ordering
+                            remaining_not_in_config.sort(key=lambda p: p["length"], reverse=True)
                             remaining_parts_sorted = list(best_configuration) + remaining_not_in_config
-                            nesting_log(f"[NESTING] *** LOOK-AHEAD APPLIED *** Reordered parts: {len(best_configuration)} from optimal config (lengths: {[p['length'] for p in best_configuration[:5]]}...), then {len(remaining_not_in_config)} others in optimized order")
+                            nesting_log(f"[NESTING] *** LOOK-AHEAD APPLIED *** Reordered parts: {len(best_configuration)} from optimal config (lengths: {[p['length'] for p in best_configuration[:5]]}...), then {len(remaining_not_in_config)} others by length")
                         else:
                             best_start_part = None
                         
@@ -3990,12 +3460,12 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                     # CRITICAL FIX: For individual parts (not paired), always use full part length
                     part_length = part["length"]
                     
-                    # KERF CALCULATION: Every cut loses material equal to the saw blade width
-                    # Each part requires one cut, so kerf is applied to every part
-                    kerf_mm = 3.0  # Standard kerf for steel cutting (3mm saw blade width)
+                    # CRITICAL: Check if this part can share boundary with previous part
+                    # If boundaries can't be shared (non-complementary slopes), add kerf
+                    kerf_mm = 0.0  # Default: no kerf if boundaries can be shared
                     
-                    # Check if parts can be optimally positioned (for flipping logic)
                     if len(pattern_parts) > 0:
+                        # Check if previous part's end and current part's start can share boundary
                         prev_part = pattern_parts[-1]
                         prev_slope_info = prev_part.get("slope_info", {})
                         curr_slope_info = {
@@ -4010,40 +3480,43 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                         curr_start_has_slope = curr_slope_info.get("start_has_slope", False)
                         curr_start_angle = curr_slope_info.get("start_angle")
                         
-                        # Determine if boundaries can be flushed (for optimal positioning)
-                        can_flush = False
+                        # Determine if boundaries can share
+                        can_share = False
                         
                         if not prev_end_has_slope and not curr_start_has_slope:
-                            # Both straight - can flush
-                            can_flush = True
+                            # Both straight - can share
+                            can_share = True
                         elif prev_end_has_slope and curr_start_has_slope:
                             # Both sloped - check if complementary
                             if prev_end_angle is not None and curr_start_angle is not None:
+                                # Check if angles are complementary (opposite signs, similar magnitude)
                                 angle_diff = abs(abs(prev_end_angle) - abs(curr_start_angle))
+                                # If angles are within 2 degrees and have opposite signs, they're complementary
                                 if angle_diff <= 2.0:
+                                    # Check if they have opposite signs (complementary)
                                     if (prev_end_angle > 0 and curr_start_angle < 0) or (prev_end_angle < 0 and curr_start_angle > 0):
-                                        can_flush = True
+                                        can_share = True
                         
-                        # If boundaries can't flush, CHECK IF FLIPPING THE PART WOULD HELP
-                        if not can_flush:
+                        # If boundaries can't be shared, CHECK IF FLIPPING THE PART WOULD HELP
+                        if not can_share:
                             # Try flipping the part: swap start and end
                             flipped_start_has_slope = curr_slope_info.get("end_has_slope", False)
                             flipped_start_angle = curr_slope_info.get("end_angle")
                             
-                            # Check if flipped part CAN flush with previous part
-                            can_flush_if_flipped = False
+                            # Check if flipped part CAN share boundary with previous part
+                            can_share_if_flipped = False
                             if not prev_end_has_slope and not flipped_start_has_slope:
-                                can_flush_if_flipped = True  # Both straight
+                                can_share_if_flipped = True  # Both straight
                             elif prev_end_has_slope and flipped_start_has_slope:
                                 if prev_end_angle is not None and flipped_start_angle is not None:
                                     angle_diff = abs(abs(prev_end_angle) - abs(flipped_start_angle))
                                     if angle_diff <= 2.0:
                                         if (prev_end_angle > 0 and flipped_start_angle < 0) or (prev_end_angle < 0 and flipped_start_angle > 0):
-                                            can_flush_if_flipped = True
+                                            can_share_if_flipped = True
                             
                             # If flipping helps, FLIP THE PART!
-                            if can_flush_if_flipped:
-                                nesting_log(f"[NESTING] Flipping part to enable optimal flush positioning (swap start<->end)")
+                            if can_share_if_flipped:
+                                nesting_log(f"[NESTING] Flipping part to enable boundary sharing (swap start<->end)")
                                 # Swap start and end properties
                                 part["start_angle"], part["end_angle"] = part.get("end_angle"), part.get("start_angle")
                                 part["start_has_slope"], part["end_has_slope"] = part.get("end_has_slope", False), part.get("start_has_slope", False)
@@ -4054,10 +3527,18 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                 curr_slope_info["start_has_slope"] = part["start_has_slope"]
                                 curr_slope_info["end_has_slope"] = part["end_has_slope"]
                                 curr_start_has_slope = part["start_has_slope"]
-                                can_flush = True  # Now it can flush!
-                    
-                    # Kerf is always applied (saw blade removes material on every cut)
-                    nesting_log(f"[NESTING] Adding {kerf_mm:.1f}mm kerf for this cut")
+                                can_share = True  # Now it can share!
+                                kerf_mm = 0.0
+                            else:
+                                # Can't flip to help, add kerf
+                                kerf_mm = 3.0  # Standard kerf for steel cutting (adjust as needed)
+                                nesting_log(f"[NESTING] Parts cannot share boundary - adding {kerf_mm:.1f}mm kerf")
+                        else:
+                            # Already can share, no kerf needed
+                            kerf_mm = 0.0
+                    else:
+                        # No previous part, no kerf needed
+                        kerf_mm = 0.0
                     
                     # STRICT VALIDATION: Check if adding this part (with kerf if needed) would exceed stock
                     new_length = current_length + part_length + kerf_mm  # Add kerf if boundaries can't be shared
@@ -4085,7 +3566,6 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                         "part": part,
                         "cut_position": cut_position,
                         "length": part_length,  # Store full part length
-                        "kerf": kerf_mm,  # Store kerf value for this cut (0 if parts can flush, 3mm if incompatible)
                         "slope_info": {
                             "start_angle": part.get("start_angle"),
                             "end_angle": part.get("end_angle"),
@@ -4122,75 +3602,6 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                         part_id = part.get("product_id") or part.get("reference") or part.get("element_name") or "unknown"
                         nesting_log(f"[NESTING] Bar is exactly full after adding part {part_id} - current_length: {current_length:.1f}mm == {best_stock:.0f}mm (within tolerance), stopping part filling")
                         break  # Stop adding more parts, but keep the part we just added
-                
-                # BACKFILL OPTIMIZATION: Try to fit smaller parts into remaining space
-                # This maximizes bar utilization and reduces number of bars with small waste
-                if remaining_parts and current_length < best_stock - 10:  # Only if significant space remains
-                    remaining_space = best_stock - current_length
-                    nesting_log(f"[NESTING] BACKFILL: Attempting to fill remaining {remaining_space:.1f}mm in current bar")
-                    
-                    # Sort ALL remaining parts by length (smallest first for backfill)
-                    # IMPORTANT: Check all remaining_parts, not just valid_parts_for_this_stock
-                    # because we want to fill any available space with whatever fits
-                    remaining_parts_by_size = sorted(remaining_parts, key=lambda p: p["length"])
-                    
-                    backfill_attempts = 0
-                    max_backfill_attempts = 100  # Prevent infinite loops
-                    
-                    while backfill_attempts < max_backfill_attempts:
-                        backfill_attempts += 1
-                        part_added = False
-                        
-                        for part in remaining_parts_by_size:
-                            if part in parts_to_remove:
-                                continue
-                            
-                            part_length = part["length"]
-                            
-                            # Skip parts that are too large for this stock
-                            if part_length > best_stock:
-                                continue
-                            
-                            kerf_mm = 3.0
-                            needed_space = part_length + kerf_mm
-                            
-                            # Check if this part fits in remaining space
-                            if needed_space <= remaining_space + tolerance_mm:
-                                # This part fits! Add it
-                                part_id = part.get("product_id") or part.get("reference") or part.get("element_name") or "unknown"
-                                
-                                pattern_parts.append({
-                                    "part": part,
-                                    "cut_position": cut_position,
-                                    "length": part_length,
-                                    "kerf": kerf_mm,
-                                    "slope_info": {
-                                        "start_angle": part.get("start_angle"),
-                                        "end_angle": part.get("end_angle"),
-                                        "start_has_slope": part.get("start_has_slope", False),
-                                        "end_has_slope": part.get("end_has_slope", False),
-                                        "has_slope": part.get("start_has_slope", False) or part.get("end_has_slope", False),
-                                        "complementary_pair": False
-                                    }
-                                })
-                                
-                                current_length += needed_space
-                                total_parts_length += part_length
-                                remaining_space -= needed_space
-                                cut_position += needed_space
-                                parts_to_remove.append(part)
-                                part_added = True
-                                
-                                nesting_log(f"[NESTING] BACKFILL: Added part {part_id} ({part_length:.1f}mm) - remaining space: {remaining_space:.1f}mm")
-                                break  # Restart the loop to try adding more parts
-                        
-                        # If no part was added in this iteration, stop trying
-                        if not part_added:
-                            nesting_log(f"[NESTING] BACKFILL: No more parts fit in remaining {remaining_space:.1f}mm - stopping backfill")
-                            break
-                    
-                    if backfill_attempts >= max_backfill_attempts:
-                        nesting_log(f"[NESTING] BACKFILL: Reached max attempts ({max_backfill_attempts}) - stopping")
                 
                 # Remove used parts
                 for part in parts_to_remove:
@@ -4336,7 +3747,7 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                 
                 # ADDITIONAL VALIDATION: Check if current_length is unreasonably larger than total_parts_length
                 # This catches calculation errors where kerf is added incorrectly
-                max_expected_kerf = len(pattern_parts) * 3.0  # Kerf is applied to every part (every cut)
+                max_expected_kerf = (len(pattern_parts) - 1) * 3.0  # Maximum kerf if NO boundaries can share
                 if current_length > total_parts_length + max_expected_kerf + 10.0:  # Allow 10mm tolerance
                     nesting_log(f"[NESTING] ERROR: current_length ({current_length:.1f}mm) is unreasonably larger than total_parts_length ({total_parts_length:.1f}mm)")
                     nesting_log(f"[NESTING]   - Expected max difference (all kerf, no sharing): {max_expected_kerf:.1f}mm")
@@ -4411,9 +3822,9 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                 nesting_log(f"[NESTING]   - Difference: {current_length - total_parts_length:.1f}mm", flush=True)
                 nesting_log(f"[NESTING]   - Stock length: {best_stock:.1f}mm", flush=True)
                 if current_length > total_parts_length:
-                    expected_kerf = len(pattern_parts) * 3.0  # Kerf applied to every part (every cut)
+                    expected_kerf = (len(pattern_parts) - 1) * 3.0  # Maximum kerf if no boundaries can share
                     nesting_log(f"[NESTING]   - WARNING: current_length > total_parts_length by {current_length - total_parts_length:.1f}mm", flush=True)
-                    nesting_log(f"[NESTING]   - Expected kerf (all cuts): {expected_kerf:.1f}mm", flush=True)
+                    nesting_log(f"[NESTING]   - Expected max kerf (if no sharing): {expected_kerf:.1f}mm", flush=True)
                     nesting_log(f"[NESTING]   - Actual difference: {current_length - total_parts_length:.1f}mm", flush=True)
                     if (current_length - total_parts_length) > expected_kerf + 10.0:  # Allow 10mm tolerance
                         nesting_log(f"[NESTING]   - ERROR: Difference is too large - possible calculation error!", flush=True)
