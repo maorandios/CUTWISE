@@ -171,3 +171,7 @@ Expected result:
 - Integrates with complementary slope detection
 - Maintains all existing waste calculation logic
 
+
+
+
+

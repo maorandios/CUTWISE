@@ -107,3 +107,7 @@ To verify the fix:
 **Conclusion**: The optimization was working correctly all along, but its results were being discarded by an overzealous sorting step. Now fixed!
 
 
+
+
+
+

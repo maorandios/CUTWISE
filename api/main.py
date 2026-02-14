@@ -1876,6 +1876,253 @@ async def get_assembly_mapping(filename: str):
         raise HTTPException(status_code=500, detail=f"Failed to get assembly mapping: {str(e)}")
 
 
+def optimize_pattern_flips(pattern_parts, stock_length):
+    """
+    Post-optimization: After parts are assigned to a stock bar, check if flipping
+    consecutive parts would create better alignments (especially for identical parts with slopes).
+    
+    This handles cases where parts #3 and #4 are placed with slopes facing outward,
+    but flipping them would allow their sloped edges to align, reducing waste.
+    """
+    if len(pattern_parts) < 2:
+        return pattern_parts
+    
+    nesting_log(f"[FLIP_OPTIMIZATION] Starting post-optimization for {len(pattern_parts)} parts")
+    
+    # Track if any changes were made
+    changes_made = False
+    
+    # Track if we're in an alternating pattern sequence for identical parts
+    in_alternating_sequence = False
+    last_flipped = False
+    
+    # Iterate through consecutive parts
+    for i in range(len(pattern_parts) - 1):
+        current_pp = pattern_parts[i]
+        next_pp = pattern_parts[i + 1]
+        
+        current_part = current_pp.get("part", {})
+        next_part = next_pp.get("part", {})
+        
+        # Check if parts are identical (same profile AND similar length)
+        current_profile = current_part.get("profile_name", "")
+        next_profile = next_part.get("profile_name", "")
+        current_length = current_part.get("length", 0)
+        next_length = next_part.get("length", 0)
+        
+        # Parts are identical if same profile and length within 1mm
+        are_identical = (current_profile == next_profile and abs(current_length - next_length) <= 1.0)
+        
+        msg = f"[FLIP_OPTIMIZATION] Checking parts {i} and {i+1}: profile={current_profile} vs {next_profile}, length={current_length:.1f} vs {next_length:.1f}, identical={are_identical}"
+        nesting_log(msg)
+        
+        # Skip if different profiles
+        if current_profile != next_profile:
+            msg = f"[FLIP_OPTIMIZATION] Skipping - different profiles"
+            nesting_log(msg)
+            in_alternating_sequence = False
+            continue
+        
+        # Get current slope information
+        current_slope = current_pp.get("slope_info", {})
+        next_slope = next_pp.get("slope_info", {})
+        
+        current_end_slope = current_slope.get("end_has_slope", False)
+        current_end_angle = current_slope.get("end_angle")
+        next_start_slope = next_slope.get("start_has_slope", False)
+        next_start_angle = next_slope.get("start_angle")
+        next_end_slope = next_slope.get("end_has_slope", False)
+        next_end_angle = next_slope.get("end_angle")
+        
+        msg1 = f"[FLIP_OPTIMIZATION] Current part end: has_slope={current_end_slope}, angle={current_end_angle}"
+        msg2 = f"[FLIP_OPTIMIZATION] Next part: start_slope={next_start_slope}, start_angle={next_start_angle}, end_slope={next_end_slope}, end_angle={next_end_angle}"
+        msg3 = f"[FLIP_OPTIMIZATION] Alternating sequence: in_sequence={in_alternating_sequence}, last_flipped={last_flipped}"
+        nesting_log(msg1)
+        nesting_log(msg2)
+        nesting_log(msg3)
+        
+        # NEW: If we're in an alternating sequence with identical parts, continue the pattern
+        if in_alternating_sequence and are_identical:
+            # Continue alternating: if last was flipped, don't flip this one; if last wasn't flipped, flip this one
+            should_flip_next = not last_flipped
+            
+            if should_flip_next:
+                msg = f"[FLIP_OPTIMIZATION] Continuing alternating pattern - flipping next identical part"
+                nesting_log(msg)
+                
+                # Flip the next part
+                next_part["start_angle"], next_part["end_angle"] = \
+                    next_part.get("end_angle"), next_part.get("start_angle")
+                next_part["start_has_slope"], next_part["end_has_slope"] = \
+                    next_part.get("end_has_slope", False), next_part.get("start_has_slope", False)
+                next_part["flipped"] = True
+                
+                # Update slope_info in pattern_parts
+                next_pp["slope_info"]["start_angle"] = next_part["start_angle"]
+                next_pp["slope_info"]["end_angle"] = next_part["end_angle"]
+                next_pp["slope_info"]["start_has_slope"] = next_part["start_has_slope"]
+                next_pp["slope_info"]["end_has_slope"] = next_part["end_has_slope"]
+                
+                changes_made = True
+                last_flipped = True
+                
+                part_id = next_part.get("product_id") or next_part.get("reference") or "unknown"
+                msg2 = f"[FLIP_OPTIMIZATION] Successfully flipped part {part_id} to continue alternating pattern"
+                nesting_log(msg2)
+                continue
+            else:
+                msg = f"[FLIP_OPTIMIZATION] Continuing alternating pattern - NOT flipping next identical part (keeping original orientation)"
+                nesting_log(msg)
+                last_flipped = False
+                continue
+        
+        # Check current boundary sharing status
+        current_can_share = False
+        if not current_end_slope and not next_start_slope:
+            current_can_share = True  # Both straight
+            msg = f"[FLIP_OPTIMIZATION] Already sharing - both straight"
+            nesting_log(msg)
+        elif current_end_slope and next_start_slope:
+            if current_end_angle is not None and next_start_angle is not None:
+                angle_diff = abs(abs(current_end_angle) - abs(next_start_angle))
+                if angle_diff <= 5.0:  # Increased tolerance to 5 degrees
+                    # Check if complementary (opposite signs)
+                    if (current_end_angle > 0 and next_start_angle < 0) or \
+                       (current_end_angle < 0 and next_start_angle > 0):
+                        current_can_share = True
+                        msg = f"[FLIP_OPTIMIZATION] Already sharing - complementary slopes"
+                        nesting_log(msg)
+        
+        # Special case: If both parts are identical and BOTH have slopes on the same end (both start OR both end),
+        # start an alternating pattern
+        if are_identical:
+            # Check if both parts have slopes on the SAME end
+            current_start_slope = current_slope.get("start_has_slope", False)
+            current_start_angle = current_slope.get("start_angle")
+            next_end_slope_val = next_slope.get("end_has_slope", False)
+            next_end_angle_val = next_slope.get("end_angle")
+            
+            both_have_start_slopes = current_start_slope and next_start_slope
+            both_have_end_slopes = current_end_slope and next_end_slope_val
+            
+            nesting_log(f"[FLIP_OPTIMIZATION] Identical parts check: both_have_start_slopes={both_have_start_slopes}, both_have_end_slopes={both_have_end_slopes}")
+            
+            if both_have_start_slopes or both_have_end_slopes:
+                # Get the angles from the ends that have slopes
+                if both_have_start_slopes:
+                    current_angle = current_start_angle
+                    next_angle = next_start_angle
+                    slope_location = "start"
+                else:  # both_have_end_slopes
+                    current_angle = current_end_angle
+                    next_angle = next_end_angle_val
+                    slope_location = "end"
+                
+                nesting_log(f"[FLIP_OPTIMIZATION] Both parts have slopes on {slope_location}: current_angle={current_angle}, next_angle={next_angle}")
+                
+                if current_angle is not None and next_angle is not None:
+                    angle_diff = abs(abs(current_angle) - abs(next_angle))
+                    # If angles are similar (within 5 degrees) and have SAME sign
+                    if angle_diff <= 5.0:
+                        same_sign = (current_angle > 0 and next_angle > 0) or \
+                                   (current_angle < 0 and next_angle < 0)
+                        nesting_log(f"[FLIP_OPTIMIZATION] Angle diff={angle_diff:.2f}°, same_sign={same_sign}")
+                        
+                        if same_sign:
+                            msg = f"[FLIP_OPTIMIZATION] Found consecutive identical parts with slopes on same {slope_location} (angle_diff={angle_diff:.2f}°) - starting alternating pattern"
+                            nesting_log(msg)
+                            
+                            # Flip the next part
+                            next_part["start_angle"], next_part["end_angle"] = \
+                                next_part.get("end_angle"), next_part.get("start_angle")
+                            next_part["start_has_slope"], next_part["end_has_slope"] = \
+                                next_part.get("end_has_slope", False), next_part.get("start_has_slope", False)
+                            next_part["flipped"] = True
+                            
+                            # Update slope_info in pattern_parts
+                            next_pp["slope_info"]["start_angle"] = next_part["start_angle"]
+                            next_pp["slope_info"]["end_angle"] = next_part["end_angle"]
+                            next_pp["slope_info"]["start_has_slope"] = next_part["start_has_slope"]
+                            next_pp["slope_info"]["end_has_slope"] = next_part["end_has_slope"]
+                            
+                            changes_made = True
+                            in_alternating_sequence = True
+                            last_flipped = True
+                            
+                            part_id = next_part.get("product_id") or next_part.get("reference") or "unknown"
+                            msg2 = f"[FLIP_OPTIMIZATION] Successfully flipped part {part_id} to start alternating slope pattern"
+                            nesting_log(msg2)
+                            continue
+        
+        # If already sharing and not starting a new sequence, skip
+        if current_can_share:
+            in_alternating_sequence = False
+            continue
+        
+        msg = f"[FLIP_OPTIMIZATION] Not currently sharing - checking if flip would help"
+        nesting_log(msg)
+        
+        # Try flipping the NEXT part to see if it creates a better alignment
+        # Flipped next part: start becomes end, end becomes start
+        flipped_next_start_slope = next_end_slope  # After flip, next's end becomes its start
+        flipped_next_start_angle = next_end_angle
+        
+        nesting_log(f"[FLIP_OPTIMIZATION] If flipped, next part would have: start_slope={flipped_next_start_slope}, start_angle={flipped_next_start_angle}")
+        
+        can_share_if_next_flipped = False
+        if not current_end_slope and not flipped_next_start_slope:
+            can_share_if_next_flipped = True  # Both straight
+            nesting_log(f"[FLIP_OPTIMIZATION] Flipping would create straight-to-straight")
+        elif current_end_slope and flipped_next_start_slope:
+            if current_end_angle is not None and flipped_next_start_angle is not None:
+                angle_diff = abs(abs(current_end_angle) - abs(flipped_next_start_angle))
+                nesting_log(f"[FLIP_OPTIMIZATION] Angle difference if flipped: {angle_diff:.2f} degrees")
+                if angle_diff <= 5.0:  # Increased tolerance to 5 degrees
+                    # Check if complementary (opposite signs)
+                    if (current_end_angle > 0 and flipped_next_start_angle < 0) or \
+                       (current_end_angle < 0 and flipped_next_start_angle > 0):
+                        can_share_if_next_flipped = True
+                        nesting_log(f"[FLIP_OPTIMIZATION] Flipping would create complementary slopes!")
+                    else:
+                        nesting_log(f"[FLIP_OPTIMIZATION] Angles match but same sign - not complementary")
+                else:
+                    nesting_log(f"[FLIP_OPTIMIZATION] Angle difference too large: {angle_diff:.2f} > 5.0")
+        
+        # If flipping next part helps, do it!
+        if can_share_if_next_flipped:
+            nesting_log(f"[FLIP_OPTIMIZATION] Flipping part at position {i+1} to align with previous part")
+            
+            # Swap start and end properties in the part object
+            next_part["start_angle"], next_part["end_angle"] = \
+                next_part.get("end_angle"), next_part.get("start_angle")
+            next_part["start_has_slope"], next_part["end_has_slope"] = \
+                next_part.get("end_has_slope", False), next_part.get("start_has_slope", False)
+            next_part["flipped"] = True
+            
+            # Update slope_info in pattern_parts
+            next_pp["slope_info"]["start_angle"] = next_part["start_angle"]
+            next_pp["slope_info"]["end_angle"] = next_part["end_angle"]
+            next_pp["slope_info"]["start_has_slope"] = next_part["start_has_slope"]
+            next_pp["slope_info"]["end_has_slope"] = next_part["end_has_slope"]
+            
+            changes_made = True
+            in_alternating_sequence = False
+            
+            part_id = next_part.get("product_id") or next_part.get("reference") or "unknown"
+            nesting_log(f"[FLIP_OPTIMIZATION] Successfully flipped part {part_id} to create boundary sharing")
+        else:
+            in_alternating_sequence = False
+    
+    if changes_made:
+        msg = f"[FLIP_OPTIMIZATION] Optimization complete - made improvements to pattern"
+        nesting_log(msg)
+    else:
+        msg = f"[FLIP_OPTIMIZATION] No optimization opportunities found"
+        nesting_log(msg)
+    
+    return pattern_parts
+
+
 @app.get("/api/nesting/{filename}")
 async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
     """Generate nesting optimization report for selected profiles with slope-aware cutting.
@@ -3828,6 +4075,9 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                     nesting_log(f"[NESTING]   - Actual difference: {current_length - total_parts_length:.1f}mm", flush=True)
                     if (current_length - total_parts_length) > expected_kerf + 10.0:  # Allow 10mm tolerance
                         nesting_log(f"[NESTING]   - ERROR: Difference is too large - possible calculation error!", flush=True)
+                
+                # OPTIMIZATION: Post-process pattern to flip consecutive identical parts for better alignment
+                pattern_parts = optimize_pattern_flips(pattern_parts, best_stock)
                 
                 cutting_patterns.append({
                     "stock_length": best_stock,
