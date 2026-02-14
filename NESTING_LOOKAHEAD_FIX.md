@@ -173,3 +173,4 @@ score = -compatible_count * 1000 + (10000 - part_length)
 
 
 
+

@@ -1895,98 +1895,271 @@ def optimize_pattern_flips(pattern_parts, stock_length):
     # Track if any changes were made
     changes_made = False
     
-    # ========== STEP 1: REORDER PARTS TO MINIMIZE WASTE ==========
-    # Strategy: Parts with unpaired end slopes should go at the END of the bar
-    # so their sloped end merges with the unavoidable waste at the end
-    # This prevents waste in the MIDDLE of the bar
+    # ========== STEP 1: DETECT AND OPTIMIZE COMPLEMENTARY PAIRS ==========
+    # Strategy: 
+    # 1. Find complementary pairs (parts whose boundaries can share)
+    # 2. Keep complementary pairs together
+    # 3. Place pairs optimally: straight parts first, complementary pairs with unpaired ends last
     
     if len(pattern_parts) >= 2:
-        nesting_log(f"[FLIP_OPTIMIZATION] Analyzing part order to minimize waste...")
+        nesting_log(f"[FLIP_OPTIMIZATION] Detecting complementary pairs in pattern...")
         
-        # Classify each part by its end characteristics
-        parts_with_unpaired_end_slope = []
-        parts_with_paired_or_straight_end = []
+        # Find all complementary pairs (parts whose boundaries can share)
+        complementary_pairs = []
         
-        for i, pp in enumerate(pattern_parts):
-            part = pp.get("part", {})
-            slope_info = pp.get("slope_info", {})
-            
-            end_has_slope = slope_info.get("end_has_slope", False)
-            end_angle = slope_info.get("end_angle")
-            
-            # Check if this part's end has an unpaired slope
-            # (i.e., the next part can't share boundary with it)
-            has_unpaired_end = False
-            
-            if end_has_slope and i < len(pattern_parts) - 1:
-                # Check if next part can share boundary
-                next_pp = pattern_parts[i + 1]
-                next_slope_info = next_pp.get("slope_info", {})
-                next_start_has_slope = next_slope_info.get("start_has_slope", False)
-                next_start_angle = next_slope_info.get("start_angle")
+        for i in range(len(pattern_parts)):
+            for j in range(i + 1, len(pattern_parts)):
+                pp_i = pattern_parts[i]
+                pp_j = pattern_parts[j]
+                
+                slope_i = pp_i.get("slope_info", {})
+                slope_j = pp_j.get("slope_info", {})
+                
+                # Check if part i's END can share with part j's START
+                end_i_slope = slope_i.get("end_has_slope", False)
+                end_i_angle = slope_i.get("end_angle")
+                start_j_slope = slope_j.get("start_has_slope", False)
+                start_j_angle = slope_j.get("start_angle")
                 
                 can_share = False
-                if next_start_has_slope and end_angle is not None and next_start_angle is not None:
-                    angle_diff = abs(abs(end_angle) - abs(next_start_angle))
-                    if angle_diff <= 2.0:
-                        # Check if complementary (opposite signs)
-                        if (end_angle > 0 and next_start_angle < 0) or (end_angle < 0 and next_start_angle > 0):
-                            can_share = True
-                elif not end_has_slope and not next_start_has_slope:
-                    # Both straight - can share
-                    can_share = True
-                
-                if not can_share:
-                    has_unpaired_end = True
-                    part_id = part.get("product_id") or part.get("reference") or "unknown"
-                    nesting_log(f"[FLIP_OPTIMIZATION] Part {i} ({part_id}) has unpaired end - creates waste with next part")
-            
-            if has_unpaired_end:
-                parts_with_unpaired_end_slope.append((i, pp))
-            else:
-                parts_with_paired_or_straight_end.append((i, pp))
+                if not end_i_slope and not start_j_slope:
+                    can_share = True  # Both straight
+                elif end_i_slope and start_j_slope:
+                    if end_i_angle is not None and start_j_angle is not None:
+                        angle_diff = abs(abs(end_i_angle) - abs(start_j_angle))
+                        if angle_diff <= 2.0:
+                            # Check if complementary (opposite signs)
+                            if (end_i_angle > 0 and start_j_angle < 0) or (end_i_angle < 0 and start_j_angle > 0):
+                                can_share = True
+                                part_i = pp_i.get("part", {})
+                                part_j = pp_j.get("part", {})
+                                part_i_id = part_i.get("product_id") or part_i.get("reference") or "unknown"
+                                part_j_id = part_j.get("product_id") or part_j.get("reference") or "unknown"
+                                nesting_log(f"[FLIP_OPTIMIZATION] Found complementary pair: {part_i_id} (pos {i}, end) <-> {part_j_id} (pos {j}, start)")
+                                complementary_pairs.append((i, j))
         
-        # If we have parts with unpaired end slopes that are NOT at the end, reorder
-        if parts_with_unpaired_end_slope:
-            # Check if any unpaired-end parts are NOT at the end
-            last_index = len(pattern_parts) - 1
-            needs_reorder = any(idx < last_index for idx, _ in parts_with_unpaired_end_slope)
+        # ========== STEP 2: SMART REORDERING BASED ON WASTE CALCULATION ==========
+        # Calculate the number of waste gaps for the current ordering
+        # Then try to find a better ordering that minimizes waste gaps
+        if len(pattern_parts) >= 2:
+            nesting_log(f"[FLIP_OPTIMIZATION] Calculating waste gaps for current ordering...")
             
-            if needs_reorder:
-                nesting_log(f"[FLIP_OPTIMIZATION] Found {len(parts_with_unpaired_end_slope)} parts with unpaired end slopes not at the end")
-                nesting_log(f"[FLIP_OPTIMIZATION] Reordering: parts with paired/straight ends first, unpaired end slopes last")
+            def count_waste_gaps(parts_sequence):
+                """Count the number of waste gaps in a given sequence of parts"""
+                gaps = 0
+                for i in range(len(parts_sequence) - 1):
+                    curr_pp = parts_sequence[i]
+                    next_pp = parts_sequence[i + 1]
+                    
+                    curr_slope = curr_pp.get("slope_info", {})
+                    next_slope = next_pp.get("slope_info", {})
+                    
+                    curr_end_slope = curr_slope.get("end_has_slope", False)
+                    curr_end_angle = curr_slope.get("end_angle")
+                    next_start_slope = next_slope.get("start_has_slope", False)
+                    next_start_angle = next_slope.get("start_angle")
+                    
+                    # Check if boundaries can share
+                    can_share = False
+                    if not curr_end_slope and not next_start_slope:
+                        can_share = True  # Both straight
+                    elif curr_end_slope and next_start_slope:
+                        if curr_end_angle is not None and next_start_angle is not None:
+                            angle_diff = abs(abs(curr_end_angle) - abs(next_start_angle))
+                            if angle_diff <= 2.0:
+                                if (curr_end_angle > 0 and next_start_angle < 0) or (curr_end_angle < 0 and next_start_angle > 0):
+                                    can_share = True
+                    
+                    if not can_share:
+                        gaps += 1
                 
-                # Reorder: paired/straight ends first, unpaired end slopes last
-                reordered_parts = []
+                return gaps
+            
+            current_gaps = count_waste_gaps(pattern_parts)
+            nesting_log(f"[FLIP_OPTIMIZATION] Current ordering has {current_gaps} waste gap(s)")
+            
+            if current_gaps > 0:
+                # Try to find a better ordering
+                # Strategy: Sort parts by their slope configuration
+                # Priority: straight-straight > start-only > end-only > both-slopes
                 
-                # Add parts with paired or straight ends first
-                for idx, pp in parts_with_paired_or_straight_end:
-                    reordered_parts.append(pp)
-                    part = pp.get("part", {})
+                def get_part_priority(pp):
+                    """Get sorting priority for a part (lower = earlier in bar)"""
+                    slope_info = pp.get("slope_info", {})
+                    start_slope = slope_info.get("start_has_slope", False)
+                    end_slope = slope_info.get("end_has_slope", False)
+                    
+                    if not start_slope and not end_slope:
+                        return 0  # Straight-straight: highest priority (beginning)
+                    elif start_slope and not end_slope:
+                        return 1  # Start-only: second priority
+                    elif not start_slope and end_slope:
+                        return 3  # End-only: lowest priority (end of bar)
+                    else:  # both slopes
+                        return 2  # Both slopes: third priority
+                
+                # Sort parts by priority
+                sorted_parts = sorted(pattern_parts, key=get_part_priority)
+                
+                # Calculate gaps for new ordering
+                new_gaps = count_waste_gaps(sorted_parts)
+                nesting_log(f"[FLIP_OPTIMIZATION] Optimized ordering would have {new_gaps} waste gap(s)")
+                
+                if new_gaps < current_gaps:
+                    nesting_log(f"[FLIP_OPTIMIZATION] Reordering parts - reducing gaps from {current_gaps} to {new_gaps}")
+                    
+                    # Log the reordering
+                    for i, pp in enumerate(sorted_parts):
+                        part = pp.get("part", {})
+                        part_id = part.get("product_id") or part.get("reference") or "unknown"
+                        slope_info = pp.get("slope_info", {})
+                        start_slope = slope_info.get("start_has_slope", False)
+                        end_slope = slope_info.get("end_has_slope", False)
+                        slope_desc = f"start={start_slope}, end={end_slope}"
+                        nesting_log(f"[FLIP_OPTIMIZATION]   Position {i}: {part_id} ({slope_desc})")
+                    
+                    # Recalculate positions
+                    current_position = 0
+                    for pp in sorted_parts:
+                        pp["cut_position"] = current_position
+                        part_length = pp.get("length", 0)
+                        current_position += part_length
+                    
+                    pattern_parts = sorted_parts
+                    changes_made = True
+                    
+                    nesting_log(f"[FLIP_OPTIMIZATION] Successfully reordered parts - waste gaps reduced")
+                else:
+                    nesting_log(f"[FLIP_OPTIMIZATION] Current ordering is already optimal")
+            else:
+                nesting_log(f"[FLIP_OPTIMIZATION] No waste gaps detected - no reordering needed")
+        
+        # Now check if FLIPPING parts would create better alignments
+        nesting_log(f"[FLIP_OPTIMIZATION] Checking if flips would improve boundary sharing...")
+        
+        # For each part, check if flipping it would improve boundary sharing with neighbors
+        flip_improvements = []
+        
+        if len(pattern_parts) >= 2:
+            
+            for i, pp in enumerate(pattern_parts):
+                part = pp.get("part", {})
+                slope_info = pp.get("slope_info", {})
+                
+                # Get current orientation
+                current_start_slope = slope_info.get("start_has_slope", False)
+                current_start_angle = slope_info.get("start_angle")
+                current_end_slope = slope_info.get("end_has_slope", False)
+                current_end_angle = slope_info.get("end_angle")
+                
+                # Calculate current boundary sharing score
+                current_score = 0
+                
+                # Check with previous part
+                if i > 0:
+                    prev_pp = pattern_parts[i - 1]
+                    prev_slope = prev_pp.get("slope_info", {})
+                    prev_end_slope = prev_slope.get("end_has_slope", False)
+                    prev_end_angle = prev_slope.get("end_angle")
+                    
+                    # Can current start share with prev end?
+                    if not prev_end_slope and not current_start_slope:
+                        current_score += 1  # Both straight
+                    elif prev_end_slope and current_start_slope:
+                        if prev_end_angle is not None and current_start_angle is not None:
+                            angle_diff = abs(abs(prev_end_angle) - abs(current_start_angle))
+                            if angle_diff <= 2.0:
+                                if (prev_end_angle > 0 and current_start_angle < 0) or (prev_end_angle < 0 and current_start_angle > 0):
+                                    current_score += 1  # Complementary
+                
+                # Check with next part
+                if i < len(pattern_parts) - 1:
+                    next_pp = pattern_parts[i + 1]
+                    next_slope = next_pp.get("slope_info", {})
+                    next_start_slope = next_slope.get("start_has_slope", False)
+                    next_start_angle = next_slope.get("start_angle")
+                    
+                    # Can current end share with next start?
+                    if not current_end_slope and not next_start_slope:
+                        current_score += 1  # Both straight
+                    elif current_end_slope and next_start_slope:
+                        if current_end_angle is not None and next_start_angle is not None:
+                            angle_diff = abs(abs(current_end_angle) - abs(next_start_angle))
+                            if angle_diff <= 2.0:
+                                if (current_end_angle > 0 and next_start_angle < 0) or (current_end_angle < 0 and next_start_angle > 0):
+                                    current_score += 1  # Complementary
+                
+                # Now calculate score if we FLIP this part
+                flipped_score = 0
+                
+                # After flip: start becomes end, end becomes start
+                flipped_start_slope = current_end_slope
+                flipped_start_angle = current_end_angle
+                flipped_end_slope = current_start_slope
+                flipped_end_angle = current_start_angle
+                
+                # Check with previous part (if flipped)
+                if i > 0:
+                    prev_pp = pattern_parts[i - 1]
+                    prev_slope = prev_pp.get("slope_info", {})
+                    prev_end_slope = prev_slope.get("end_has_slope", False)
+                    prev_end_angle = prev_slope.get("end_angle")
+                    
+                    if not prev_end_slope and not flipped_start_slope:
+                        flipped_score += 1
+                    elif prev_end_slope and flipped_start_slope:
+                        if prev_end_angle is not None and flipped_start_angle is not None:
+                            angle_diff = abs(abs(prev_end_angle) - abs(flipped_start_angle))
+                            if angle_diff <= 2.0:
+                                if (prev_end_angle > 0 and flipped_start_angle < 0) or (prev_end_angle < 0 and flipped_start_angle > 0):
+                                    flipped_score += 1
+                
+                # Check with next part (if flipped)
+                if i < len(pattern_parts) - 1:
+                    next_pp = pattern_parts[i + 1]
+                    next_slope = next_pp.get("slope_info", {})
+                    next_start_slope = next_slope.get("start_has_slope", False)
+                    next_start_angle = next_slope.get("start_angle")
+                    
+                    if not flipped_end_slope and not next_start_slope:
+                        flipped_score += 1
+                    elif flipped_end_slope and next_start_slope:
+                        if flipped_end_angle is not None and next_start_angle is not None:
+                            angle_diff = abs(abs(flipped_end_angle) - abs(next_start_angle))
+                            if angle_diff <= 2.0:
+                                if (flipped_end_angle > 0 and next_start_angle < 0) or (flipped_end_angle < 0 and next_start_angle > 0):
+                                    flipped_score += 1
+                
+                # If flipping improves the score, record it
+                if flipped_score > current_score:
                     part_id = part.get("product_id") or part.get("reference") or "unknown"
-                    nesting_log(f"[FLIP_OPTIMIZATION]   -> Keeping part {part_id} at beginning (paired/straight end)")
+                    nesting_log(f"[FLIP_OPTIMIZATION] Part {i} ({part_id}): current_score={current_score}, flipped_score={flipped_score} - flipping would improve!")
+                    flip_improvements.append((i, flipped_score - current_score))
+            
+            # Apply flips that improve boundary sharing
+            if flip_improvements:
+                # Sort by improvement (highest first)
+                flip_improvements.sort(key=lambda x: x[1], reverse=True)
                 
-                # Add parts with unpaired end slopes last
-                for idx, pp in parts_with_unpaired_end_slope:
-                    reordered_parts.append(pp)
+                for part_idx, improvement in flip_improvements:
+                    pp = pattern_parts[part_idx]
                     part = pp.get("part", {})
+                    slope_info = pp.get("slope_info", {})
+                    
+                    # Flip the part
+                    part["start_angle"], part["end_angle"] = part.get("end_angle"), part.get("start_angle")
+                    part["start_has_slope"], part["end_has_slope"] = part.get("end_has_slope", False), part.get("start_has_slope", False)
+                    part["flipped"] = True
+                    
+                    # Update slope_info
+                    slope_info["start_angle"], slope_info["end_angle"] = slope_info.get("end_angle"), slope_info.get("start_angle")
+                    slope_info["start_has_slope"], slope_info["end_has_slope"] = slope_info.get("end_has_slope", False), slope_info.get("start_has_slope", False)
+                    
+                    changes_made = True
+                    
                     part_id = part.get("product_id") or part.get("reference") or "unknown"
-                    nesting_log(f"[FLIP_OPTIMIZATION]   -> Moving part {part_id} to end (unpaired end slope)")
-                
-                # Recalculate positions
-                current_position = 0
-                for pp in reordered_parts:
-                    pp["cut_position"] = current_position
-                    part_length = pp.get("length", 0)
-                    current_position += part_length
-                    # Note: We're not recalculating kerf here - the subsequent flip optimization
-                    # and boundary sharing checks will handle that
-                
-                pattern_parts = reordered_parts
-                changes_made = True
-                
-                nesting_log(f"[FLIP_OPTIMIZATION] Successfully reordered parts - unpaired end slopes moved to end of bar")
-    # ========== END: REORDER PARTS TO MINIMIZE WASTE ==========
+                    nesting_log(f"[FLIP_OPTIMIZATION] Flipped part {part_idx} ({part_id}) to improve boundary sharing (improvement: +{improvement})")
+    # ========== END: REORDERING LOGIC ==========
     
     if len(pattern_parts) < 2:
         if changes_made:

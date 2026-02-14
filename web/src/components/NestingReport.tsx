@@ -1008,13 +1008,11 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 
                                 // A) Layout: Compute x positions by cumulative sum of part.length
                                 // For the on-screen visualization we want to match the optimized
-                                // PDF report layout: sort parts by length (descending) so that
-                                // longer parts are placed first along the stock bar.
-                                const sortedParts = [...pattern.parts].sort((a, b) => {
-                                  const lengthA = a?.length || 0
-                                  const lengthB = b?.length || 0
-                                  return lengthB - lengthA
-                                })
+                                // IMPORTANT: Use the backend's optimized order!
+                                // The backend has already reordered parts to minimize waste
+                                // (e.g., moving parts with unpaired end slopes to the end)
+                                // DO NOT re-sort here - that would undo the optimization!
+                                const sortedParts = [...pattern.parts]
                                 
                                 // Calculate total length of all parts first
                                 const totalPartsLengthMm = sortedParts.reduce((sum, part) => sum + (part.length || 0), 0)
@@ -2892,12 +2890,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 }
                                 
                                 // Calculate part positions (MUST match SVG section exactly)
-                                // Use the same optimized order as the SVG: parts sorted by length (descending)
-                                const sortedParts = [...pattern.parts].sort((a, b) => {
-                                  const lengthA = a?.length || 0
-                                  const lengthB = b?.length || 0
-                                  return lengthB - lengthA
-                                })
+                                // Use the backend's optimized order - DO NOT re-sort!
+                                const sortedParts = [...pattern.parts]
                                 
                                 // Calculate total length and scaling (same as SVG)
                                 const totalPartsLengthMm = sortedParts.reduce((sum, part) => sum + (part.length || 0), 0)

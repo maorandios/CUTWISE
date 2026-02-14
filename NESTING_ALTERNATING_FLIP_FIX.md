@@ -206,3 +206,4 @@ This helps debug and verify the alternating pattern is being applied correctly.
 
 The fix ensures that the nesting algorithm now properly handles long sequences of identical parts with slopes, creating optimal alternating patterns throughout the entire stock bar.
 
+

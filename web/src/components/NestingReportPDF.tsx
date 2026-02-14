@@ -137,15 +137,11 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
   const stockLength = pattern.stock_length
   const pxPerMm = appWidth / stockLength  // Base scale: full stock (including waste) to 1000px
   
-  // IMPORTANT: For reporting we want a visually optimized bar:
-  // - Sort parts by length (descending) so longer parts are placed first
-  // - This is the same strategy the PDF report originally used and is
-  //   what we consider the "correct" optimized display.
-  const sortedParts = [...(pattern.parts || [])].sort((a, b) => {
-    const lengthA = a?.length || 0
-    const lengthB = b?.length || 0
-    return lengthB - lengthA
-  })
+  // IMPORTANT: Use the backend's optimized order!
+  // The backend has already reordered parts to minimize waste
+  // (e.g., moving parts with unpaired end slopes to the end)
+  // DO NOT re-sort here - that would undo the optimization!
+  const sortedParts = [...(pattern.parts || [])]
   
   // Total length of all parts in mm (using the order from the backend)
   const totalPartsLengthMm = sortedParts.reduce(
