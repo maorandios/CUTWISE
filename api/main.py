@@ -1881,16 +1881,117 @@ def optimize_pattern_flips(pattern_parts, stock_length):
     Post-optimization: After parts are assigned to a stock bar, check if flipping
     consecutive parts would create better alignments (especially for identical parts with slopes).
     
+    Also reorders parts to minimize waste by placing parts with unpaired end slopes at the end
+    of the stock bar where their slope can merge with the unavoidable end waste.
+    
     This handles cases where parts #3 and #4 are placed with slopes facing outward,
     but flipping them would allow their sloped edges to align, reducing waste.
     """
-    if len(pattern_parts) < 2:
+    if len(pattern_parts) == 0:
         return pattern_parts
     
     nesting_log(f"[FLIP_OPTIMIZATION] Starting post-optimization for {len(pattern_parts)} parts")
     
     # Track if any changes were made
     changes_made = False
+    
+    # ========== STEP 1: REORDER PARTS TO MINIMIZE WASTE ==========
+    # Strategy: Parts with unpaired end slopes should go at the END of the bar
+    # so their sloped end merges with the unavoidable waste at the end
+    # This prevents waste in the MIDDLE of the bar
+    
+    if len(pattern_parts) >= 2:
+        nesting_log(f"[FLIP_OPTIMIZATION] Analyzing part order to minimize waste...")
+        
+        # Classify each part by its end characteristics
+        parts_with_unpaired_end_slope = []
+        parts_with_paired_or_straight_end = []
+        
+        for i, pp in enumerate(pattern_parts):
+            part = pp.get("part", {})
+            slope_info = pp.get("slope_info", {})
+            
+            end_has_slope = slope_info.get("end_has_slope", False)
+            end_angle = slope_info.get("end_angle")
+            
+            # Check if this part's end has an unpaired slope
+            # (i.e., the next part can't share boundary with it)
+            has_unpaired_end = False
+            
+            if end_has_slope and i < len(pattern_parts) - 1:
+                # Check if next part can share boundary
+                next_pp = pattern_parts[i + 1]
+                next_slope_info = next_pp.get("slope_info", {})
+                next_start_has_slope = next_slope_info.get("start_has_slope", False)
+                next_start_angle = next_slope_info.get("start_angle")
+                
+                can_share = False
+                if next_start_has_slope and end_angle is not None and next_start_angle is not None:
+                    angle_diff = abs(abs(end_angle) - abs(next_start_angle))
+                    if angle_diff <= 2.0:
+                        # Check if complementary (opposite signs)
+                        if (end_angle > 0 and next_start_angle < 0) or (end_angle < 0 and next_start_angle > 0):
+                            can_share = True
+                elif not end_has_slope and not next_start_has_slope:
+                    # Both straight - can share
+                    can_share = True
+                
+                if not can_share:
+                    has_unpaired_end = True
+                    part_id = part.get("product_id") or part.get("reference") or "unknown"
+                    nesting_log(f"[FLIP_OPTIMIZATION] Part {i} ({part_id}) has unpaired end - creates waste with next part")
+            
+            if has_unpaired_end:
+                parts_with_unpaired_end_slope.append((i, pp))
+            else:
+                parts_with_paired_or_straight_end.append((i, pp))
+        
+        # If we have parts with unpaired end slopes that are NOT at the end, reorder
+        if parts_with_unpaired_end_slope:
+            # Check if any unpaired-end parts are NOT at the end
+            last_index = len(pattern_parts) - 1
+            needs_reorder = any(idx < last_index for idx, _ in parts_with_unpaired_end_slope)
+            
+            if needs_reorder:
+                nesting_log(f"[FLIP_OPTIMIZATION] Found {len(parts_with_unpaired_end_slope)} parts with unpaired end slopes not at the end")
+                nesting_log(f"[FLIP_OPTIMIZATION] Reordering: parts with paired/straight ends first, unpaired end slopes last")
+                
+                # Reorder: paired/straight ends first, unpaired end slopes last
+                reordered_parts = []
+                
+                # Add parts with paired or straight ends first
+                for idx, pp in parts_with_paired_or_straight_end:
+                    reordered_parts.append(pp)
+                    part = pp.get("part", {})
+                    part_id = part.get("product_id") or part.get("reference") or "unknown"
+                    nesting_log(f"[FLIP_OPTIMIZATION]   -> Keeping part {part_id} at beginning (paired/straight end)")
+                
+                # Add parts with unpaired end slopes last
+                for idx, pp in parts_with_unpaired_end_slope:
+                    reordered_parts.append(pp)
+                    part = pp.get("part", {})
+                    part_id = part.get("product_id") or part.get("reference") or "unknown"
+                    nesting_log(f"[FLIP_OPTIMIZATION]   -> Moving part {part_id} to end (unpaired end slope)")
+                
+                # Recalculate positions
+                current_position = 0
+                for pp in reordered_parts:
+                    pp["cut_position"] = current_position
+                    part_length = pp.get("length", 0)
+                    current_position += part_length
+                    # Note: We're not recalculating kerf here - the subsequent flip optimization
+                    # and boundary sharing checks will handle that
+                
+                pattern_parts = reordered_parts
+                changes_made = True
+                
+                nesting_log(f"[FLIP_OPTIMIZATION] Successfully reordered parts - unpaired end slopes moved to end of bar")
+    # ========== END: REORDER PARTS TO MINIMIZE WASTE ==========
+    
+    if len(pattern_parts) < 2:
+        if changes_made:
+            nesting_log(f"[FLIP_OPTIMIZATION] Optimization complete - reordered parts only")
+        return pattern_parts
     
     # Track if we're in an alternating pattern sequence for identical parts
     in_alternating_sequence = False
