@@ -20,6 +20,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedProfiles, setExpandedProfiles] = useState<Set<string>>(new Set())
+  const [kerfValue, setKerfValue] = useState<number>(3.0) // Default kerf: 3mm
 
   // Get available profiles from report
   const availableProfiles = report?.profiles || []
@@ -195,7 +196,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       const encodedFilename = encodeURIComponent(filename)
       const params = new URLSearchParams({
         stock_lengths: stockLengths,
-        profiles: Array.from(selectedProfiles).join(',')  // Pass selected profiles
+        profiles: Array.from(selectedProfiles).join(','),  // Pass selected profiles
+        kerf: kerfValue.toString()  // Pass kerf value
       })
       const url = `/api/nesting/${encodedFilename}?${params.toString()}`
 
@@ -371,6 +373,29 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                         </label>
                       )
                     })}
+                  </div>
+
+                  {/* Kerf Configuration */}
+                  <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <h4 className="font-semibold text-gray-900 mb-3">Cutting Configuration</h4>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2">
+                        <span className="text-sm text-gray-700 font-medium">Kerf (cutting width):</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="10"
+                          step="0.1"
+                          value={kerfValue}
+                          onChange={(e) => setKerfValue(parseFloat(e.target.value) || 0)}
+                          className="w-20 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-600">mm</span>
+                      </label>
+                      <p className="text-xs text-gray-500">
+                        Distance between parts to account for cutting blade width (typically 3mm for steel)
+                      </p>
+                    </div>
                   </div>
 
                   <div className="mt-6 flex justify-end gap-3">

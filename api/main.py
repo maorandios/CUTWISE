@@ -1877,13 +1877,14 @@ async def get_assembly_mapping(filename: str):
 
 
 @app.get("/api/nesting/{filename}")
-async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
+async def generate_nesting(filename: str, stock_lengths: str, profiles: str, kerf: float = 3.0):
     """Generate nesting optimization report for selected profiles with slope-aware cutting.
     
     Args:
         filename: IFC filename
         stock_lengths: Comma-separated list of stock lengths in mm (e.g., "6000,12000")
         profiles: Comma-separated list of profile names to nest (e.g., "IPE200,HEA300")
+        kerf: Kerf width in mm (cutting blade width, default: 3.0mm)
     """
     import sys
     import traceback
@@ -1897,6 +1898,7 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
     nesting_log(f"[NESTING] Filename: {filename}", flush=True)
     nesting_log(f"[NESTING] Stock lengths: {stock_lengths}", flush=True)
     nesting_log(f"[NESTING] Profiles: {profiles}", flush=True)
+    nesting_log(f"[NESTING] Kerf: {kerf}mm", flush=True)
     nesting_log("=" * 60, flush=True)
     
     try:
@@ -2294,6 +2296,7 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                 continue
             
             nesting_log(f"[NESTING] Processing {len(parts)} parts for profile {profile_name}")
+            nesting_log(f"[NESTING] Using kerf value: {kerf}mm")
             
             # Separate parts by slope characteristics
             parts_with_slopes = [p for p in parts if p.get("start_has_slope") or p.get("end_has_slope")]
@@ -2946,7 +2949,8 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                     
                                     # Calculate combined length using actual geometric shared length
                                     # IMPORTANT: Do NOT adjust shared length to fit stock - use only geometric calculation
-                                    combined_length = length1 + length2 - shared_linear_slopes_length
+                                    # Add kerf between the two parts (material lost to cutting)
+                                    combined_length = length1 + kerf + length2 - shared_linear_slopes_length
                                     
                                     if combined_length < 0:
                                         # Safety: if shared length is larger than sum, cap it
@@ -2954,15 +2958,17 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                         if shared_linear_slopes_length > max_shared:
                                             nesting_log(f"[NESTING] Warning: Shared length ({shared_linear_slopes_length:.1f}mm) too large, capping to {max_shared:.1f}mm")
                                             shared_linear_slopes_length = max_shared
-                                            combined_length = length1 + length2 - shared_linear_slopes_length
+                                            combined_length = length1 + kerf + length2 - shared_linear_slopes_length
                                     
                                     nesting_log(f"[NESTING] Complementary slopes: angle={angle_for_calculation:.1f}°, depth={estimated_profile_depth:.1f}mm")
                                     nesting_log(f"[NESTING]   Part 1: {length1:.1f}mm, Part 2: {length2:.1f}mm")
                                     nesting_log(f"[NESTING]   Shared: {shared_linear_slopes_length:.1f}mm (depth * tan(angle) = {estimated_profile_depth:.1f} * tan({angle_for_calculation:.1f}°))")
-                                    nesting_log(f"[NESTING]   Combined: {length1:.1f} + {length2:.1f} - {shared_linear_slopes_length:.1f} = {combined_length:.1f}mm")
+                                    nesting_log(f"[NESTING]   Kerf: {kerf:.1f}mm")
+                                    nesting_log(f"[NESTING]   Combined: {length1:.1f} + {kerf:.1f} + {length2:.1f} - {shared_linear_slopes_length:.1f} = {combined_length:.1f}mm")
                                 else:
                                     # Fallback: use linear sum if angle is not available
-                                    combined_length = length1 + length2
+                                    # Add kerf between the two parts (material lost to cutting)
+                                    combined_length = length1 + kerf + length2
                                     # shared_linear_slopes_length is already 0.0 from initialization
                                 
                                 angle1_str = f"{angle1_val:.1f}°" if angle1_val is not None else "N/A"
@@ -3097,7 +3103,7 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                     # Store the current_length before adding the pair
                                     length_before_pair = current_length
                                     
-                                    cut_position += part1["length"]
+                                    cut_position += part1["length"] + kerf  # Add kerf after part1
                                     
                                     # For complementary slopes, part2 starts at the shared cut position
                                     # This means part2's cut_position should account for the shared linear slopes length
@@ -3117,8 +3123,9 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                         }
                                     })
                                     # Update cut_position to reflect where we actually are after both parts
-                                    # This is part1 end + part2 length - shared_linear_slopes_length (which equals combined_length)
-                                    cut_position = part2_cut_position + part2["length"]
+                                    # This is part1 end + part2 length + kerf - shared_linear_slopes_length
+                                    # Add kerf after part2 (material lost to cutting)
+                                    cut_position = part2_cut_position + part2["length"] + kerf
                                     
                                     # Use combined_length directly to update current_length - this ensures accuracy
                                     # combined_length already accounts for: length1 + length2 - shared_linear_slopes_length
@@ -3175,7 +3182,7 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                     total_parts_length += part1["length"] + part2["length"]  # Track individual part lengths (for display)
                                     
                                     nesting_log(f"[NESTING] Added complementary pair: length_before = {length_before_pair:.1f}mm, combined_length = {combined_length:.1f}mm, current_length = {current_length:.1f}mm")
-                                    nesting_log(f"[NESTING]   Verification: part1={part1['length']:.1f}mm + part2={part2['length']:.1f}mm - shared={shared_linear_slopes_length:.1f}mm = {combined_length:.1f}mm")
+                                    nesting_log(f"[NESTING]   Verification: part1={part1['length']:.1f}mm + kerf={kerf:.1f}mm + part2={part2['length']:.1f}mm - shared={shared_linear_slopes_length:.1f}mm = {combined_length:.1f}mm")
                                     
                                     parts_to_remove.extend([part1, part2])
                                     nesting_log(f"[NESTING] Successfully paired complementary slopes - waste saved by using complementary cuts")
@@ -3309,12 +3316,11 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                                 next_part = next_candidates[0]
                                 next_start_slope = next_part.get("start_has_slope", False)
                                 
-                                # Calculate kerf
-                                kerf = 3.0  # Default kerf
-                                if next_part in can_flush_now:
-                                    kerf = 0.0  # Can flush, no kerf
+                                # Use the user-provided kerf value (don't override the parameter)
+                                # Always add kerf after each part, as per user requirement
+                                kerf_for_simulation = kerf  # Use parameter value
                                 
-                                new_length = simulated_length + next_part["length"] + kerf
+                                new_length = simulated_length + next_part["length"] + kerf_for_simulation
                                 if new_length <= best_stock:
                                     simulated_length = new_length
                                     simulated_parts.append(next_part)
@@ -3516,85 +3522,13 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                     # CRITICAL FIX: For individual parts (not paired), always use full part length
                     part_length = part["length"]
                     
-                    # CRITICAL: Check if this part can share boundary with previous part
-                    # If boundaries can't be shared (non-complementary slopes), add kerf
-                    kerf_mm = 0.0  # Default: no kerf if boundaries can be shared
+                    # SIMPLE KERF LOGIC: Always add kerf after each part (except the last one in the bar)
+                    # Every cut removes material equal to the kerf width, regardless of cut angles
+                    part_id = part.get("product_id") or part.get("reference") or part.get("element_name") or "unknown"
                     
-                    if len(pattern_parts) > 0:
-                        # Check if previous part's end and current part's start can share boundary
-                        prev_part = pattern_parts[-1]
-                        prev_slope_info = prev_part.get("slope_info", {})
-                        curr_slope_info = {
-                            "start_angle": part.get("start_angle"),
-                            "end_angle": part.get("end_angle"),
-                            "start_has_slope": part.get("start_has_slope", False),
-                            "end_has_slope": part.get("end_has_slope", False)
-                        }
-                        
-                        prev_end_has_slope = prev_slope_info.get("end_has_slope", False)
-                        prev_end_angle = prev_slope_info.get("end_angle")
-                        curr_start_has_slope = curr_slope_info.get("start_has_slope", False)
-                        curr_start_angle = curr_slope_info.get("start_angle")
-                        
-                        # Determine if boundaries can share
-                        can_share = False
-                        
-                        if not prev_end_has_slope and not curr_start_has_slope:
-                            # Both straight - can share
-                            can_share = True
-                        elif prev_end_has_slope and curr_start_has_slope:
-                            # Both sloped - check if complementary
-                            if prev_end_angle is not None and curr_start_angle is not None:
-                                # Check if angles are complementary (opposite signs, similar magnitude)
-                                angle_diff = abs(abs(prev_end_angle) - abs(curr_start_angle))
-                                # If angles are within 2 degrees and have opposite signs, they're complementary
-                                if angle_diff <= 2.0:
-                                    # Check if they have opposite signs (complementary)
-                                    if (prev_end_angle > 0 and curr_start_angle < 0) or (prev_end_angle < 0 and curr_start_angle > 0):
-                                        can_share = True
-                        
-                        # If boundaries can't be shared, CHECK IF FLIPPING THE PART WOULD HELP
-                        if not can_share:
-                            # Try flipping the part: swap start and end
-                            flipped_start_has_slope = curr_slope_info.get("end_has_slope", False)
-                            flipped_start_angle = curr_slope_info.get("end_angle")
-                            
-                            # Check if flipped part CAN share boundary with previous part
-                            can_share_if_flipped = False
-                            if not prev_end_has_slope and not flipped_start_has_slope:
-                                can_share_if_flipped = True  # Both straight
-                            elif prev_end_has_slope and flipped_start_has_slope:
-                                if prev_end_angle is not None and flipped_start_angle is not None:
-                                    angle_diff = abs(abs(prev_end_angle) - abs(flipped_start_angle))
-                                    if angle_diff <= 2.0:
-                                        if (prev_end_angle > 0 and flipped_start_angle < 0) or (prev_end_angle < 0 and flipped_start_angle > 0):
-                                            can_share_if_flipped = True
-                            
-                            # If flipping helps, FLIP THE PART!
-                            if can_share_if_flipped:
-                                nesting_log(f"[NESTING] Flipping part to enable boundary sharing (swap start<->end)")
-                                # Swap start and end properties
-                                part["start_angle"], part["end_angle"] = part.get("end_angle"), part.get("start_angle")
-                                part["start_has_slope"], part["end_has_slope"] = part.get("end_has_slope", False), part.get("start_has_slope", False)
-                                part["flipped"] = True
-                                # Update curr_slope_info for this iteration
-                                curr_slope_info["start_angle"] = part["start_angle"]
-                                curr_slope_info["end_angle"] = part["end_angle"]
-                                curr_slope_info["start_has_slope"] = part["start_has_slope"]
-                                curr_slope_info["end_has_slope"] = part["end_has_slope"]
-                                curr_start_has_slope = part["start_has_slope"]
-                                can_share = True  # Now it can share!
-                                kerf_mm = 0.0
-                            else:
-                                # Can't flip to help, add kerf
-                                kerf_mm = 3.0  # Standard kerf for steel cutting (adjust as needed)
-                                nesting_log(f"[NESTING] Parts cannot share boundary - adding {kerf_mm:.1f}mm kerf")
-                        else:
-                            # Already can share, no kerf needed
-                            kerf_mm = 0.0
-                    else:
-                        # No previous part, no kerf needed
-                        kerf_mm = 0.0
+                    # Always add kerf after each part (it will be applied when we add the part)
+                    # The kerf represents material lost to the cutting blade
+                    kerf_mm = kerf  # Use user-provided kerf value
                     
                     # STRICT VALIDATION: Check if adding this part (with kerf if needed) would exceed stock
                     new_length = current_length + part_length + kerf_mm  # Add kerf if boundaries can't be shared
@@ -3603,6 +3537,7 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str):
                     # VALIDATION: Check if adding this part would exceed stock length
                     # Use current_length (actual material used) not total_parts_length (sum of individual lengths)
                     # current_length accounts for shared cuts from complementary slopes
+                    # NOTE: Kerf is material LOST to cutting, so total needed = part1 + kerf + part2
                     if new_length > best_stock + tolerance_mm:
                         # Part doesn't fit - skip it and continue checking smaller parts
                         # CRITICAL: Don't break! Continue trying smaller parts to maximize bar utilization
