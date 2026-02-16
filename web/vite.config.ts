@@ -12,8 +12,28 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       }
+    },
+    hmr: {
+      overlay: true
     }
   },
-  publicDir: 'public'
+  publicDir: 'public',
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'three', '@react-pdf/renderer'],
+    exclude: []
+  },
+  build: {
+    sourcemap: false,
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'three-vendor': ['three'],
+          'pdf-vendor': ['@react-pdf/renderer']
+        }
+      }
+    }
+  }
 })
 

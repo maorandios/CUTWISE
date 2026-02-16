@@ -137,10 +137,9 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
   const stockLength = pattern.stock_length
   const pxPerMm = appWidth / stockLength  // Base scale: full stock (including waste) to 1000px
   
-  // IMPORTANT: Use the backend's optimized order!
-  // The backend has already reordered parts to minimize waste
-  // (e.g., moving parts with unpaired end slopes to the end)
-  // DO NOT re-sort here - that would undo the optimization!
+  // IMPORTANT: Use the order from the backend - it has already been optimized
+  // based on cut characteristics (straight cuts first, sloped cuts last)
+  // DO NOT re-sort here, as that would undo the backend optimization
   const sortedParts = [...(pattern.parts || [])]
   
   // Total length of all parts in mm (using the order from the backend)

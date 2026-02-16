@@ -231,3 +231,6 @@ We replaced complex heuristics with simple brute force for small patterns (≤6 
 
 
 
+
+
+

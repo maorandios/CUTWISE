@@ -67,8 +67,11 @@ Start-Process powershell -ArgumentList "-NoExit", "-File", "`"$backendScriptPath
 Write-Host "Backend starting on http://localhost:8000" -ForegroundColor Green
 Write-Host ""
 
-# Wait a bit for backend to initialize
-Start-Sleep -Seconds 3
+# Wait for backend to initialize
+Write-Host "Waiting for backend to initialize..." -ForegroundColor Yellow
+Start-Sleep -Seconds 5
+Write-Host "Backend should be ready!" -ForegroundColor Green
+Write-Host ""
 
 Write-Host "================================================" -ForegroundColor Cyan
 Write-Host "  Starting Frontend Server..." -ForegroundColor Cyan
@@ -89,9 +92,10 @@ Start-Process powershell -ArgumentList "-NoExit", "-File", "`"$frontendScriptPat
 Write-Host "Frontend starting on http://localhost:5180" -ForegroundColor Green
 Write-Host ""
 
-# Wait for servers to start
-Write-Host "Waiting for servers to start..." -ForegroundColor Yellow
-Start-Sleep -Seconds 5
+# Wait for frontend to compile and start
+Write-Host "Waiting for frontend to compile (first start may take 30-60 seconds)..." -ForegroundColor Yellow
+Start-Sleep -Seconds 10
+Write-Host "Frontend should be compiling. Check the frontend window for 'ready in' message." -ForegroundColor Green
 
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Cyan
