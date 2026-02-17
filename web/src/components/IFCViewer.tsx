@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { IFCViewerProps, ClipPlaneKey, SelectionMode, MarkupTool, MarkupColor, ElementState, ContextMenuState, ElementData, MeasurementData, MarkupElement, TextElement, ModelBounds } from './IFCViewer/types'
-import { LoadingState, ContextMenu, ControlPanel } from './IFCViewer/components'
+import { LoadingState, ContextMenu, ControlPanel, MarkupCanvas, SelectedElementBanner } from './IFCViewer/components'
 import { 
   findClosestCorner, 
   findClosestEdgePoint, 
@@ -4919,11 +4919,11 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
 
   return (
     <div className="h-full flex flex-col">
-      {selectedElement && (
-        <div className="p-2 bg-gray-100 border-b text-sm text-gray-600">
-          Selected: {selectedElement.type} (ID: {selectedElement.expressID})
-        </div>
-      )}
+      <SelectedElementBanner
+        visible={!!selectedElement}
+        elementType={selectedElement?.type || ''}
+        expressID={selectedElement?.expressID || 0}
+      />
       <div ref={containerRef} className="flex-1 relative">
         <ContextMenu
           contextMenu={contextMenu}
@@ -4932,32 +4932,16 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
           onClose={() => setContextMenu({ visible: false, x: 0, y: 0, element: null, productId: null, assemblyId: null })}
         />
         
-        {/* Markup canvas overlay */}
-        {markupMode && (
-          <div 
-            ref={markupContainerRef}
-            className="absolute inset-0 pointer-events-none z-10"
-            style={{ pointerEvents: activeMarkupTool ? 'auto' : 'none' }}
-          >
-            <canvas
-              ref={markupCanvasRef}
-              className="absolute inset-0"
-              onPointerDown={handleMarkupPointerDown}
-              onPointerMove={handleMarkupPointerMove}
-              onPointerUp={handleMarkupPointerUp}
-              style={{ cursor: activeMarkupTool === 'pencil' ? 'crosshair' : activeMarkupTool === 'arrow' ? 'crosshair' : activeMarkupTool === 'cloud' ? 'crosshair' : 'default' }}
-            />
-          </div>
-        )}
-        {loadError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-90 z-10">
-            <div className="bg-white p-6 rounded-lg shadow-lg max-w-md text-center">
-              <h3 className="text-lg font-semibold text-red-600 mb-2">Error Loading Model</h3>
-              <p className="text-gray-700 mb-4">{loadError}</p>
-              <p className="text-sm text-gray-500">Please try uploading the file again.</p>
-            </div>
-          </div>
-        )}
+        <MarkupCanvas
+          visible={markupMode}
+          activeMarkupTool={activeMarkupTool}
+          canvasRef={markupCanvasRef}
+          containerRef={markupContainerRef}
+          onPointerDown={handleMarkupPointerDown}
+          onPointerMove={handleMarkupPointerMove}
+          onPointerUp={handleMarkupPointerUp}
+        />
+        
         <LoadingState 
           isLoading={isLoading} 
           loadError={loadError} 
