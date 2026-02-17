@@ -7,4 +7,5 @@ export * from './materialUtils'
 export * from './formatUtils'
 export * from './validationUtils'
 export * from './markupDrawingUtils'
+export * from './screenshotUtils'
 

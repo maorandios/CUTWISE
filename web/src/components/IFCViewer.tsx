@@ -28,7 +28,10 @@ import {
   drawPencilPath,
   drawArrow,
   drawCloud,
-  redrawAllMarkups
+  redrawAllMarkups,
+  captureScreenshot as captureScreenshotUtil,
+  saveScreenshotToFile,
+  copyScreenshotToClipboard
 } from './IFCViewer/utils'
 
 export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, enableMeasurement = false, enableClipping = false, filters, report, isVisible = true }: IFCViewerProps) {
@@ -3726,88 +3729,18 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
     const markupCanvas = markupCanvasRef.current
     
     if (!renderer || !scene || !camera || !container) {
-      console.error('[MARKUP] No renderer, scene, camera, or container available')
       return null
     }
     
-    try {
-      // Force a render to ensure the scene is up to date
-      renderer.render(scene, camera)
-      
-      // Get container dimensions
-      const rect = container.getBoundingClientRect()
-      
-      // Create a temporary canvas to combine all layers
-      const tempCanvas = document.createElement('canvas')
-      tempCanvas.width = rect.width
-      tempCanvas.height = rect.height
-      const tempCtx = tempCanvas.getContext('2d')
-      
-      if (!tempCtx) {
-        console.error('[MARKUP] Failed to get 2D context for temp canvas')
-        return null
-      }
-      
-      // Draw the 3D renderer canvas first (background)
-      tempCtx.drawImage(renderer.domElement, 0, 0, rect.width, rect.height)
-      
-      // If markup mode is active, include markup elements
-      if (markupMode && markupCanvas) {
-        // Redraw all markup elements to ensure they're captured
-        // First, draw existing canvas content
-        if (markupCanvas.width > 0 && markupCanvas.height > 0) {
-          tempCtx.drawImage(markupCanvas, 0, 0, rect.width, rect.height)
-        }
-        
-        // Redraw all stored markup elements to ensure they're all captured
-        tempCtx.lineCap = 'round'
-        tempCtx.lineJoin = 'round'
-        
-        markupElementsRef.current.forEach(element => {
-          if (element.type === 'arrow' && element.data.start && element.data.end) {
-            drawArrow(tempCtx, element.data.start, element.data.end, element.color, element.thickness)
-          } else if (element.type === 'cloud' && element.data.start && element.data.end) {
-            drawCloud(tempCtx, element.data.start, element.data.end, element.color, element.thickness)
-          }
-          // Note: pencil paths are already on the canvas, so we don't need to redraw them
-        })
-        
-        // Draw text elements
-        textElementsRef.current.forEach(textEl => {
-          const textRect = textEl.element.getBoundingClientRect()
-          const containerRect = container.getBoundingClientRect()
-          const x = textRect.left - containerRect.left
-          const y = textRect.top - containerRect.top
-          
-          // Draw text background
-          tempCtx.fillStyle = 'rgba(255, 255, 255, 0.9)'
-          tempCtx.fillRect(x, y, textRect.width, textRect.height)
-          
-          // Draw text border (use default red for text borders)
-          tempCtx.strokeStyle = '#ff0000'
-          tempCtx.lineWidth = 2
-          tempCtx.strokeRect(x, y, textRect.width, textRect.height)
-          
-          // Draw text content
-          const textarea = textEl.element.querySelector('textarea') as HTMLTextAreaElement
-          if (textarea && textarea.value) {
-            tempCtx.fillStyle = '#000000'
-            tempCtx.font = '20px Arial'
-            const lines = textarea.value.split('\n')
-            const lineHeight = 24 // Approximate line height for 20px font
-            lines.forEach((line, index) => {
-              tempCtx.fillText(line, x + 4, y + 20 + (index * lineHeight))
-            })
-          }
-        })
-      }
-      
-      // Return the combined image
-      return tempCanvas.toDataURL('image/png')
-    } catch (error) {
-      console.error('[MARKUP] Error capturing screenshot:', error)
-      return null
-    }
+    return captureScreenshotUtil(
+      renderer,
+      scene,
+      camera,
+      container,
+      markupCanvas,
+      markupMode,
+      markupElementsRef.current
+    )
   }
   
   const handleSaveScreenshot = () => {
@@ -3817,22 +3750,10 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
       return
     }
     
-    try {
-      // Create a download link
-      const link = document.createElement('a')
-      link.download = `model-screenshot-${new Date().toISOString().replace(/[:.]/g, '-')}.png`
-      link.href = dataURL
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      console.log('[SCREENSHOT] Screenshot saved')
-      
-      // Clear all markups after saving (only if markup mode is active)
-      if (markupMode) {
-        clearAllMarkups()
-      }
-    } catch (error) {
-      console.error('[SCREENSHOT] Error saving screenshot:', error)
+    const success = saveScreenshotToFile(dataURL)
+    if (success && markupMode) {
+      clearAllMarkups()
+    } else if (!success) {
       alert('Failed to save screenshot')
     }
   }
@@ -3844,32 +3765,14 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
       return
     }
     
-    try {
-      // Convert data URL to blob
-      const response = await fetch(dataURL)
-      const blob = await response.blob()
-      
-      // Copy to clipboard using Clipboard API
-      if (navigator.clipboard && navigator.clipboard.write) {
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            'image/png': blob
-          })
-        ])
-        console.log('[SCREENSHOT] Screenshot copied to clipboard')
-        alert('Screenshot copied to clipboard!')
-        
-        // Clear all markups after copying (only if markup mode is active)
-        if (markupMode) {
-          clearAllMarkups()
-        }
-      } else {
-        // Fallback for browsers that don't support ClipboardItem
-        alert('Clipboard API not supported in this browser. Please use the Save button instead.')
+    const success = await copyScreenshotToClipboard(dataURL)
+    if (success) {
+      alert('Screenshot copied to clipboard!')
+      if (markupMode) {
+        clearAllMarkups()
       }
-    } catch (error) {
-      console.error('[SCREENSHOT] Error copying screenshot:', error)
-      alert('Failed to copy screenshot to clipboard')
+    } else {
+      alert('Clipboard API not supported in this browser. Please use the Save button instead.')
     }
   }
   
