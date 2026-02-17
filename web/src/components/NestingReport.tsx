@@ -1617,7 +1617,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 // Optimize part orientations for minimum waste visualization
                                 // Determine which parts should be flipped to:
                                 // 1. Start with straight cut if possible
-                                const DISPLAY_ANGLE_MATCH_TOL = Math.max(ANGLE_MATCH_TOL, 5.0)
+                                const DISPLAY_ANGLE_MATCH_TOL = 2.0 // Match backend tolerance - reduced from 5.0 to prevent false flush display
                                 
                                 // NO DP, NO FLIPPING - just render parts with their canonical geometry
                                 const displayFlipStates: boolean[] = new Array(numParts).fill(false)
@@ -1755,11 +1755,11 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                     const leftPartName = partPositions[leftPartIdx]?.part?.part?.reference || `b${leftPartIdx + 1}`
                                     const rightPartName = partPositions[rightPartIdx]?.part?.part?.reference || `b${rightPartIdx + 1}`
                                     
-                                    // Check if this is a complementary pair
+                                    // Check if this is a complementary pair - BOTH parts must be flagged
                                     const leftPart = partPositions[leftPartIdx]?.part
                                     const rightPart = partPositions[rightPartIdx]?.part
                                     const isComplementaryPair = 
-                                      (leftPart as any)?.slope_info?.complementary_pair === true ||
+                                      (leftPart as any)?.slope_info?.complementary_pair === true &&
                                       (rightPart as any)?.slope_info?.complementary_pair === true
                                     
                                     let isShared = false
@@ -1768,8 +1768,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                       isShared = true
                                     } else if (leftEndType === 'miter' && rightStartType === 'miter') {
                                       const devDiff = Math.abs(leftDev - rightDev)
-                                      // Both sides miter - share if they're complementary or angles match
-                                      isShared = isComplementaryPair || (devDiff <= DISPLAY_ANGLE_MATCH_TOL)
+                                      // Both sides miter - share ONLY if BOTH are complementary AND angles match
+                                      isShared = isComplementaryPair && (devDiff <= DISPLAY_ANGLE_MATCH_TOL)
                                     } else {
                                       // Mixed type (miter-straight) - DON'T share, show individual markers
                                       // These parts can't actually be nested together
