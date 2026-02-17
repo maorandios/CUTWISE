@@ -1159,8 +1159,10 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                       return { startCut, endCut }
                                     })
                                 
-                                // LOCAL CANONICALIZATION: Ensure parts with the same name use IDENTICAL geometry
-                                // This is CRITICAL for flashing - identical parts must have matching cut angles
+                                // LOCAL CANONICALIZATION: DISABLED
+                                // The backend already sends parts with correct orientations for nesting
+                                // Canonicalization was interfering with the backend's orientation choices
+                                // The flipping logic below will handle alignment for boundary sharing
                                 const localCanonicalMap = new Map<string, { startDev: number; endDev: number; startSign: number; endSign: number; startType: string; endType: string }>()
                                 
                                 // Helper to get part name
@@ -1171,69 +1173,25 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                   )
                                 }
                                 
-                                // First pass: collect geometry from FIRST occurrence of each part name
-                                // Skip complementary pairs as they have intentionally different orientations
-                                partPositions.forEach(({ part }, idx) => {
-                                  const partName = getPartNameForIdx(idx)
-                                  const ends = finalPartEnds[idx]
-                                  if (!ends) return
-                                  
-                                  // Skip complementary pairs - they should not be used as canonical geometry
-                                  const isComplementaryPart = (part as any)?.slope_info?.complementary_pair === true
-                                  if (isComplementaryPart) {
-                                    console.log(`[LOCAL-CANON] Skipping part ${idx} as canonical source (complementary pair)`)
-                                    return
+                                // DEBUG: Log finalPartEnds BEFORE canonicalization for first 3 parts
+                                for (let i = 0; i < Math.min(3, numParts); i++) {
+                                  const partName = getPartNameForIdx(i)
+                                  const ends = finalPartEnds[i]
+                                  if (ends) {
+                                    console.log(`[PRE-CANON] Part ${i} (${partName}): startCut=${ends.startCut.type}(${(ends.startCut.deviation || 0).toFixed(2)}) endCut=${ends.endCut.type}(${(ends.endCut.deviation || 0).toFixed(2)})`)
                                   }
-                                  
-                                  if (!localCanonicalMap.has(partName)) {
-                                    // Store the first non-complementary occurrence's geometry as canonical
-                                    localCanonicalMap.set(partName, {
-                                      startDev: ends.startCut.deviation || 0,
-                                      endDev: ends.endCut.deviation || 0,
-                                      startSign: ends.startCut.angleSign || 1,
-                                      endSign: ends.endCut.angleSign || 1,
-                                      startType: ends.startCut.type,
-                                      endType: ends.endCut.type
-                                    })
-                                    console.log(`[LOCAL-CANON] Stored canonical for ${partName}:`, localCanonicalMap.get(partName))
-                                  }
-                                })
+                                }
                                 
-                                // Second pass: apply canonical geometry to ALL instances
-                                // EXCEPTION: Skip canonicalization for parts that are marked as complementary pairs
-                                // Complementary pairs have intentionally different orientations and must preserve their actual slope info
-                                finalPartEnds = finalPartEnds.map((ends, idx) => {
-                                  if (!ends) return ends
-                                  
-                                  // Check if this part is part of a complementary pair
-                                  const currentPart = partPositions[idx]?.part
-                                  const isComplementaryPart = (currentPart as any)?.slope_info?.complementary_pair === true
-                                  
-                                  if (isComplementaryPart) {
-                                    console.log(`[LOCAL-CANON] Skipping canonicalization for part ${idx} (complementary pair) - preserving actual slope info`)
-                                    return ends  // Keep original geometry for complementary pairs
-                                  }
-                                  
-                                  const partName = getPartNameForIdx(idx)
-                                  const canonical = localCanonicalMap.get(partName)
-                                  if (!canonical) return ends
-                                  
-                                  // Apply canonical geometry (use first occurrence's geometry for all instances)
-                                  return {
-                                    startCut: {
-                                      ...ends.startCut,
-                                      type: canonical.startType as 'straight' | 'miter',
-                                      deviation: canonical.startDev,
-                                      angleSign: canonical.startSign as 1 | -1
-                                    },
-                                    endCut: {
-                                      ...ends.endCut,
-                                      type: canonical.endType as 'straight' | 'miter',
-                                      deviation: canonical.endDev,
-                                      angleSign: canonical.endSign as 1 | -1
-                                    }
-                                  }
-                                })
+                                // DISABLED: First pass collection
+                                // partPositions.forEach(({ part }, idx) => {
+                                //   ...canonicalization code...
+                                // })
+                                
+                                // DISABLED: Second pass application
+                                // The backend sends parts with correct orientations, trust that instead
+                                // finalPartEnds = finalPartEnds.map((ends, idx) => {
+                                //   ...canonicalization application code...
+                                // })
                                 
                                 // SMART ORIENTATION: For parts with two different slopes, orient them to maximize boundary sharing
                                 // When consecutive parts have the same name, we want them to share boundaries
@@ -1416,11 +1374,24 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                   if (!ends) return ends
                                   if (!partFlipStates[idx]) return ends
                                   
+                                  // Debug log for first 3 parts
+                                  if (idx < 3) {
+                                    const partName = getPartNameForIdx(idx)
+                                    console.log(`[FLIP-APPLY] Part ${idx} (${partName}): FLIPPING - BEFORE: start=${ends.startCut.type}(${(ends.startCut.deviation || 0).toFixed(2)}) end=${ends.endCut.type}(${(ends.endCut.deviation || 0).toFixed(2)})`)
+                                  }
+                                  
                                   // Swap start and end
-                                  return {
+                                  const result = {
                                     startCut: ends.endCut,
                                     endCut: ends.startCut
                                   }
+                                  
+                                  if (idx < 3) {
+                                    const partName = getPartNameForIdx(idx)
+                                    console.log(`[FLIP-APPLY] Part ${idx} (${partName}): FLIPPING - AFTER: start=${result.startCut.type}(${(result.startCut.deviation || 0).toFixed(2)}) end=${result.endCut.type}(${(result.endCut.deviation || 0).toFixed(2)})`)
+                                  }
+                                  
+                                  return result
                                 })
                                 
                                 // DISABLED: Global canonicalization was causing incorrect rendering across different stock bars
@@ -1619,8 +1590,9 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 // 1. Start with straight cut if possible
                                 const DISPLAY_ANGLE_MATCH_TOL = 0.5 // Strict tolerance - only truly matching angles (56° vs 58° = NOT flush)
                                 
-                                // NO DP, NO FLIPPING - just render parts with their canonical geometry
-                                const displayFlipStates: boolean[] = new Array(numParts).fill(false)
+                                // Use the same flip states that were applied to finalPartEnds
+                                // This ensures boundary detection uses the correct (post-flip) orientations
+                                const displayFlipStates: boolean[] = [...partFlipStates]
                                 
 
                                 // Canonicalize two-sided miter display by part name using majority order
@@ -1741,13 +1713,14 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                       continue
                                     }
                                     
-                                    // Use display flip states so identical parts render the same geometry
-                                    const leftEndType = displayFlipStates[leftPartIdx] ? leftPartEnd.startCut.type : leftPartEnd.endCut.type
-                                    const rightStartType = displayFlipStates[rightPartIdx] ? rightPartEnd.endCut.type : rightPartEnd.startCut.type
-                                    const leftDev = displayFlipStates[leftPartIdx] ? leftPartEnd.startCut.deviation || 0 : leftPartEnd.endCut.deviation || 0
-                                    const rightDev = displayFlipStates[rightPartIdx] ? rightPartEnd.endCut.deviation || 0 : rightPartEnd.startCut.deviation || 0
-                                    const leftSign = displayFlipStates[leftPartIdx] ? leftPartEnd.startCut.angleSign : leftPartEnd.endCut.angleSign
-                                    const rightSign = displayFlipStates[rightPartIdx] ? rightPartEnd.endCut.angleSign : rightPartEnd.startCut.angleSign
+                                    // After flipping, the geometry is swapped, so we always use endCut for left end and startCut for right start
+                                    // The flip has already been applied to finalPartEnds, so just read the correct fields
+                                    const leftEndType = leftPartEnd.endCut.type
+                                    const rightStartType = rightPartEnd.startCut.type
+                                    const leftDev = leftPartEnd.endCut.deviation || 0
+                                    const rightDev = rightPartEnd.startCut.deviation || 0
+                                    const leftSign = leftPartEnd.endCut.angleSign
+                                    const rightSign = rightPartEnd.startCut.angleSign
                                     
                                     const boundaryX = Math.floor(partPositions[leftPartIdx].xEnd)
                                     const NEAR_STRAIGHT_THRESHOLD_FOR_SHARING = 1.0
@@ -1762,14 +1735,30 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                       (leftPart as any)?.slope_info?.complementary_pair === true &&
                                       (rightPart as any)?.slope_info?.complementary_pair === true
                                     
+                                    // Debug log for boundary detection
+                                    if (leftPartName === rightPartName && i <= 2) {
+                                      console.log(`[BOUNDARY-DETECT] ${leftPartName} (${i} to ${i+1}): leftEndType=${leftEndType} rightStartType=${rightStartType} leftDev=${leftDev.toFixed(2)} rightDev=${rightDev.toFixed(2)} leftSign=${leftSign} rightSign=${rightSign}`)
+                                    }
+                                    
                                     let isShared = false
                                     if (leftEndType === 'straight' && rightStartType === 'straight') {
                                       // Both sides straight - share the boundary
                                       isShared = true
                                     } else if (leftEndType === 'miter' && rightStartType === 'miter') {
                                       const devDiff = Math.abs(leftDev - rightDev)
-                                      // Both sides miter - share ONLY if BOTH are complementary AND angles match
-                                      isShared = isComplementaryPair && (devDiff <= DISPLAY_ANGLE_MATCH_TOL)
+                                      // Check if signs match (both positive or both negative)
+                                      const signsMatch = leftSign === rightSign
+                                      
+                                      // Both sides miter - share if:
+                                      // 1. BOTH are complementary pairs AND angles match (for different parts)
+                                      // 2. OR same part name AND angles match AND signs match (for identical parts)
+                                      const isSamePartName = leftPartName === rightPartName
+                                      isShared = (isComplementaryPair || isSamePartName) && (devDiff <= DISPLAY_ANGLE_MATCH_TOL) && signsMatch
+                                      
+                                      // Debug log for identical parts
+                                      if (isSamePartName) {
+                                        console.log(`[IDENTICAL-PARTS] ${leftPartName} (${i} to ${i+1}): leftDev=${leftDev.toFixed(2)} rightDev=${rightDev.toFixed(2)} devDiff=${devDiff.toFixed(2)} leftSign=${leftSign} rightSign=${rightSign} signsMatch=${signsMatch} isShared=${isShared}`)
+                                      }
                                     } else {
                                       // Mixed type (miter-straight) - DON'T share, show individual markers
                                       // These parts can't actually be nested together
