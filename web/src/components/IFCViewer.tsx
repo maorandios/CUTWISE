@@ -4,6 +4,22 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { IFCViewerProps, ClipPlaneKey, SelectionMode, MarkupTool, MarkupColor, ElementState, ContextMenuState, ElementData, MeasurementData, MarkupElement, TextElement, ModelBounds } from './IFCViewer/types'
 import { LoadingState } from './IFCViewer/components'
+import { 
+  findClosestCorner, 
+  findClosestEdgePoint, 
+  calculateDotSize, 
+  createMeasurementDot as createMeasurementDotUtil,
+  createArrowHelper,
+  calculateDistance,
+  formatDistance,
+  calculateMidpoint,
+  projectToScreen,
+  disposeObject,
+  findMeshesByProductIds as findMeshesByProductIdsUtil,
+  getAssemblyInfo as getAssemblyInfoUtil,
+  findAllMeshesWithAssemblyId as findAllMeshesWithAssemblyIdUtil
+} from './IFCViewer/utils'
+import { getColorHex, getLineWidth, applyMarkupSettings as applyMarkupSettingsUtil } from './IFCViewer/utils'
 
 export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, enableMeasurement = false, enableClipping = false, filters, report, isVisible = true }: IFCViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -3374,97 +3390,7 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
   }
   
   // Find closest corner/vertex for snapping
-  const findClosestCorner = (intersection: THREE.Intersection, model: THREE.Group | null, snapDistance: number): THREE.Vector3 | null => {
-    if (!model || !intersection.object || !intersection.face) return null
-    
-    const hitPoint = intersection.point
-    const hitObject = intersection.object as THREE.Mesh
-    
-    // Get the geometry
-    const geometry = hitObject.geometry
-    if (!geometry || !geometry.attributes.position) return null
-    
-    // Get face vertices
-    const face = intersection.face
-    const positions = geometry.attributes.position
-    
-    // Check all three vertices of the face
-    const vertices = [
-      new THREE.Vector3().fromBufferAttribute(positions, face.a),
-      new THREE.Vector3().fromBufferAttribute(positions, face.b),
-      new THREE.Vector3().fromBufferAttribute(positions, face.c)
-    ]
-    
-    // Transform vertices to world space
-    vertices.forEach(v => v.applyMatrix4(hitObject.matrixWorld))
-    
-    let closestVertex: THREE.Vector3 | null = null
-    let minDistance = snapDistance
-    
-    vertices.forEach(vertex => {
-      const distance = hitPoint.distanceTo(vertex)
-      if (distance < minDistance) {
-        minDistance = distance
-        closestVertex = vertex.clone()
-      }
-    })
-    
-    return closestVertex
-  }
-
-  // Find closest edge point for snapping
-  const findClosestEdgePoint = (intersection: THREE.Intersection, model: THREE.Group | null, snapDistance: number): THREE.Vector3 | null => {
-    if (!model || !intersection.object || !intersection.face) return null
-    
-    const hitPoint = intersection.point
-    const hitObject = intersection.object as THREE.Mesh
-    
-    // Get the geometry
-    const geometry = hitObject.geometry
-    if (!geometry || !geometry.attributes.position) return null
-    
-    // Get face vertices
-    const face = intersection.face
-    const positions = geometry.attributes.position
-    const vA = new THREE.Vector3().fromBufferAttribute(positions, face.a)
-    const vB = new THREE.Vector3().fromBufferAttribute(positions, face.b)
-    const vC = new THREE.Vector3().fromBufferAttribute(positions, face.c)
-    
-    // Transform vertices to world space
-    vA.applyMatrix4(hitObject.matrixWorld)
-    vB.applyMatrix4(hitObject.matrixWorld)
-    vC.applyMatrix4(hitObject.matrixWorld)
-    
-    // Check each edge of the triangle
-    const edges = [
-      [vA.clone(), vB.clone()],
-      [vB.clone(), vC.clone()],
-      [vC.clone(), vA.clone()]
-    ]
-    
-    let closestPoint: THREE.Vector3 | null = null
-    let minDistance = snapDistance
-    
-    edges.forEach(([v1, v2]) => {
-      // Find closest point on edge segment
-      const edge = new THREE.Vector3().subVectors(v2, v1)
-      const toPoint = new THREE.Vector3().subVectors(hitPoint, v1)
-      const edgeLength = edge.length()
-      
-      if (edgeLength > 0) {
-        const t = Math.max(0, Math.min(1, toPoint.dot(edge) / (edgeLength * edgeLength)))
-        const pointOnEdge = new THREE.Vector3().addVectors(v1, edge.clone().multiplyScalar(t))
-        
-        const distance = hitPoint.distanceTo(pointOnEdge)
-        if (distance < minDistance) {
-          minDistance = distance
-          closestPoint = pointOnEdge.clone()
-        }
-      }
-    })
-    
-    return closestPoint
-  }
+  // Note: findClosestCorner and findClosestEdgePoint are now imported from utils
 
   // Create a red dot at a point
   const createMeasurementDot = (point: THREE.Vector3) => {
@@ -3472,22 +3398,8 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
     const camera = cameraRef.current
     if (!scene || !camera) return null
     
-    // Calculate dot size for fixed pixel size (8 pixels)
-    const distanceToCamera = camera.position.distanceTo(point)
-    const fov = camera.fov * (Math.PI / 180)
-    const height = 2 * Math.tan(fov / 2) * distanceToCamera
-    const pixelToWorld = height / (containerRef.current?.clientHeight || 1)
-    const dotSize = 8 * pixelToWorld // 8 pixels
-    
-    // Create a small red sphere
-    const geometry = new THREE.SphereGeometry(dotSize, 16, 16)
-    const material = new THREE.MeshBasicMaterial({ 
-      color: 0xff0000, // Red
-      transparent: false
-    })
-    const dot = new THREE.Mesh(geometry, material)
-    dot.position.copy(point)
-    dot.name = 'measurement-dot'
+    const dotSize = calculateDotSize(point, camera, containerRef.current?.clientHeight || 1, 8)
+    const dot = createMeasurementDotUtil(point, dotSize, 0xff0000)
     
     scene.add(dot)
     measurementDotsRef.current.push(dot)
@@ -3993,42 +3905,9 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
   }
   
   // --- Markup Drawing Functions ---
-  const getColorHex = (colorName: 'red' | 'black' | 'yellow' | 'green' | 'blue'): string => {
-    const colorMap = {
-      red: '#ff0000',
-      black: '#000000',
-      yellow: '#ffff00',
-      green: '#00ff00',
-      blue: '#0000ff'
-    }
-    return colorMap[colorName]
-  }
-  
-  const getLineWidth = (thickness: number): number => {
-    // Map 1-5 levels to line widths: 1=1px, 2=2px, 3=3px, 4=5px, 5=8px
-    const widthMap: { [key: number]: number } = {
-      1: 1,
-      2: 2,
-      3: 3,
-      4: 5,
-      5: 8
-    }
-    return widthMap[thickness] || 3
-  }
-  
+  // Note: getColorHex, getLineWidth, and applyMarkupSettings are now imported from utils
   const applyMarkupSettings = (ctx: CanvasRenderingContext2D) => {
-    const colorHex = getColorHex(markupColor)
-    const lineWidth = getLineWidth(markupThickness)
-    ctx.strokeStyle = colorHex
-    ctx.fillStyle = colorHex
-    ctx.lineWidth = lineWidth
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    ctx.miterLimit = 10
-    
-    // Enable smooth rendering for pencil strokes
-    ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = 'high'
+    applyMarkupSettingsUtil(ctx, markupColor, markupThickness)
   }
   
   const getCanvasContext = (): CanvasRenderingContext2D | null => {
