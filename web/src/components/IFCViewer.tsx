@@ -40,7 +40,12 @@ import {
   handleHide as handleHideUtil,
   handleHideAllExcept as handleHideAllExceptUtil,
   handleShowAll as handleShowAllUtil,
-  applyFiltersToModel
+  applyFiltersToModel,
+  createCamera,
+  createOrbitControls,
+  fitCameraToModel,
+  animatePivotTransition,
+  startPivotAnimation
 } from './IFCViewer/utils'
 
 export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, enableMeasurement = false, enableClipping = false, filters, report, isVisible = true }: IFCViewerProps) {
@@ -236,17 +241,7 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
     sceneRef.current = scene
 
     // Create camera
-    const camera = new THREE.PerspectiveCamera(
-      75,
-      containerRef.current.clientWidth / containerRef.current.clientHeight,
-      0.01,  // Near plane - small but not extreme to prevent clipping issues (0.01-0.1 range)
-      10000  // Increased far plane for large models
-    )
-    camera.updateProjectionMatrix()
-    // Initial camera position (will be adjusted when model loads)
-    camera.position.set(10, 10, 10)
-    camera.up.set(0, 1, 0)  // Ensure Y-up coordinate system
-    camera.lookAt(0, 0, 0)
+    const camera = createCamera(containerRef.current.clientWidth, containerRef.current.clientHeight)
     cameraRef.current = camera
 
     // Create renderer with preserveDrawingBuffer enabled for screenshots
@@ -298,44 +293,7 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
     scene.add(directionalLight2)
 
     // Setup controls for instant, responsive camera movement
-    const controls = new OrbitControls(camera, renderer.domElement)
-    
-    // DISABLE damping for instant mouse response (no lag/delay)
-    controls.enableDamping = false  // Instant response, no smoothing delay
-    
-    // Enable all controls
-    controls.enablePan = true
-    controls.enableZoom = true  // Enable default zoom (dolly to target only)
-    controls.enableRotate = true
-    
-    // Fast, responsive speeds for instant feedback
-    controls.rotateSpeed = 1.5  // Fast rotation - moves with mouse speed
-    controls.panSpeed = 1.0     // Fast pan - responsive movement
-    controls.zoomSpeed = 1.8    // Faster zoom - quick in/out
-    
-    // Sensible distance limits - allow very close zooming to elements
-    controls.minDistance = 0.01  // Allow close zoom but not extreme (prevents clipping issues)
-    controls.maxDistance = 10000  // Maximum zoom distance
-    
-    // Enable zoom to cursor - zoom will follow the cursor location on the view
-    controls.zoomToCursor = true
-    
-    // Pan in world space for correct axis movement
-    controls.screenSpacePanning = false
-    
-    // Rotation constraints - prevent flipping and maintain stability
-    controls.minPolarAngle = 0      // Allow looking from top
-    controls.maxPolarAngle = Math.PI // Allow looking from bottom
-    
-    // Mouse button mappings - Custom configuration
-    controls.mouseButtons = {
-      LEFT: THREE.MOUSE.ROTATE,     // Left-drag: rotate (orbit around model)
-      MIDDLE: THREE.MOUSE.PAN,      // Middle-drag: pan (move view)
-      RIGHT: null                    // Right-click: disabled (reserved for context menu)
-    }
-    
-    // Enable pan for middle mouse button
-    controls.enablePan = true
+    const controls = createOrbitControls(camera, renderer.domElement)
     
     // Touch controls for mobile
     controls.touches = {
@@ -353,9 +311,6 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
     
     // Disable auto-rotate
     controls.autoRotate = false
-    
-    // Make sure up vector is correct (Y-up is standard)
-    controls.target.set(0, 0, 0)
     
     // Helper function to raycast and find mesh
     // Helper function to raycast and find mesh (currently unused)
@@ -1169,89 +1124,21 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
           modelRef.current = gltf.scene
 
           // Fit camera to model - position for ground-up view (Y-up coordinate system)
-          // Calculate bounding box in world space
-          const box = new THREE.Box3()
-          box.setFromObject(gltf.scene)
+          const fitResult = fitCameraToModel(gltf.scene, camera, controls, directionalLight1, directionalLight2)
           
-          // Get center and size
-          const center = box.getCenter(new THREE.Vector3())
-          const size = box.getSize(new THREE.Vector3())
-          console.log('[IFCViewer] Model bounding box - Center:', center, 'Size:', size)
-          console.log('[IFCViewer] Model bounds - Min:', box.min, 'Max:', box.max)
-          
-          modelBoundsRef.current = {
-            min: box.min.clone(),
-            max: box.max.clone(),
-            size: size.clone(),
-            center: center.clone()
-          }
-          
-          // Apply any additional per-mesh setup below
-          const maxDim = Math.max(size.x, size.y, size.z)
-          console.log('[IFCViewer] Max dimension:', maxDim)
-          
-          if (maxDim > 0) {
-            // Calculate appropriate camera distance
-            const fov = camera.fov * (Math.PI / 180)
-            const distance = maxDim / (2 * Math.tan(fov / 2)) * 1.8 // Add padding
-            
-            // Update shadow camera settings based on model size for better shadow coverage
-            const shadowRange = maxDim * 2 // Shadow range should cover the entire model
-            directionalLight1.shadow.camera.left = -shadowRange
-            directionalLight1.shadow.camera.right = shadowRange
-            directionalLight1.shadow.camera.top = shadowRange
-            directionalLight1.shadow.camera.bottom = -shadowRange
-            directionalLight1.shadow.camera.near = 0.1
-            directionalLight1.shadow.camera.far = maxDim * 3
-            directionalLight1.shadow.camera.updateProjectionMatrix()
-            
-            directionalLight2.shadow.camera.left = -shadowRange
-            directionalLight2.shadow.camera.right = shadowRange
-            directionalLight2.shadow.camera.top = shadowRange
-            directionalLight2.shadow.camera.bottom = -shadowRange
-            directionalLight2.shadow.camera.near = 0.1
-            directionalLight2.shadow.camera.far = maxDim * 3
-            directionalLight2.shadow.camera.updateProjectionMatrix()
-            
-            // Position camera for standard isometric view (ground-up perspective)
-            // Standard isometric: 45Â° in XZ plane, ~35Â° elevation
-            // This gives a good 3D view with Y as the vertical axis
-            const isometricAngle = Math.PI / 4  // 45 degrees in horizontal plane
-            const elevationAngle = Math.PI / 5   // ~36 degrees elevation (looking down slightly)
-            
-            const horizontalDist = distance * Math.cos(elevationAngle)
-            const verticalDist = distance * Math.sin(elevationAngle)
-            
-            // Position camera: isometric view from above and to the side
-            // X and Z are equal for isometric, Y is elevated
-            const cameraPos = new THREE.Vector3(
-              center.x + horizontalDist * Math.cos(isometricAngle),
-              center.y + verticalDist,  // Elevated to see model from above
-              center.z + horizontalDist * Math.sin(isometricAngle)
-            )
-            
-            camera.position.copy(cameraPos)
-            console.log('[IFCViewer] Camera positioned at:', cameraPos)
-            
-            // CRITICAL: Ensure Y is always up (ground-up coordinate system)
-            camera.up.set(0, 1, 0)
-            
-            // Set controls target to model center
-            controls.target.copy(center)
-            console.log('[IFCViewer] Camera target set to:', center)
-            
-            // Make sure camera looks at center (this respects the up vector)
-            camera.lookAt(center)
-            
-            // Force update the camera matrix to ensure up vector is respected
-            camera.updateMatrixWorld()
-            
-            // Update controls to apply changes
-            controls.update()
+          if (fitResult) {
+            const { center, size, box } = fitResult
+            modelBoundsRef.current = {
+              min: box.min.clone(),
+              max: box.max.clone(),
+              size: size.clone(),
+              center: center.clone()
+            }
             
             // Force a render to show the correct view
             renderer.render(scene, camera)
           }
+          
 
           // Simplified material processing - let Three.js handle default colors, only override fasteners
 
@@ -1664,60 +1551,17 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
       
       // Animate pivot transition smoothly (runs every frame for smooth animation)
       if (isAnimatingPivotRef.current && oldTargetRef.current && oldCameraPosRef.current && targetPivotRef.current && camera && controls) {
-        const elapsed = performance.now() - animationStartTimeRef.current
-        const duration = 150 // 150ms smooth transition
-        const progress = Math.min(elapsed / duration, 1.0)
+        const stillAnimating = animatePivotTransition(
+          camera,
+          controls,
+          animationStartTimeRef.current,
+          oldTargetRef.current,
+          oldCameraPosRef.current,
+          targetPivotRef.current
+        )
         
-        // Use easing function for smooth transition (ease-out cubic)
-        const eased = 1 - Math.pow(1 - progress, 3)
-        
-        // Calculate the offset from old target to new pivot
-        const targetOffset = new THREE.Vector3().subVectors(targetPivotRef.current, oldTargetRef.current)
-        
-        // Interpolate target
-        controls.target.copy(oldTargetRef.current).add(targetOffset.clone().multiplyScalar(eased))
-        
-        // Interpolate camera position - move by the SAME offset to maintain view
-        camera.position.copy(oldCameraPosRef.current).add(targetOffset.clone().multiplyScalar(eased))
-        
-        camera.updateMatrixWorld()
-        
-        // Update OrbitControls internal state continuously during animation
-        const offset = new THREE.Vector3().subVectors(camera.position, controls.target)
-        const spherical = new THREE.Spherical()
-        spherical.setFromVector3(offset)
-        
-        const controlsAny = controls as any
-        if (controlsAny.spherical) {
-          controlsAny.spherical.copy(spherical)
-        }
-        if (controlsAny.target0) {
-          controlsAny.target0.copy(controls.target)
-        }
-        if (controlsAny.position0) {
-          controlsAny.position0.copy(camera.position)
-        }
-        if (controlsAny.offset) {
-          controlsAny.offset.copy(offset)
-        }
-        
-        // End animation when complete
-        if (progress >= 1.0) {
+        if (!stillAnimating) {
           isAnimatingPivotRef.current = false
-          
-          // Reset mouse tracking to prevent jump on first move after animation
-          if (controlsAny.rotateStart) {
-            controlsAny.rotateStart.set(0, 0)
-          }
-          if (controlsAny.rotateEnd) {
-            controlsAny.rotateEnd.set(0, 0)
-          }
-          if (controlsAny.panStart) {
-            controlsAny.panStart.set(0, 0)
-          }
-          if (controlsAny.panEnd) {
-            controlsAny.panEnd.set(0, 0)
-          }
         }
       }
       
