@@ -10,4 +10,5 @@ export * from './markupDrawingUtils'
 export * from './screenshotUtils'
 export * from './clippingUtils'
 export * from './visibilityUtils'
+export * from './filterUtils'
 
