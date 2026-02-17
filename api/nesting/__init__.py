@@ -71,6 +71,20 @@ from .bin_packer import (
     calculate_cut_positions
 )
 
+from .orchestrator import (
+    NestingOrchestrator,
+    create_nesting_report
+)
+
+from .report_builder import (
+    build_report_dict,
+    build_report_summary,
+    format_report_text_summary,
+    format_pattern_text_summary,
+    calculate_material_savings,
+    export_to_json
+)
+
 __all__ = [
     # Models
     'SlopeInfo',
@@ -123,6 +137,16 @@ __all__ = [
     'pack_parts_first_fit_decreasing',
     'pack_complementary_pair',
     'optimize_patterns_by_consolidation',
-    'calculate_cut_positions'
+    'calculate_cut_positions',
+    # Orchestrator
+    'NestingOrchestrator',
+    'create_nesting_report',
+    # Report builder
+    'build_report_dict',
+    'build_report_summary',
+    'format_report_text_summary',
+    'format_pattern_text_summary',
+    'calculate_material_savings',
+    'export_to_json'
 ]
 
