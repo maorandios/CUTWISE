@@ -9,4 +9,5 @@ export * from './validationUtils'
 export * from './markupDrawingUtils'
 export * from './screenshotUtils'
 export * from './clippingUtils'
+export * from './visibilityUtils'
 

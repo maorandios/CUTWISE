@@ -35,7 +35,11 @@ import {
   copyScreenshotToClipboard,
   disableClipping,
   applyClipping,
-  updateModelBounds
+  updateModelBounds,
+  handleTransparent as handleTransparentUtil,
+  handleHide as handleHideUtil,
+  handleHideAllExcept as handleHideAllExceptUtil,
+  handleShowAll as handleShowAllUtil
 } from './IFCViewer/utils'
 
 export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, enableMeasurement = false, enableClipping = false, filters, report, isVisible = true }: IFCViewerProps) {
@@ -1907,526 +1911,67 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
   // All selection logic has been moved to SelectionManager
   // The setupClickSelectionWrapper function above now uses the imported setupClickSelection
 
-  // Helper function to find meshes by product ID
+  // Helper function to find meshes by product ID (wrapper for utility function)
   const findMeshesByProductIds = (productIds: number[]): THREE.Mesh[] => {
-    const foundMeshes: THREE.Mesh[] = []
     if (!modelRef.current) {
       console.warn('[findMeshesByProductIds] No model available')
-      return foundMeshes
+      return []
     }
-    
-    console.log(`[findMeshesByProductIds] Looking for product IDs:`, productIds)
-    let totalMeshes = 0
-    
-    modelRef.current.traverse((child: any) => {
-      if (child.isMesh) {
-        totalMeshes++
-        const productId = child.userData?.product_id || 
-                         child.userData?.expressID || 
-                         child.userData?.id ||
-                         ((child as any).metadata?.product_id)
-        if (productId && productIds.includes(productId)) {
-          console.log(`[findMeshesByProductIds] Found mesh with product ID ${productId}:`, {
-            name: child.name,
-            visible: child.visible,
-            material: Array.isArray(child.material) ? child.material[0]?.type : child.material?.type,
-            userData: child.userData
-          })
-          foundMeshes.push(child)
-        }
-      }
-    })
-    
-    console.log(`[findMeshesByProductIds] Searched ${totalMeshes} meshes, found ${foundMeshes.length} matches`)
-    return foundMeshes
+    return findMeshesByProductIdsUtil(modelRef.current, productIds)
   }
 
-  // Handler functions for control panel buttons
+  // Handler functions for control panel buttons (using visibility utilities)
   const handleTransparent = () => {
-    console.log('[handleTransparent] Called')
-    console.log('[handleTransparent] selectedProductIdsRef.current:', selectedProductIdsRef.current)
-    console.log('[handleTransparent] selectedMeshesRef.current:', selectedMeshesRef.current.map(m => ({
-      name: m.name,
-      productId: m.userData?.product_id || m.userData?.expressID || m.userData?.id,
-      visible: m.visible
-    })))
-    
-    if (!modelRef.current) {
-      console.warn('[handleTransparent] No model available')
-      return
-    }
-    
-    // Use product IDs to find the actual meshes (more reliable than stored references)
-    const productIds = selectedProductIdsRef.current.length > 0 
-      ? selectedProductIdsRef.current 
-      : selectedMeshesRef.current.map(m => 
-          m.userData?.product_id || m.userData?.expressID || m.userData?.id || ((m as any).metadata?.product_id)
-        ).filter(id => id !== undefined && id !== null) as number[]
-    
-    console.log('[handleTransparent] Extracted product IDs:', productIds)
-    
-    if (productIds.length === 0) {
-      console.warn('[handleTransparent] No product IDs found for transparent operation')
-      return
-    }
-    
-    const meshesToProcess = findMeshesByProductIds(productIds)
-    
-    if (meshesToProcess.length === 0) {
-      console.warn(`[handleTransparent] No meshes found for product IDs: ${productIds.join(', ')}`)
-      return
-    }
-    
-    console.log(`[handleTransparent] Making ${meshesToProcess.length} mesh(es) transparent (product IDs: ${productIds.join(', ')})`)
-    
-    meshesToProcess.forEach((mesh, index) => {
-      console.log(`[handleTransparent] Processing mesh ${index + 1}/${meshesToProcess.length}:`, {
-        name: mesh.name,
-        productId: mesh.userData?.product_id || mesh.userData?.expressID,
-        currentVisible: mesh.visible,
-        currentMaterial: Array.isArray(mesh.material) ? mesh.material[0]?.type : mesh.material?.type,
-        currentState: elementStatesRef.current.get(mesh)
-      })
-      if (!mesh) return
-      
-      // Check if mesh is already transparent - check both state ref and material properties
-      const currentState = elementStatesRef.current.get(mesh)
-      
-      // Get the actual material (might be highlighted, so check if there's an original stored)
-      let actualMaterial = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
-      // If this is a highlighted material, check the original material instead
-      if (mesh.userData && mesh.userData._originalMaterial) {
-        const origMat = Array.isArray(mesh.userData._originalMaterial) ? mesh.userData._originalMaterial[0] : mesh.userData._originalMaterial
-        if (origMat) {
-          actualMaterial = origMat
-        }
+    handleTransparentUtil(
+      modelRef.current,
+      selectedProductIdsRef.current,
+      selectedMeshesRef.current,
+      {
+        elementStatesRef,
+        originalMaterialsRef,
+        originalVisibilityRef
       }
-      
-      // Check if material is transparent (opacity < 1.0 and transparent flag is true)
-      const isMaterialTransparent = actualMaterial && 
-                                    actualMaterial.transparent === true && 
-                                    actualMaterial.opacity !== undefined && 
-                                    actualMaterial.opacity < 1.0 &&
-                                    actualMaterial.opacity > 0
-      
-      console.log(`[handleTransparent] State check:`, {
-        currentState,
-        isMaterialTransparent,
-        materialTransparent: actualMaterial?.transparent,
-        materialOpacity: actualMaterial?.opacity,
-        hasOriginalMaterial: originalMaterialsRef.current.has(mesh)
-      })
-      
-      // If state says transparent OR material is transparent, treat it as transparent
-      if (currentState === 'transparent' || (currentState !== 'hidden' && isMaterialTransparent)) {
-        // If state wasn't set but material is transparent, set the state now
-        if (currentState !== 'transparent' && isMaterialTransparent) {
-          elementStatesRef.current.set(mesh, 'transparent')
-          // If original material isn't stored, we need to recreate it from the transparent material
-          // by cloning and setting opacity to 1.0
-          if (!originalMaterialsRef.current.has(mesh)) {
-            if (actualMaterial && typeof actualMaterial.clone === 'function') {
-              const restoredMat = actualMaterial.clone()
-              restoredMat.transparent = false
-              restoredMat.opacity = 1.0
-              originalMaterialsRef.current.set(mesh, restoredMat)
-            }
-          }
-        }
-        console.log(`[handleTransparent] Mesh ${mesh.name} is already transparent, restoring to normal`)
-        
-        // Restore original material - ALWAYS ensure it's not transparent
-        if (originalMaterialsRef.current.has(mesh)) {
-          const originalMat = originalMaterialsRef.current.get(mesh)
-          if (originalMat) {
-            const mat = Array.isArray(originalMat) ? originalMat[0] : originalMat
-            // Clone the material to ensure we have a fresh copy
-            if (mat && typeof mat.clone === 'function') {
-              const restoredMat = mat.clone()
-              // CRITICAL: Ensure it's not transparent
-              restoredMat.transparent = false
-              restoredMat.opacity = 1.0
-              mesh.material = restoredMat
-            } else {
-              // Fallback: use original but ensure it's not transparent
-              mesh.material = originalMat
-              const currentMat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
-              if (currentMat) {
-                currentMat.transparent = false
-                currentMat.opacity = 1.0
-              }
-            }
-          }
-          originalMaterialsRef.current.delete(mesh)
-        } else {
-          // Original material not stored - restore by setting opacity to 1.0
-          // This can happen if state was lost but material remained transparent
-          const currentMat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
-          if (currentMat) {
-            // Clone and restore
-            if (typeof currentMat.clone === 'function') {
-              const restoredMat = currentMat.clone()
-              restoredMat.transparent = false
-              restoredMat.opacity = 1.0
-              mesh.material = restoredMat
-            } else {
-              currentMat.transparent = false
-              currentMat.opacity = 1.0
-            }
-          }
-        }
-        
-        // Restore original visibility
-        if (originalVisibilityRef.current.has(mesh)) {
-          mesh.visible = originalVisibilityRef.current.get(mesh) ?? true
-          originalVisibilityRef.current.delete(mesh)
-        } else {
-          mesh.visible = true
-        }
-        
-        elementStatesRef.current.set(mesh, 'normal')
-        
-        // CRITICAL: Clear any highlighting material reference to prevent clearSelection from restoring transparent material
-        if (mesh.userData && mesh.userData._originalMaterial) {
-          // Check if the stored material is transparent - if so, we need to fix it
-          const storedMat = Array.isArray(mesh.userData._originalMaterial) ? mesh.userData._originalMaterial[0] : mesh.userData._originalMaterial
-          if (storedMat && storedMat.transparent === true && storedMat.opacity < 1.0) {
-            // The stored material is transparent - we need to replace it with the restored normal material
-            mesh.userData._originalMaterial = mesh.material
-          } else {
-            // The stored material is normal - we can keep it or clear it
-            // Actually, let's clear it to be safe, since we've already restored the material
-            delete mesh.userData._originalMaterial
-          }
-        }
-        
-        // Restore edge line
-        if (mesh.userData?.edgeLine) {
-          const edgeLine = mesh.userData.edgeLine
-          if (originalVisibilityRef.current.has(edgeLine)) {
-            edgeLine.visible = originalVisibilityRef.current.get(edgeLine) ?? true
-            originalVisibilityRef.current.delete(edgeLine)
-          } else {
-            edgeLine.visible = true
-          }
-          if (edgeLine.material) {
-            edgeLine.material.transparent = false
-            edgeLine.material.opacity = 1.0
-          }
-        }
-        
-        console.log(`[handleTransparent] Restored mesh to normal:`, {
-          name: mesh.name,
-          visible: mesh.visible,
-          material: Array.isArray(mesh.material) ? mesh.material[0]?.type : mesh.material?.type,
-          materialOpacity: Array.isArray(mesh.material) ? mesh.material[0]?.opacity : mesh.material?.opacity,
-          materialTransparent: Array.isArray(mesh.material) ? mesh.material[0]?.transparent : mesh.material?.transparent,
-          state: elementStatesRef.current.get(mesh)
-        })
-        return
-      }
-      
-      // Store original material if not already stored
-      // Get the base material (not the highlighted one)
-      let baseMaterial = mesh.material
-      if (mesh.userData && mesh.userData._originalMaterial) {
-        // If there's a highlight material, use the original underneath
-        baseMaterial = mesh.userData._originalMaterial
-      }
-      
-      if (!originalMaterialsRef.current.has(mesh)) {
-        originalMaterialsRef.current.set(mesh, baseMaterial)
-      }
-      
-      // Store original visibility
-      if (!originalVisibilityRef.current.has(mesh)) {
-        originalVisibilityRef.current.set(mesh, mesh.visible)
-      }
-      
-      // Make transparent
-      const material = Array.isArray(baseMaterial) ? baseMaterial[0] : baseMaterial
-      if (material) {
-        const transparentMat = material.clone()
-        transparentMat.transparent = true
-        transparentMat.opacity = 0.3
-        mesh.material = transparentMat
-      }
-      
-      mesh.visible = true
-      elementStatesRef.current.set(mesh, 'transparent')
-      console.log(`[handleTransparent] Applied transparency to mesh:`, {
-        name: mesh.name,
-        opacity: (mesh.material as any)?.opacity,
-        transparent: (mesh.material as any)?.transparent,
-        visible: mesh.visible
-      })
-    })
-    
-    // Also handle edge lines
-    meshesToProcess.forEach((mesh, index) => {
-      console.log(`[handleTransparent] Processing edge line ${index + 1}/${meshesToProcess.length} for mesh:`, mesh.name)
-      if (mesh && mesh.userData?.edgeLine) {
-        const edgeLine = mesh.userData.edgeLine
-        if (!originalVisibilityRef.current.has(edgeLine)) {
-          originalVisibilityRef.current.set(edgeLine, edgeLine.visible)
-        }
-        edgeLine.visible = true
-        if (edgeLine.material) {
-          edgeLine.material.transparent = true
-          edgeLine.material.opacity = 0.3
-        }
-      }
-    })
+    )
   }
   
+  
   const handleHide = () => {
-    console.log('[handleHide] Called')
-    console.log('[handleHide] selectedProductIdsRef.current:', selectedProductIdsRef.current)
-    console.log('[handleHide] selectedMeshesRef.current:', selectedMeshesRef.current.map(m => ({
-      name: m.name,
-      productId: m.userData?.product_id || m.userData?.expressID || m.userData?.id,
-      visible: m.visible
-    })))
-    
-    if (!modelRef.current) {
-      console.warn('[handleHide] No model available')
-      return
-    }
-    
-    // Use product IDs to find the actual meshes
-    const productIds = selectedProductIdsRef.current.length > 0 
-      ? selectedProductIdsRef.current 
-      : selectedMeshesRef.current.map(m => 
-          m.userData?.product_id || m.userData?.expressID || m.userData?.id || ((m as any).metadata?.product_id)
-        ).filter(id => id !== undefined && id !== null) as number[]
-    
-    console.log('[handleHide] Extracted product IDs:', productIds)
-    
-    if (productIds.length === 0) {
-      console.warn('[handleHide] No product IDs found for hide operation')
-      return
-    }
-    
-    const meshesToProcess = findMeshesByProductIds(productIds)
-    
-    if (meshesToProcess.length === 0) {
-      console.warn(`[handleHide] No meshes found for product IDs: ${productIds.join(', ')}`)
-      return
-    }
-    
-    console.log(`[handleHide] Hiding ${meshesToProcess.length} mesh(es) (product IDs: ${productIds.join(', ')})`)
-    
-    meshesToProcess.forEach((mesh, index) => {
-      console.log(`[handleHide] Processing mesh ${index + 1}/${meshesToProcess.length}:`, {
-        name: mesh.name,
-        productId: mesh.userData?.product_id || mesh.userData?.expressID,
-        currentVisible: mesh.visible
-      })
-      if (!mesh) return
-      
-      // Store original visibility if not already stored
-      if (!originalVisibilityRef.current.has(mesh)) {
-        originalVisibilityRef.current.set(mesh, mesh.visible)
+    handleHideUtil(
+      modelRef.current,
+      selectedProductIdsRef.current,
+      selectedMeshesRef.current,
+      {
+        elementStatesRef,
+        originalMaterialsRef,
+        originalVisibilityRef
       }
-      
-      // Hide
-      mesh.visible = false
-      elementStatesRef.current.set(mesh, 'hidden')
-      console.log(`[handleHide] Hidden mesh:`, {
-        name: mesh.name,
-        visible: mesh.visible,
-        state: elementStatesRef.current.get(mesh)
-      })
-      
-      // Hide edge lines
-      if (mesh.userData?.edgeLine) {
-        const edgeLine = mesh.userData.edgeLine
-        if (!originalVisibilityRef.current.has(edgeLine)) {
-          originalVisibilityRef.current.set(edgeLine, edgeLine.visible)
-        }
-        edgeLine.visible = false
-        console.log(`[handleHide] Hidden edge line for mesh:`, mesh.name)
-      }
-    })
+    )
   }
   
   const handleHideAllExcept = () => {
-    console.log('[handleHideAllExcept] Called')
-    console.log('[handleHideAllExcept] selectedProductIdsRef.current:', selectedProductIdsRef.current)
-    console.log('[handleHideAllExcept] selectedMeshesRef.current:', selectedMeshesRef.current.map(m => ({
-      name: m.name,
-      productId: m.userData?.product_id || m.userData?.expressID || m.userData?.id,
-      visible: m.visible
-    })))
-    
-    if (!modelRef.current) {
-      console.warn('[handleHideAllExcept] No model available')
-      return
-    }
-    
-    // Use product IDs to find the actual meshes
-    const productIds = selectedProductIdsRef.current.length > 0 
-      ? selectedProductIdsRef.current 
-      : selectedMeshesRef.current.map(m => 
-          m.userData?.product_id || m.userData?.expressID || m.userData?.id || ((m as any).metadata?.product_id)
-        ).filter(id => id !== undefined && id !== null) as number[]
-    
-    console.log('[handleHideAllExcept] Extracted product IDs:', productIds)
-    
-    if (productIds.length === 0) {
-      console.warn('[handleHideAllExcept] No product IDs found for hide all except operation')
-      return
-    }
-    
-    const meshesToProcess = findMeshesByProductIds(productIds)
-    
-    if (meshesToProcess.length === 0) {
-      console.warn(`[handleHideAllExcept] No meshes found for product IDs: ${productIds.join(', ')}`)
-      return
-    }
-    
-    console.log(`[handleHideAllExcept] Hiding all except ${meshesToProcess.length} selected mesh(es) (product IDs: ${productIds.join(', ')})`)
-    
-    const selectedMeshSet = new Set(meshesToProcess)
-    const selectedProductIdSet = new Set(productIds)
-    let hiddenCount = 0
-    let keptVisibleCount = 0
-    
-    // Hide all meshes except selected ones (check by both mesh reference and product ID)
-    modelRef.current.traverse((child: any) => {
-      if (child.isMesh) {
-        const productId = child.userData?.product_id || 
-                         child.userData?.expressID || 
-                         child.userData?.id ||
-                         ((child as any).metadata?.product_id)
-        
-        const isSelected = selectedMeshSet.has(child) || (productId && selectedProductIdSet.has(productId))
-        
-        // Hide if not in selected set (check both mesh reference and product ID)
-        if (!isSelected) {
-          // Store original visibility if not already stored
-          if (!originalVisibilityRef.current.has(child)) {
-            originalVisibilityRef.current.set(child, child.visible)
-          }
-          
-          child.visible = false
-          elementStatesRef.current.set(child, 'hidden')
-          hiddenCount++
-          
-          // Hide edge lines
-          if (child.userData?.edgeLine) {
-            const edgeLine = child.userData.edgeLine
-            if (!originalVisibilityRef.current.has(edgeLine)) {
-              originalVisibilityRef.current.set(edgeLine, edgeLine.visible)
-            }
-            edgeLine.visible = false
-          }
-        } else {
-          keptVisibleCount++
-        }
+    handleHideAllExceptUtil(
+      modelRef.current,
+      selectedProductIdsRef.current,
+      selectedMeshesRef.current,
+      {
+        elementStatesRef,
+        originalMaterialsRef,
+        originalVisibilityRef
       }
-    })
-    
-    console.log(`[handleHideAllExcept] Completed: hidden ${hiddenCount} meshes, kept ${keptVisibleCount} visible`)
+    )
   }
   
   const handleShowAll = () => {
-    console.log('[handleShowAll] Called')
-    
-    if (!modelRef.current) {
-      console.warn('[handleShowAll] No model available')
-      return
-    }
-    
-    let restoredCount = 0
-    
-    // Restore all meshes to normal
-    modelRef.current.traverse((child: any) => {
-      if (child.isMesh) {
-        // Clear highlighting material first (if exists)
-        if (child.userData && child.userData._originalMaterial) {
-          child.material = child.userData._originalMaterial
-          delete child.userData._originalMaterial
-        }
-        
-        // Restore original material (from transparency/hidden operations)
-        // ALWAYS ensure it's not transparent
-        if (originalMaterialsRef.current.has(child)) {
-          const originalMat = originalMaterialsRef.current.get(child)
-          if (originalMat) {
-            const mat = Array.isArray(originalMat) ? originalMat[0] : originalMat
-            // Clone the material to ensure we have a fresh copy
-            if (mat && typeof mat.clone === 'function') {
-              const restoredMat = mat.clone()
-              // CRITICAL: Ensure it's not transparent
-              restoredMat.transparent = false
-              restoredMat.opacity = 1.0
-              child.material = restoredMat
-            } else {
-              // Fallback: use original but ensure it's not transparent
-              child.material = originalMat
-              const currentMat = Array.isArray(child.material) ? child.material[0] : child.material
-              if (currentMat) {
-                currentMat.transparent = false
-                currentMat.opacity = 1.0
-              }
-            }
-          }
-          originalMaterialsRef.current.delete(child)
-        } else {
-          // If no original material stored, check if current material is transparent and fix it
-          const currentMat = Array.isArray(child.material) ? child.material[0] : child.material
-          if (currentMat && currentMat.transparent === true && currentMat.opacity < 1.0) {
-            // Material is transparent but no original stored - restore by cloning and fixing
-            if (typeof currentMat.clone === 'function') {
-              const restoredMat = currentMat.clone()
-              restoredMat.transparent = false
-              restoredMat.opacity = 1.0
-              child.material = restoredMat
-            } else {
-              currentMat.transparent = false
-              currentMat.opacity = 1.0
-            }
-          }
-        }
-        
-        // Restore original visibility
-        if (originalVisibilityRef.current.has(child)) {
-          child.visible = originalVisibilityRef.current.get(child) ?? true
-          originalVisibilityRef.current.delete(child)
-        } else {
-          child.visible = true
-        }
-        
-        elementStatesRef.current.set(child, 'normal')
-        
-        // Restore edge lines
-        if (child.userData?.edgeLine) {
-          const edgeLine = child.userData.edgeLine
-          if (originalVisibilityRef.current.has(edgeLine)) {
-            edgeLine.visible = originalVisibilityRef.current.get(edgeLine) ?? true
-            originalVisibilityRef.current.delete(edgeLine)
-          } else {
-            edgeLine.visible = true
-          }
-          if (edgeLine.material) {
-            edgeLine.material.transparent = false
-            edgeLine.material.opacity = 1.0
-          }
-        }
-        
-        restoredCount++
+    handleShowAllUtil(
+      modelRef.current,
+      {
+        elementStatesRef,
+        originalMaterialsRef,
+        originalVisibilityRef
       }
-    })
+    )
     
-    console.log(`[handleShowAll] Restored ${restoredCount} meshes to normal`)
-    
-    // Clear all state maps
-    elementStatesRef.current.clear()
-    originalMaterialsRef.current.clear()
-    originalVisibilityRef.current.clear()
-    
-    // Clear selection and remove highlighting
+    // Clear selection and remove highlighting (this is specific to IFCViewer, not part of the utility)
     selectedMeshesRef.current.forEach(mesh => {
       if (mesh.userData && mesh.userData._originalMaterial) {
         mesh.material = mesh.userData._originalMaterial
