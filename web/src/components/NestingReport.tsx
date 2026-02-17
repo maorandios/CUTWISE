@@ -1262,6 +1262,56 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                   return false
                                 }
                                 
+                                // Special case: Handle boundary between first (index 0) and second part (index 1) FIRST
+                                // This must run BEFORE the main loop to ensure Part 1 is correctly oriented
+                                // Only flip the SECOND part if needed, never the first (to preserve waste minimization)
+                                if (numParts >= 2) {
+                                  const leftIdx = 0
+                                  const rightIdx = 1
+                                  const leftName = getPartNameForIdx(leftIdx)
+                                  const rightName = getPartNameForIdx(rightIdx)
+                                  
+                                  const leftPart = partPositions[leftIdx].part
+                                  const rightPart = partPositions[rightIdx].part
+                                  const leftIsComp = (leftPart as any).slope_info?.complementary_pair === true
+                                  const rightIsComp = (rightPart as any).slope_info?.complementary_pair === true
+                                  const isComplementaryPair = leftIsComp && rightIsComp
+                                  
+                                  console.log(`[SPECIAL-0-1] Checking boundary 0-1: leftName=${leftName} rightName=${rightName} isComp=${isComplementaryPair} sameName=${leftName === rightName}`)
+                                  
+                                  // Only process if they're complementary pairs OR same-named parts
+                                  if (isComplementaryPair || leftName === rightName) {
+                                    const leftEnds = finalPartEnds[leftIdx]
+                                    const rightEnds = finalPartEnds[rightIdx]
+                                    
+                                    if (leftEnds && rightEnds) {
+                                      const leftFlipped = partFlipStates[leftIdx]
+                                      const rightFlipped = partFlipStates[rightIdx]
+                                      
+                                      const leftEndCut = (leftFlipped ? leftEnds.startCut : leftEnds.endCut) as PartEnd
+                                      const rightStartCut = (rightFlipped ? rightEnds.endCut : rightEnds.startCut) as PartEnd
+                                      
+                                      console.log(`[SPECIAL-0-1] Part 0 end: ${leftEndCut.type}(${(leftEndCut.deviation||0).toFixed(2)}) flipped=${leftFlipped}, Part 1 start: ${rightStartCut.type}(${(rightStartCut.deviation||0).toFixed(2)}) flipped=${rightFlipped}`)
+                                      
+                                      const currentlyShared = cutsCanShare(leftEndCut, rightStartCut)
+                                      console.log(`[SPECIAL-0-1] Currently shared: ${currentlyShared}`)
+                                      
+                                      if (!currentlyShared) {
+                                        // Try flipping ONLY the right part (index 1), never the first
+                                        const rightStartCutFlipped = (!rightFlipped ? rightEnds.endCut : rightEnds.startCut) as PartEnd
+                                        console.log(`[SPECIAL-0-1] If Part 1 flipped, start would be: ${rightStartCutFlipped.type}(${(rightStartCutFlipped.deviation||0).toFixed(2)})`)
+                                        const wouldShareIfFlipped = cutsCanShare(leftEndCut, rightStartCutFlipped)
+                                        console.log(`[SPECIAL-0-1] Would share if flipped: ${wouldShareIfFlipped}`)
+                                        
+                                        if (wouldShareIfFlipped) {
+                                          partFlipStates[rightIdx] = !partFlipStates[rightIdx]
+                                          console.log(`[ORIENTATION] Flipped part ${rightIdx} to share boundary with first part (preserving first part waste optimization)`)
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                                
                                 // Greedy algorithm: iterate through parts and flip if needed to share boundaries
                                 // IMPORTANT: Start from index 1 to preserve first part optimization for waste minimization
                                 // Process pairs (1,2), (2,3), ..., (n-2,n-1) where n=numParts
@@ -1306,11 +1356,22 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                   const leftEndCut = (leftFlipped ? leftEnds.startCut : leftEnds.endCut) as PartEnd
                                   const rightStartCut = (rightFlipped ? rightEnds.endCut : rightEnds.startCut) as PartEnd
                                   
+                                  // Debug for pair 1-2
+                                  if (leftIdx === 1 && rightIdx === 2) {
+                                    console.log(`[FLIP-CHECK-1-2] Checking pair 1-2: leftName=${leftName} rightName=${rightName}`)
+                                    console.log(`[FLIP-CHECK-1-2] leftFlipped=${leftFlipped} rightFlipped=${rightFlipped}`)
+                                    console.log(`[FLIP-CHECK-1-2] leftEnd=${leftEndCut.type}/${leftEndCut.deviation?.toFixed(2)}, rightStart=${rightStartCut.type}/${rightStartCut.deviation?.toFixed(2)}`)
+                                  }
+                                  
                                   console.log(`[FLIP-CHECK] ${leftIdx}(${leftName})-${rightIdx}(${rightName}): leftEnd=${leftEndCut.type}/${leftEndCut.deviation?.toFixed(2)}, rightStart=${rightStartCut.type}/${rightStartCut.deviation?.toFixed(2)}`)
                                   
                                   // Check if they currently share a boundary
                                   const currentlyShared = cutsCanShare(leftEndCut, rightStartCut)
                                   console.log(`[FLIP-CHECK] Currently shared: ${currentlyShared}`)
+                                  
+                                  if (leftIdx === 1 && rightIdx === 2) {
+                                    console.log(`[FLIP-CHECK-1-2] Currently shared: ${currentlyShared}`)
+                                  }
                                   
                                   if (!currentlyShared) {
                                     // Try flipping the right part to see if it helps
@@ -1323,49 +1384,11 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                       // Flip the right part
                                       partFlipStates[rightIdx] = !partFlipStates[rightIdx]
                                       console.log(`[ORIENTATION] Flipped part ${rightIdx} (${rightName}) to share boundary with part ${leftIdx}`)
+                                    } else {
+                                      console.log(`[FLIP-NO-ACTION] Part ${rightIdx} (${rightName}): flipping would NOT help`)
                                     }
-                                  }
-                                }
-                                
-                                // Special case: Handle boundary between first (index 0) and second part (index 1)
-                                // Only flip the SECOND part if needed, never the first (to preserve waste minimization)
-                                if (numParts >= 2) {
-                                  const leftIdx = 0
-                                  const rightIdx = 1
-                                  const leftName = getPartNameForIdx(leftIdx)
-                                  const rightName = getPartNameForIdx(rightIdx)
-                                  
-                                  const leftPart = partPositions[leftIdx].part
-                                  const rightPart = partPositions[rightIdx].part
-                                  const leftIsComp = (leftPart as any).slope_info?.complementary_pair === true
-                                  const rightIsComp = (rightPart as any).slope_info?.complementary_pair === true
-                                  const isComplementaryPair = leftIsComp && rightIsComp
-                                  
-                                  // Only process if they're complementary pairs OR same-named parts
-                                  if (isComplementaryPair || leftName === rightName) {
-                                    const leftEnds = finalPartEnds[leftIdx]
-                                    const rightEnds = finalPartEnds[rightIdx]
-                                    
-                                    if (leftEnds && rightEnds) {
-                                      const leftFlipped = partFlipStates[leftIdx]
-                                      const rightFlipped = partFlipStates[rightIdx]
-                                      
-                                      const leftEndCut = (leftFlipped ? leftEnds.startCut : leftEnds.endCut) as PartEnd
-                                      const rightStartCut = (rightFlipped ? rightEnds.endCut : rightEnds.startCut) as PartEnd
-                                      
-                                      const currentlyShared = cutsCanShare(leftEndCut, rightStartCut)
-                                      
-                                      if (!currentlyShared) {
-                                        // Try flipping ONLY the right part (index 1), never the first
-                                        const rightStartCutFlipped = (!rightFlipped ? rightEnds.endCut : rightEnds.startCut) as PartEnd
-                                        const wouldShareIfFlipped = cutsCanShare(leftEndCut, rightStartCutFlipped)
-                                        
-                                        if (wouldShareIfFlipped) {
-                                          partFlipStates[rightIdx] = !partFlipStates[rightIdx]
-                                          console.log(`[ORIENTATION] Flipped part ${rightIdx} to share boundary with first part (preserving first part waste optimization)`)
-                                        }
-                                      }
-                                    }
+                                  } else {
+                                    console.log(`[FLIP-NO-ACTION] Pair ${leftIdx}-${rightIdx}: already shared, no flip needed`)
                                   }
                                 }
                                 
@@ -1393,6 +1416,15 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                   
                                   return result
                                 })
+                                
+                                // DEBUG: Log final geometry for parts 0, 1, 2 after ALL flipping
+                                for (let i = 0; i < Math.min(3, numParts); i++) {
+                                  const partName = getPartNameForIdx(i)
+                                  const ends = finalPartEnds[i]
+                                  if (ends) {
+                                    console.log(`[FINAL-GEOMETRY] Part ${i} (${partName}): start=${ends.startCut.type}(${(ends.startCut.deviation || 0).toFixed(2)}) end=${ends.endCut.type}(${(ends.endCut.deviation || 0).toFixed(2)})`)
+                                  }
+                                }
                                 
                                 // DISABLED: Global canonicalization was causing incorrect rendering across different stock bars
                                 // The angles from slope_info are already correct for each part's orientation
@@ -2095,12 +2127,24 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                               const leftPartEnd = getDisplayEndsForPart(leftPartIdx, shouldCanonicalizePart(leftPartIdx))
                                               const leftEndType = leftPartEnd.endCut.type
                                               const leftDev = leftPartEnd.endCut.deviation
+                                              const leftPartName = leftPartData?.part?.reference || leftPartData?.part?.element_name || `b${leftPartIdx + 1}`
                                               
-                                              // Check if left boundary is a shared complementary cut
+                                              // Check if left boundary is a shared sloped cut
+                                              // This includes: complementary pairs OR identical parts with matching slopes
                                               if (startType === 'miter' && leftEndType === 'miter') {
                                                 const devDiff = Math.abs(startDev - leftDev)
                                                 const isLeftCompPair = (leftPartData as any)?.slope_info?.complementary_pair === true
-                                                leftIsComplementary = isInComplementaryPair && isLeftCompPair && devDiff <= 0.5
+                                                const isSamePart = leftPartName === partName
+                                                const leftSign = leftPartEnd.endCut.angleSign
+                                                const signsMatch = startSign === leftSign
+                                                leftIsComplementary = ((isInComplementaryPair && isLeftCompPair) || isSamePart) && devDiff <= 0.5 && signsMatch
+                                                
+                                                // Debug for part 2
+                                                if (partIdx === 2) {
+                                                  console.log(`[LEFT-CHECK] Part ${partIdx} (${partName}) vs Part ${leftPartIdx} (${leftPartName}): startType=${startType} leftEndType=${leftEndType} startDev=${startDev?.toFixed(2)} leftDev=${leftDev?.toFixed(2)} devDiff=${devDiff.toFixed(2)} startSign=${startSign} leftSign=${leftSign} signsMatch=${signsMatch} isSamePart=${isSamePart} isLeftCompPair=${isLeftCompPair} isInComplementaryPair=${isInComplementaryPair} → leftIsComplementary=${leftIsComplementary}`)
+                                                }
+                                              } else if (partIdx === 2) {
+                                                console.log(`[LEFT-CHECK] Part ${partIdx} (${partName}) vs Part ${leftPartIdx} (${leftPartName}): startType=${startType} leftEndType=${leftEndType} startDev=${startDev?.toFixed(2)} leftDev=${leftDev?.toFixed(2)} → NOT both miters, skipping`)
                                               }
                                             }
                                             
@@ -2109,12 +2153,15 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                               const rightPartEnd = getDisplayEndsForPart(rightPartIdx, shouldCanonicalizePart(rightPartIdx))
                                               const rightStartType = rightPartEnd.startCut.type
                                               const rightDev = rightPartEnd.startCut.deviation
+                                              const rightPartName = rightPartData?.part?.reference || rightPartData?.part?.element_name || `b${rightPartIdx + 1}`
                                               
-                                              // Check if right boundary is a shared complementary cut
+                                              // Check if right boundary is a shared sloped cut
+                                              // This includes: complementary pairs OR identical parts with matching slopes
                                               if (endType === 'miter' && rightStartType === 'miter') {
                                                 const devDiff = Math.abs(endDev - rightDev)
                                                 const isRightCompPair = (rightPartData as any)?.slope_info?.complementary_pair === true
-                                                rightIsComplementary = isInComplementaryPair && isRightCompPair && devDiff <= 0.5
+                                                const isSamePart = rightPartName === partName
+                                                rightIsComplementary = ((isInComplementaryPair && isRightCompPair) || isSamePart) && devDiff <= 0.5
                                               }
                                             }
                                             
@@ -2128,6 +2175,11 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                             // 1. It's a complementary boundary with the right part, OR
                                             // 2. It's the last part with waste and has a miter
                                             hasSlopedEnd = rightIsComplementary || (partIdx === lastPartIdx && pattern.waste > 0 && endType === 'miter' && endDev > 0)
+                                            
+                                            // Debug logging for parts 1 and 2
+                                            if (partIdx === 1 || partIdx === 2) {
+                                              console.log(`[SLOPE-RENDER] Part ${partIdx} (${partName}): startType=${startType} endType=${endType} leftIsComp=${leftIsComplementary} rightIsComp=${rightIsComplementary} hasSlopedStart=${hasSlopedStart} hasSlopedEnd=${hasSlopedEnd}`)
+                                            }
                                             
                                             const actualRightX = (partIdx === lastPartIdx && pattern.waste > 0 && hasSlopedEnd)
                                               ? exactPartsEndPx + 0.5
@@ -2271,16 +2323,16 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                                   {/* Start cut marker - only if NOT shared AND NOT first part (first part start is stock bar edge) */}
                                                   {/* ONLY show for straight cuts - sloped non-shared boundaries don't need markers */}
                                                   {!startIsShared && partIdx > 0 && startType === 'straight' && (
-                                                    <line
-                                                      x1={polyLeftX}
-                                                      y1="0.5"
-                                                      x2={polyLeftX}
-                                                      y2={barHeight - 0.5}
-                                                      stroke="#9ca3af"
-                                                      strokeWidth="1"
-                                                      strokeLinecap="butt"
-                                                      shapeRendering="crispEdges"
-                                                    />
+                                                        <line
+                                                          x1={polyLeftX}
+                                                          y1="0.5"
+                                                          x2={polyLeftX}
+                                                          y2={barHeight - 0.5}
+                                                          stroke="#9ca3af"
+                                                          strokeWidth="1"
+                                                          strokeLinecap="butt"
+                                                          shapeRendering="crispEdges"
+                                                        />
                                                   )}
                                                   
                                                   {/* End cut marker - for non-last parts or last part with waste */}
