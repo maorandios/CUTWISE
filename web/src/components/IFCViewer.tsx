@@ -17,9 +17,15 @@ import {
   disposeObject,
   findMeshesByProductIds as findMeshesByProductIdsUtil,
   getAssemblyInfo as getAssemblyInfoUtil,
-  findAllMeshesWithAssemblyId as findAllMeshesWithAssemblyIdUtil
+  findAllMeshesWithAssemblyId as findAllMeshesWithAssemblyIdUtil,
+  getColorHex, 
+  getLineWidth, 
+  applyMarkupSettings as applyMarkupSettingsUtil,
+  getCanvasContext as getCanvasContextUtil,
+  setupCanvas as setupCanvasUtil,
+  clearCanvas as clearCanvasUtil,
+  getCanvasCoordinates as getCanvasCoordinatesUtil
 } from './IFCViewer/utils'
-import { getColorHex, getLineWidth, applyMarkupSettings as applyMarkupSettingsUtil } from './IFCViewer/utils'
 
 export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, enableMeasurement = false, enableClipping = false, filters, report, isVisible = true }: IFCViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -3911,13 +3917,7 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
   }
   
   const getCanvasContext = (): CanvasRenderingContext2D | null => {
-    const canvas = markupCanvasRef.current
-    if (!canvas) return null
-    
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return null
-    
-    return ctx
+    return getCanvasContextUtil(markupCanvasRef.current)
   }
   
   const setupMarkupCanvas = () => {
@@ -3925,29 +3925,7 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
     const canvas = markupCanvasRef.current
     if (!container || !canvas) return
     
-    // Get device pixel ratio for crisp rendering on high-DPI displays
-    const dpr = window.devicePixelRatio || 1
-    const rect = container.getBoundingClientRect()
-    
-    // Set display size (CSS pixels)
-    canvas.style.width = `${rect.width}px`
-    canvas.style.height = `${rect.height}px`
-    
-    // Set actual size in memory (scaled for device pixel ratio)
-    canvas.width = rect.width * dpr
-    canvas.height = rect.height * dpr
-    
-    const ctx = getCanvasContext()
-    if (ctx) {
-      // Scale the context to match device pixel ratio
-      ctx.scale(dpr, dpr)
-      
-      // Enable better rendering quality
-      ctx.imageSmoothingEnabled = true
-      ctx.imageSmoothingQuality = 'high'
-      
-      applyMarkupSettings(ctx)
-    }
+    setupCanvasUtil(canvas, container, applyMarkupSettings)
   }
   
   const redrawMarkupCanvas = () => {
@@ -4060,13 +4038,7 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
   const getCanvasCoordinates = (clientX: number, clientY: number): { x: number; y: number } | null => {
     const container = containerRef.current
     if (!container) return null
-    
-    const rect = container.getBoundingClientRect()
-    // Round to nearest pixel for crisp rendering
-    return {
-      x: Math.round(clientX - rect.left),
-      y: Math.round(clientY - rect.top)
-    }
+    return getCanvasCoordinatesUtil(container, clientX, clientY, true)
   }
   
   const handleMarkupPointerDown = (event: React.PointerEvent) => {
