@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { IFCViewerProps, ClipPlaneKey, SelectionMode, MarkupTool, MarkupColor, ElementState, ContextMenuState, ElementData, MeasurementData, MarkupElement, TextElement, ModelBounds } from './IFCViewer/types'
 import { LoadingState, ContextMenu, ControlPanel, MarkupCanvas, SelectedElementBanner } from './IFCViewer/components'
+import { setupClickSelection } from './IFCViewer/managers'
 import { 
   findClosestCorner, 
   findClosestEdgePoint, 
@@ -1151,7 +1152,7 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
           
           // IFC files can use different coordinate systems
           // Try different rotations to match the original IFC orientation
-          // Option 1: Z-up to Y-up (most common): rotate -90° around X
+          // Option 1: Z-up to Y-up (most common): rotate -90Â° around X
           // Option 2: No rotation (if already Y-up)
           // Option 3: Other transformations
           
@@ -1208,7 +1209,7 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
             directionalLight2.shadow.camera.updateProjectionMatrix()
             
             // Position camera for standard isometric view (ground-up perspective)
-            // Standard isometric: 45° in XZ plane, ~35° elevation
+            // Standard isometric: 45Â° in XZ plane, ~35Â° elevation
             // This gives a good 3D view with Y as the vertical axis
             const isometricAngle = Math.PI / 4  // 45 degrees in horizontal plane
             const elevationAngle = Math.PI / 5   // ~36 degrees elevation (looking down slightly)
@@ -1553,7 +1554,7 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
           await loadAssemblyMapping()
           
           // Setup click selection
-          setupClickSelection(gltf.scene, setSelectedElement)
+          setupClickSelectionWrapper(gltf.scene, setSelectedElement)
         }
 
         console.log('[IFCViewer] Model loaded and displayed successfully')
@@ -1874,711 +1875,37 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
     }
   }
 
-  const setupClickSelection = (
+  // Setup click selection using SelectionManager
+  const setupClickSelectionWrapper = (
     model: THREE.Object3D,
     setSelected: (element: { expressID: number; type: string } | null) => void
   ) => {
     if (!cameraRef.current || !containerRef.current) return
 
-    const clearSelection = () => {
-      // Clear all selected meshes (remove highlighting only)
-      // IMPORTANT: Preserve transparency/hidden states set by user
-      selectedMeshesRef.current.forEach(mesh => {
-        if (mesh.userData && mesh.userData._originalMaterial) {
-          // Get the persistent state of the mesh
-          const persistentState = elementStatesRef.current.get(mesh)
-          
-          if (!persistentState || persistentState === 'normal') {
-            // No persistent state, safe to restore highlighting material
-            // But first check if the stored material is transparent - if so, ensure it's not
-            const storedMat = Array.isArray(mesh.userData._originalMaterial) ? mesh.userData._originalMaterial[0] : mesh.userData._originalMaterial
-            if (storedMat && storedMat.transparent === true && storedMat.opacity < 1.0) {
-              // Stored material is transparent but state is normal - fix it
-              if (typeof storedMat.clone === 'function') {
-                const fixedMat = storedMat.clone()
-                fixedMat.transparent = false
-                fixedMat.opacity = 1.0
-                mesh.material = fixedMat
-              } else {
-                storedMat.transparent = false
-                storedMat.opacity = 1.0
-                mesh.material = mesh.userData._originalMaterial
-              }
-            } else {
-              mesh.material = mesh.userData._originalMaterial
-            }
-            delete mesh.userData._originalMaterial
-          } else if (persistentState === 'transparent') {
-            // Mesh is transparent - restore the transparent material
-            // Always recreate from original to ensure proper state
-            if (originalMaterialsRef.current.has(mesh)) {
-              const originalMat = originalMaterialsRef.current.get(mesh)
-              if (originalMat) {
-                const material = Array.isArray(originalMat) ? originalMat[0] : originalMat
-                if (material && typeof material.clone === 'function') {
-                  // Recreate transparent material from original
-                  const transparentMat = material.clone()
-                  transparentMat.transparent = true
-                  transparentMat.opacity = 0.3
-                  mesh.material = transparentMat
-                } else {
-                  // Fallback: try to make the material transparent
-                  mesh.material = originalMat
-                  const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
-                  if (mat) {
-                    mat.transparent = true
-                    mat.opacity = 0.3
-                  }
-                }
-              }
-            } else if (mesh.userData._originalMaterial) {
-              // Fallback: use stored material but ensure it's transparent
-              const storedMat = mesh.userData._originalMaterial
-              const material = Array.isArray(storedMat) ? storedMat[0] : storedMat
-              if (material && typeof material.clone === 'function') {
-                const transparentMat = material.clone()
-                transparentMat.transparent = true
-                transparentMat.opacity = 0.3
-                mesh.material = transparentMat
-              } else {
-                mesh.material = storedMat
-                if (material) {
-                  material.transparent = true
-                  material.opacity = 0.3
-                }
-              }
-            }
-            // CRITICAL: Ensure the state remains 'transparent' in elementStatesRef
-            // This ensures that clicking on the element again will properly detect it as transparent
-            elementStatesRef.current.set(mesh, 'transparent')
-            delete mesh.userData._originalMaterial
-          } else if (persistentState === 'hidden') {
-            // Mesh is hidden - keep it hidden, just remove highlighting reference
-            mesh.visible = false
-            delete mesh.userData._originalMaterial
-          } else {
-            // Unknown state, just remove highlighting material reference
-            delete mesh.userData._originalMaterial
-          }
-        }
-      })
-      selectedMeshesRef.current = []
-      selectedMeshRef.current = null
-      selectedProductIdsRef.current = []
+    // Create refs object for SelectionManager
+    const selectionRefs = {
+      selectedMeshRef,
+      selectedMeshesRef,
+      selectedProductIdsRef,
+      elementStatesRef,
+      originalMaterialsRef,
+      originalVisibilityRef,
+      selectionModeRef
     }
 
-    const highlightMesh = (mesh: THREE.Mesh): THREE.Mesh | null => {
-      if (mesh && mesh.material) {
-        // Check if mesh has a persistent state (transparent/hidden)
-        const persistentState = elementStatesRef.current.get(mesh)
-        
-        // Store the current material before highlighting (so we can restore it when clearing selection)
-        if (mesh.userData && !mesh.userData._originalMaterial) {
-          // Store the current material (which might be transparent) before applying highlight
-          // Clone it to avoid reference issues
-          const currentMat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
-          if (currentMat && typeof currentMat.clone === 'function') {
-            mesh.userData._originalMaterial = currentMat.clone()
-          } else {
-            mesh.userData._originalMaterial = mesh.material
-          }
-        }
-        
-        // Get the base material to highlight
-        // If mesh has persistent state, use the original material from our ref
-        // Otherwise, use current material
-        let baseMat: THREE.Material
-        if (persistentState && originalMaterialsRef.current.has(mesh)) {
-          // Mesh is transparent/hidden, use original material for highlighting
-          baseMat = originalMaterialsRef.current.get(mesh) as THREE.Material
-          if (Array.isArray(baseMat)) {
-            baseMat = baseMat[0]
-          }
-        } else {
-          // Normal mesh, use current material
-          baseMat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
-        }
-        
-        if (baseMat && typeof baseMat.clone === 'function') {
-          const highlightMat = baseMat.clone()
-          
-          // Preserve transparency if mesh is in transparent state
-          if (persistentState === 'transparent') {
-            highlightMat.transparent = true
-            highlightMat.opacity = 0.3
-          }
-          
-          if (highlightMat.type === 'MeshBasicMaterial') {
-            (highlightMat as THREE.MeshBasicMaterial).color = new THREE.Color(0xB8860B) // Dark goldenrod for highlight
-          } else if ((highlightMat as any).isMeshStandardMaterial || (highlightMat as any).isMeshPhysicalMaterial) {
-            const stdMat = highlightMat as THREE.MeshStandardMaterial
-            stdMat.emissive = new THREE.Color(0xB8860B)
-            stdMat.emissiveIntensity = 0.5
-          } else {
-            if ('emissive' in highlightMat) {
-              (highlightMat as any).emissive = new THREE.Color(0xB8860B)
-              if ('emissiveIntensity' in highlightMat) {
-                (highlightMat as any).emissiveIntensity = 0.5
-              }
-            }
-          }
-          
-          mesh.material = highlightMat
-          return mesh
-        }
-      }
-      return null
-    }
-
-    const getAssemblyInfo = (mesh: THREE.Mesh): { mark: string | null; assemblyId: number | null } => {
-      // First, try to get product_id from various sources
-      let productId: number | null = null
-      
-      if (mesh.userData?.product_id) {
-        productId = mesh.userData.product_id
-      } else if (mesh.userData?.expressID) {
-        productId = mesh.userData.expressID
-      } else if (mesh.userData?.id) {
-        productId = mesh.userData.id
-      } else if ((mesh as any).metadata?.product_id) {
-        productId = (mesh as any).metadata.product_id
-      } else if (mesh.name) {
-        // Try to parse from name (format might be "elementType_productID" or "elementType_productID_assemblyMark")
-        const parts = mesh.name.split('_')
-        if (parts.length >= 2) {
-          const parsed = parseInt(parts[1])
-          if (!isNaN(parsed)) productId = parsed
-        }
-      }
-      
-      // Try to get assembly info from scene's assembly mapping (loaded from API) - this is the most reliable
-      if (productId && model.userData?.assemblyMapping && model.userData.assemblyMapping[productId]) {
-        const assemblyInfo = model.userData.assemblyMapping[productId]
-        const assemblyMark = assemblyInfo.assembly_mark
-        const assemblyId = assemblyInfo.assembly_id || null
-        
-        if (assemblyMark && assemblyMark !== 'N/A') {
-          // Also store it in mesh userData for faster lookup next time
-          if (!mesh.userData) mesh.userData = {}
-          mesh.userData.assembly_mark = assemblyMark
-          mesh.userData.assembly_id = assemblyId
-          mesh.userData.product_id = productId
-          return { mark: assemblyMark, assemblyId: assemblyId }
-        }
-      }
-      
-      // Try to get assembly info from userData (stored by backend or API mapping)
-      if (mesh.userData?.assembly_mark) {
-        return {
-          mark: mesh.userData.assembly_mark,
-          assemblyId: mesh.userData.assembly_id || null
-        }
-      }
-      
-      // Try to get from mesh metadata (if trimesh preserved it)
-      if ((mesh as any).metadata?.assembly_mark) {
-        return {
-          mark: (mesh as any).metadata.assembly_mark,
-          assemblyId: (mesh as any).metadata.assembly_id || null
-        }
-      }
-      
-      // Try to parse from mesh name (format: "elementType_productID_assemblyMark")
-      if (mesh.name) {
-        const parts = mesh.name.split('_')
-        if (parts.length >= 3) {
-          // Assembly mark might contain underscores, so join everything after the first two parts
-          return {
-            mark: parts.slice(2).join('_'),
-            assemblyId: null
-          }
-        }
-      }
-      
-      return { mark: null, assemblyId: null }
-    }
-
-    const findAllMeshesWithAssemblyId = (model: THREE.Object3D, assemblyId: number | null): THREE.Mesh[] => {
-      const meshes: THREE.Mesh[] = []
-      
-      if (assemblyId === null) {
-        // If no assembly_id, fall back to matching by mark (for backward compatibility)
-        return []
-      }
-      
-      model.traverse((child: any) => {
-        if (child.isMesh) {
-          const childAssemblyId = child.userData?.assembly_id || null
-          // Match by assembly instance ID (not just mark) to get only the specific assembly
-          if (childAssemblyId === assemblyId) {
-            meshes.push(child)
-          }
-        }
-      })
-      return meshes
-    }
-    
-    const findAllMeshesInAssembly = async (productId: number, assemblyMark: string): Promise<THREE.Mesh[]> => {
-      // Try to find the assembly object from the API
-      try {
-        const response = await fetch(`/api/assembly-parts/${filename}?product_id=${productId}&assembly_mark=${encodeURIComponent(assemblyMark)}`)
-        if (response.ok) {
-          const data = await response.json()
-          const productIds = data.product_ids || []
-          
-          // Find all meshes with these product IDs
-          const meshes: THREE.Mesh[] = []
-          model.traverse((child: any) => {
-            if (child.isMesh) {
-              let childProductId: number | null = null
-              if (child.userData?.product_id) {
-                childProductId = child.userData.product_id
-              } else if (child.userData?.expressID) {
-                childProductId = child.userData.expressID
-              } else if (child.userData?.id) {
-                childProductId = child.userData.id
-              } else if ((child as any).metadata?.product_id) {
-                childProductId = (child as any).metadata.product_id
-              } else if (child.name) {
-                const parts = child.name.split('_')
-                if (parts.length >= 2) {
-                  const parsed = parseInt(parts[1])
-                  if (!isNaN(parsed)) childProductId = parsed
-                }
-              }
-              
-              if (childProductId && productIds.includes(childProductId)) {
-                meshes.push(child)
-              }
-            }
-          })
-          return meshes
-        }
-      } catch (error) {
-        console.warn('[ASSEMBLY] Error fetching assembly parts from API:', error)
-      }
-      
-      // Fallback: find by assembly mark
-      const meshes: THREE.Mesh[] = []
-      model.traverse((child: any) => {
-        if (child.isMesh) {
-          const childAssemblyMark = child.userData?.assembly_mark
-          if (childAssemblyMark && childAssemblyMark === assemblyMark) {
-            meshes.push(child)
-          }
-        }
-      })
-      return meshes
-    }
-
-    // Helper function to handle selection from a mesh (used after pivot is set)
-    const handleSelectionFromMesh = async (mesh: THREE.Mesh) => {
-      clearSelection()
-
-      // Use ref to get current selection mode (always up-to-date)
-      const currentMode = selectionModeRef.current
-
-      if (currentMode === 'parts') {
-        // Parts mode: select only the clicked mesh
-        const highlighted = highlightMesh(mesh)
-        if (highlighted) {
-          selectedMeshesRef.current = [highlighted]
-          selectedMeshRef.current = highlighted
-          
-          // Store product ID for reliable lookup
-          const productId = mesh.userData?.product_id || 
-                          mesh.userData?.expressID || 
-                          mesh.userData?.id ||
-                          ((mesh as any).metadata?.product_id)
-          
-          console.log('[SELECTION] Parts mode - storing product ID:', {
-            productId,
-            meshName: mesh.name,
-            userData: {
-              product_id: mesh.userData?.product_id,
-              expressID: mesh.userData?.expressID,
-              id: mesh.userData?.id,
-              metadata_product_id: (mesh as any).metadata?.product_id
-            }
-          })
-          
-          if (productId) {
-            selectedProductIdsRef.current = [productId]
-            console.log('[SELECTION] Updated selectedProductIdsRef.current to:', JSON.stringify(selectedProductIdsRef.current))
-            console.log('[SELECTION] Product ID value:', productId)
-          } else {
-            console.warn('[SELECTION] No product ID found for mesh:', mesh.name)
-            selectedProductIdsRef.current = []
-          }
-        }
-
-        // Try to get element info from userData, metadata, or name
-        // Priority: userData.product_id > userData.id > metadata > name parsing
-        let expressID = 0
-        if (mesh.userData?.product_id) {
-          expressID = mesh.userData.product_id
-        } else if (mesh.userData?.expressID) {
-          expressID = mesh.userData.expressID
-        } else if (mesh.userData?.id) {
-          expressID = mesh.userData.id
-        } else if ((mesh as any).metadata?.product_id) {
-          expressID = (mesh as any).metadata.product_id
-        } else if (mesh.name) {
-          const parts = mesh.name.split('_')
-          if (parts.length >= 2) {
-            const parsed = parseInt(parts[1])
-            if (!isNaN(parsed)) expressID = parsed
-          }
-        }
-        
-        let type = 'Unknown'
-        if (mesh.userData?.type) {
-          type = mesh.userData.type
-        } else if ((mesh as any).metadata?.element_type) {
-          type = (mesh as any).metadata.element_type
-        } else if (mesh.name) {
-          const parts = mesh.name.split('_')
-          if (parts.length >= 1 && parts[0]) {
-            type = parts[0]
-          }
-        }
-
-        setSelected({ expressID, type })
-        console.log('[SELECTION] Selected part:', { 
-          expressID, 
-          type,
-          storedProductIds: JSON.stringify(selectedProductIdsRef.current),
-          storedProductIdsArray: [...selectedProductIdsRef.current],
-          storedMeshes: selectedMeshesRef.current.map(m => ({
-            name: m.name,
-            productId: m.userData?.product_id || m.userData?.expressID || m.userData?.id
-          }))
-        })
-      } else {
-        // Assemblies mode: select all meshes with the same assembly instance ID
-        const assemblyInfo = getAssemblyInfo(mesh)
-        const assemblyMark = assemblyInfo.mark
-        const assemblyId = assemblyInfo.assemblyId
-        
-        console.log('Assembly mode - clicked mesh:', {
-          assemblyMark,
-          assemblyId,
-          productId: mesh.userData?.product_id,
-          name: mesh.name,
-          userData: mesh.userData
-        })
-        
-        if (assemblyId !== null && assemblyId !== undefined) {
-          // Match by assembly instance ID to get only the specific assembly (not all with same mark)
-          const assemblyMeshes = findAllMeshesWithAssemblyId(model, assemblyId)
-          
-          console.log(`Found ${assemblyMeshes.length} meshes with assembly ID ${assemblyId} (mark: "${assemblyMark}")`)
-          
-          // Highlight all meshes in this specific assembly instance
-          const highlightedMeshes: THREE.Mesh[] = []
-          assemblyMeshes.forEach(m => {
-            const highlighted = highlightMesh(m)
-            if (highlighted) {
-              highlightedMeshes.push(highlighted)
-            }
-          })
-          
-          selectedMeshesRef.current = highlightedMeshes
-          if (highlightedMeshes.length > 0) {
-            selectedMeshRef.current = highlightedMeshes[0]
-            
-            // Store product IDs for reliable lookup
-            const productIds: number[] = []
-            highlightedMeshes.forEach(m => {
-              const productId = m.userData?.product_id || 
-                              m.userData?.expressID || 
-                              m.userData?.id ||
-                              ((m as any).metadata?.product_id)
-              if (productId) {
-                productIds.push(productId)
-              }
-            })
-            selectedProductIdsRef.current = productIds
-            console.log('[SELECTION] Assembly mode - stored product IDs:', {
-              productIds,
-              assemblyId,
-              assemblyMark,
-              meshCount: highlightedMeshes.length
-            })
-          }
-
-          let expressID = 0
-          if (mesh.userData?.product_id) {
-            expressID = mesh.userData.product_id
-          } else if (mesh.userData?.expressID) {
-            expressID = mesh.userData.expressID
-          } else if (mesh.userData?.id) {
-            expressID = mesh.userData.id
-          } else if ((mesh as any).metadata?.product_id) {
-            expressID = (mesh as any).metadata.product_id
-          } else if (mesh.name) {
-            const parts = mesh.name.split('_')
-            if (parts.length >= 2) {
-              const parsed = parseInt(parts[1])
-              if (!isNaN(parsed)) expressID = parsed
-            }
-          }
-          const type = `Assembly: ${assemblyMark || 'Unknown'}`
-
-          setSelected({ expressID, type })
-          console.log(`Selected assembly instance (ID: ${assemblyId}, mark: "${assemblyMark}"): ${assemblyMeshes.length} parts`)
-        } else if (assemblyMark && assemblyMark !== 'N/A' && assemblyMark !== 'null') {
-          // Fallback: if no assembly_id, try to find assembly via API, then match by assembly_mark
-          console.log('No assembly_id found, trying to find assembly parts via API for product:', mesh.userData?.product_id, 'assembly_mark:', assemblyMark)
-          
-          // Try to get product_id from the clicked mesh
-          const clickedProductId = mesh.userData?.product_id || 
-                                  mesh.userData?.expressID || 
-                                  mesh.userData?.id ||
-                                  ((mesh as any).metadata?.product_id)
-          
-          if (clickedProductId && filename) {
-            // Try to find assembly via API
-            try {
-              const response = await fetch(`/api/assembly-parts/${encodeURIComponent(filename)}?product_id=${clickedProductId}&assembly_mark=${encodeURIComponent(assemblyMark)}`)
-              if (response.ok) {
-                const data = await response.json()
-                const productIdsInAssembly = data.product_ids || []
-                console.log(`API returned ${productIdsInAssembly.length} product IDs in assembly:`, productIdsInAssembly)
-                
-                // Find all meshes with these product IDs
-                const assemblyMeshes: THREE.Mesh[] = []
-                model.traverse((child: any) => {
-                  if (child.isMesh) {
-                    let childProductId: number | null = null
-                    if (child.userData?.product_id) {
-                      childProductId = child.userData.product_id
-                    } else if (child.userData?.expressID) {
-                      childProductId = child.userData.expressID
-                    } else if (child.userData?.id) {
-                      childProductId = child.userData.id
-                    } else if ((child as any).metadata?.product_id) {
-                      childProductId = (child as any).metadata.product_id
-                    } else if (child.name) {
-                      const parts = child.name.split('_')
-                      if (parts.length >= 2) {
-                        const parsed = parseInt(parts[1])
-                        if (!isNaN(parsed)) childProductId = parsed
-                      }
-                    }
-                    
-                    if (childProductId && productIdsInAssembly.includes(childProductId)) {
-                      assemblyMeshes.push(child)
-                    }
-                  }
-                })
-                
-                console.log(`Found ${assemblyMeshes.length} meshes from API result`)
-                
-                if (assemblyMeshes.length > 0) {
-                  // Highlight all meshes in this assembly
-                  const highlightedMeshes: THREE.Mesh[] = []
-                  assemblyMeshes.forEach(m => {
-                    const highlighted = highlightMesh(m)
-                    if (highlighted) {
-                      highlightedMeshes.push(highlighted)
-                    }
-                  })
-                  
-                  selectedMeshesRef.current = highlightedMeshes
-                  if (highlightedMeshes.length > 0) {
-                    selectedMeshRef.current = highlightedMeshes[0]
-                    
-                    // Store product IDs
-                    const productIds: number[] = []
-                    highlightedMeshes.forEach(m => {
-                      const productId = m.userData?.product_id || 
-                                      m.userData?.expressID || 
-                                      m.userData?.id ||
-                                      ((m as any).metadata?.product_id)
-                      if (productId) {
-                        productIds.push(productId)
-                      }
-                    })
-                    selectedProductIdsRef.current = productIds
-                  }
-                  
-                  // Set selection state
-                  let expressID = clickedProductId
-                  const type = `Assembly: ${assemblyMark || 'Unknown'}`
-                  setSelected({ expressID, type })
-                  console.log(`Selected assembly (via API): ${assemblyMeshes.length} parts`)
-                  return // Exit early, we're done
-                }
-              }
-            } catch (error) {
-              console.warn('[ASSEMBLY] Error fetching assembly parts from API:', error)
-            }
-          }
-          
-          // Fallback: match by assembly_mark from mapping
-          console.log('Falling back to assembly_mark matching from mapping')
-          const productIdsInAssembly: number[] = []
-          if (model.userData?.assemblyMapping) {
-            for (const [productIdStr, mappingEntry] of Object.entries(model.userData.assemblyMapping)) {
-              const productId = parseInt(productIdStr)
-              const entry = mappingEntry as { assembly_mark?: string; assembly_id?: number }
-              if (!isNaN(productId) && entry.assembly_mark === assemblyMark) {
-                productIdsInAssembly.push(productId)
-              }
-            }
-          }
-          
-          console.log(`Found ${productIdsInAssembly.length} product IDs with assembly mark "${assemblyMark}":`, productIdsInAssembly)
-          
-          // Now find all meshes with these product IDs
-          const assemblyMeshes: THREE.Mesh[] = []
-          model.traverse((child: any) => {
-            if (child.isMesh) {
-              let childProductId: number | null = null
-              if (child.userData?.product_id) {
-                childProductId = child.userData.product_id
-              } else if (child.userData?.expressID) {
-                childProductId = child.userData.expressID
-              } else if (child.userData?.id) {
-                childProductId = child.userData.id
-              } else if ((child as any).metadata?.product_id) {
-                childProductId = (child as any).metadata.product_id
-              } else if (child.name) {
-                const parts = child.name.split('_')
-                if (parts.length >= 2) {
-                  const parsed = parseInt(parts[1])
-                  if (!isNaN(parsed)) childProductId = parsed
-                }
-              }
-              
-              if (childProductId && productIdsInAssembly.includes(childProductId)) {
-                assemblyMeshes.push(child)
-              } else {
-                // Fallback: also check by assembly_mark in userData
-                const childAssemblyMark = child.userData?.assembly_mark
-                if (childAssemblyMark && childAssemblyMark === assemblyMark) {
-                  assemblyMeshes.push(child)
-                }
-              }
-            }
-          })
-          
-          console.log(`Found ${assemblyMeshes.length} meshes with assembly mark "${assemblyMark}"`)
-          
-          // Highlight all meshes in this assembly
-          const highlightedMeshes: THREE.Mesh[] = []
-          assemblyMeshes.forEach(m => {
-            const highlighted = highlightMesh(m)
-            if (highlighted) {
-              highlightedMeshes.push(highlighted)
-            }
-          })
-          
-          selectedMeshesRef.current = highlightedMeshes
-          if (highlightedMeshes.length > 0) {
-            selectedMeshRef.current = highlightedMeshes[0]
-            
-            // Store product IDs
-            const productIds: number[] = []
-            highlightedMeshes.forEach(m => {
-              const productId = m.userData?.product_id || 
-                              m.userData?.expressID || 
-                              m.userData?.id ||
-                              ((m as any).metadata?.product_id)
-              if (productId) {
-                productIds.push(productId)
-              }
-            })
-            selectedProductIdsRef.current = productIds
-          }
-
-          let expressID = 0
-          if (mesh.userData?.product_id) {
-            expressID = mesh.userData.product_id
-          } else if (mesh.userData?.expressID) {
-            expressID = mesh.userData.expressID
-          } else if (mesh.userData?.id) {
-            expressID = mesh.userData.id
-          } else if ((mesh as any).metadata?.product_id) {
-            expressID = (mesh as any).metadata.product_id
-          } else if (mesh.name) {
-            const parts = mesh.name.split('_')
-            if (parts.length >= 2) {
-              const parsed = parseInt(parts[1])
-              if (!isNaN(parsed)) expressID = parsed
-            }
-          }
-          
-          let type = 'Unknown'
-          if (mesh.userData?.type) {
-            type = mesh.userData.type
-          } else if ((mesh as any).metadata?.element_type) {
-            type = (mesh as any).metadata.element_type
-          } else if (mesh.name) {
-            const parts = mesh.name.split('_')
-            if (parts.length >= 1 && parts[0]) {
-              type = parts[0]
-            }
-          }
-
-          setSelected({ expressID, type })
-          console.log('Selected part (no assembly_id):', { expressID, type })
-        } else {
-          // No assembly mark found, treat as single part
-          const highlighted = highlightMesh(mesh)
-          if (highlighted) {
-            selectedMeshesRef.current = [highlighted]
-            selectedMeshRef.current = highlighted
-          }
-
-          let expressID = 0
-          if (mesh.userData?.product_id) {
-            expressID = mesh.userData.product_id
-          } else if (mesh.userData?.expressID) {
-            expressID = mesh.userData.expressID
-          } else if (mesh.userData?.id) {
-            expressID = mesh.userData.id
-          } else if ((mesh as any).metadata?.product_id) {
-            expressID = (mesh as any).metadata.product_id
-          } else if (mesh.name) {
-            const parts = mesh.name.split('_')
-            if (parts.length >= 2) {
-              const parsed = parseInt(parts[1])
-              if (!isNaN(parsed)) expressID = parsed
-            }
-          }
-          
-          let type = 'Unknown'
-          if (mesh.userData?.type) {
-            type = mesh.userData.type
-          } else if ((mesh as any).metadata?.element_type) {
-            type = (mesh as any).metadata.element_type
-          } else if (mesh.name) {
-            const parts = mesh.name.split('_')
-            if (parts.length >= 1 && parts[0]) {
-              type = parts[0]
-            }
-          }
-
-          setSelected({ expressID, type })
-          console.log('Selected part (no assembly mark):', { expressID, type })
-        }
-      }
-    }
-
-    // Store selection handler in ref for use in onPointerUp
-    handleSelectionFromMeshRef.current = handleSelectionFromMesh
-    
-    // Store clearSelection in ref for use in onPointerUp
-    clearSelectionRef.current = clearSelection
-
-    return () => {
-      clearSelection()
-      handleSelectionFromMeshRef.current = null
-      clearSelectionRef.current = null
-    }
+    // Use the imported setupClickSelection from SelectionManager
+    return setupClickSelection(
+      model,
+      setSelected,
+      selectionRefs,
+      filename,
+      handleSelectionFromMeshRef,
+      clearSelectionRef
+    )
   }
+
+  // All selection logic has been moved to SelectionManager
+  // The setupClickSelectionWrapper function above now uses the imported setupClickSelection
 
   // Helper function to find meshes by product ID
   const findMeshesByProductIds = (productIds: number[]): THREE.Mesh[] => {
@@ -3596,7 +2923,7 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
     
     const success = saveScreenshotToFile(dataURL)
     if (success && markupMode) {
-      clearAllMarkups()
+        clearAllMarkups()
     } else if (!success) {
       alert('Failed to save screenshot')
     }
@@ -3611,12 +2938,12 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
     
     const success = await copyScreenshotToClipboard(dataURL)
     if (success) {
-      alert('Screenshot copied to clipboard!')
-      if (markupMode) {
-        clearAllMarkups()
-      }
-    } else {
-      alert('Clipboard API not supported in this browser. Please use the Save button instead.')
+        alert('Screenshot copied to clipboard!')
+        if (markupMode) {
+          clearAllMarkups()
+        }
+      } else {
+        alert('Clipboard API not supported in this browser. Please use the Save button instead.')
     }
   }
   
@@ -4557,9 +3884,9 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
           activeMarkupTool={activeMarkupTool}
           canvasRef={markupCanvasRef}
           containerRef={markupContainerRef}
-          onPointerDown={handleMarkupPointerDown}
-          onPointerMove={handleMarkupPointerMove}
-          onPointerUp={handleMarkupPointerUp}
+              onPointerDown={handleMarkupPointerDown}
+              onPointerMove={handleMarkupPointerMove}
+              onPointerUp={handleMarkupPointerUp}
         />
         
         <LoadingState 
@@ -4579,34 +3906,34 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
           enableMeasurement={enableMeasurement}
           measurementMode={measurementMode}
           onToggleMeasurement={() => {
-            const newMode = !measurementModeRef.current
-            console.log('[MEASUREMENT] Button clicked, setting mode to:', newMode)
-            measurementModeRef.current = newMode
-            setMeasurementMode(newMode)
-            if (!newMode) {
-              console.log('[MEASUREMENT] Clearing in-progress measurement')
-              clearMeasurement()
-              if (containerRef.current) {
-                containerRef.current.style.cursor = 'default'
-              }
-            }
-          }}
+                    const newMode = !measurementModeRef.current
+                    console.log('[MEASUREMENT] Button clicked, setting mode to:', newMode)
+                    measurementModeRef.current = newMode
+                    setMeasurementMode(newMode)
+                    if (!newMode) {
+                      console.log('[MEASUREMENT] Clearing in-progress measurement')
+                      clearMeasurement()
+                      if (containerRef.current) {
+                        containerRef.current.style.cursor = 'default'
+                      }
+                    }
+                  }}
           onClearAllMeasurements={() => {
-            console.log('[MEASUREMENT] Clear all measurements button clicked')
-            clearAllMeasurements()
-          }}
+                    console.log('[MEASUREMENT] Clear all measurements button clicked')
+                    clearAllMeasurements()
+                  }}
           enableClipping={enableClipping}
           clippingMode={clippingMode}
           activeClipPlane={activeClipPlane}
           clipAmount={clipAmount}
           onToggleClipping={() => {
-            console.log('[CLIPPING] Toggle clipping mode')
-            handleToggleClipping()
-          }}
+                      console.log('[CLIPPING] Toggle clipping mode')
+                      handleToggleClipping()
+                    }}
           onSelectClipPlane={(planeKey) => {
-            console.log('[CLIPPING] Select plane', planeKey)
-            handleSelectClipPlane(planeKey)
-          }}
+                              console.log('[CLIPPING] Select plane', planeKey)
+                              handleSelectClipPlane(planeKey)
+                            }}
           onClipAmountChange={handleClipSliderChange}
           markupMode={markupMode}
           activeMarkupTool={activeMarkupTool}
@@ -4621,39 +3948,39 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
           onCopyScreenshot={handleCopyScreenshot}
           selectedCount={selectedMeshesRef.current.length}
           onTransparent={() => {
-            const productIds = [...selectedProductIdsRef.current]
-            console.log('[BUTTON] Transparent clicked, current selection:', {
-              productIds: JSON.stringify(productIds),
-              productIdsArray: productIds,
-              meshes: selectedMeshesRef.current.length,
-              meshNames: selectedMeshesRef.current.map(m => m.name)
-            })
-            handleTransparent()
-          }}
+                  const productIds = [...selectedProductIdsRef.current]
+                  console.log('[BUTTON] Transparent clicked, current selection:', {
+                    productIds: JSON.stringify(productIds),
+                    productIdsArray: productIds,
+                    meshes: selectedMeshesRef.current.length,
+                    meshNames: selectedMeshesRef.current.map(m => m.name)
+                  })
+                  handleTransparent()
+                }}
           onHide={() => {
-            const productIds = [...selectedProductIdsRef.current]
-            console.log('[BUTTON] Hide clicked, current selection:', {
-              productIds: JSON.stringify(productIds),
-              productIdsArray: productIds,
-              meshes: selectedMeshesRef.current.length,
-              meshNames: selectedMeshesRef.current.map(m => m.name)
-            })
-            handleHide()
-          }}
+                  const productIds = [...selectedProductIdsRef.current]
+                  console.log('[BUTTON] Hide clicked, current selection:', {
+                    productIds: JSON.stringify(productIds),
+                    productIdsArray: productIds,
+                    meshes: selectedMeshesRef.current.length,
+                    meshNames: selectedMeshesRef.current.map(m => m.name)
+                  })
+                  handleHide()
+                }}
           onHideAllExcept={() => {
-            const productIds = [...selectedProductIdsRef.current]
-            console.log('[BUTTON] Hide All Except clicked, current selection:', {
-              productIds: JSON.stringify(productIds),
-              productIdsArray: productIds,
-              meshes: selectedMeshesRef.current.length,
-              meshNames: selectedMeshesRef.current.map(m => m.name)
-            })
-            handleHideAllExcept()
-          }}
+                  const productIds = [...selectedProductIdsRef.current]
+                  console.log('[BUTTON] Hide All Except clicked, current selection:', {
+                    productIds: JSON.stringify(productIds),
+                    productIdsArray: productIds,
+                    meshes: selectedMeshesRef.current.length,
+                    meshNames: selectedMeshesRef.current.map(m => m.name)
+                  })
+                  handleHideAllExcept()
+                }}
           onShowAll={() => {
-            console.log('[BUTTON] Show All clicked')
-            handleShowAll()
-          }}
+                  console.log('[BUTTON] Show All clicked')
+                  handleShowAll()
+                }}
         />
       </div>
     </div>
