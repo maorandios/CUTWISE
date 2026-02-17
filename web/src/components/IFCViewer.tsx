@@ -24,7 +24,11 @@ import {
   getCanvasContext as getCanvasContextUtil,
   setupCanvas as setupCanvasUtil,
   clearCanvas as clearCanvasUtil,
-  getCanvasCoordinates as getCanvasCoordinatesUtil
+  getCanvasCoordinates as getCanvasCoordinatesUtil,
+  drawPencilPath,
+  drawArrow,
+  drawCloud,
+  redrawAllMarkups
 } from './IFCViewer/utils'
 
 export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, enableMeasurement = false, enableClipping = false, filters, report, isVisible = true }: IFCViewerProps) {
@@ -4168,137 +4172,6 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
     isDrawingRef.current = false
     drawingStartRef.current = null
     lastPencilPointRef.current = null
-  }
-  
-  const drawArrow = (ctx: CanvasRenderingContext2D, start: { x: number; y: number }, end: { x: number; y: number }, color?: string, thickness?: number) => {
-    // Apply settings if provided, otherwise use current settings
-    if (color && thickness !== undefined) {
-      const colorHex = getColorHex(color as 'red' | 'black' | 'yellow' | 'green' | 'blue')
-      const lineWidth = getLineWidth(thickness)
-      ctx.strokeStyle = colorHex
-      ctx.fillStyle = colorHex
-      ctx.lineWidth = lineWidth
-    }
-    
-    // Round coordinates for pixel-perfect rendering
-    const startX = Math.round(start.x)
-    const startY = Math.round(start.y)
-    const endX = Math.round(end.x)
-    const endY = Math.round(end.y)
-    
-    ctx.beginPath()
-    ctx.moveTo(startX, startY)
-    ctx.lineTo(endX, endY)
-    ctx.stroke()
-    
-    // Draw arrowhead
-    const angle = Math.atan2(endY - startY, endX - startX)
-    const arrowLength = 15
-    const arrowAngle = Math.PI / 6
-    
-    ctx.beginPath()
-    ctx.moveTo(endX, endY)
-    const arrow1X = Math.round(endX - arrowLength * Math.cos(angle - arrowAngle))
-    const arrow1Y = Math.round(endY - arrowLength * Math.sin(angle - arrowAngle))
-    const arrow2X = Math.round(endX - arrowLength * Math.cos(angle + arrowAngle))
-    const arrow2Y = Math.round(endY - arrowLength * Math.sin(angle + arrowAngle))
-    
-    ctx.lineTo(arrow1X, arrow1Y)
-    ctx.moveTo(endX, endY)
-    ctx.lineTo(arrow2X, arrow2Y)
-    ctx.stroke()
-  }
-  
-  const drawCloud = (ctx: CanvasRenderingContext2D, start: { x: number; y: number }, end: { x: number; y: number }, color?: string, thickness?: number) => {
-    // Apply settings if provided, otherwise use current settings
-    if (color && thickness !== undefined) {
-      const colorHex = getColorHex(color as 'red' | 'black' | 'yellow' | 'green' | 'blue')
-      const lineWidth = getLineWidth(thickness)
-      ctx.strokeStyle = colorHex
-      ctx.fillStyle = colorHex
-      ctx.lineWidth = lineWidth
-    }
-    
-    // Round coordinates for pixel-perfect rendering
-    const minX = Math.round(Math.min(start.x, end.x))
-    const maxX = Math.round(Math.max(start.x, end.x))
-    const minY = Math.round(Math.min(start.y, end.y))
-    const maxY = Math.round(Math.max(start.y, end.y))
-    
-    const width = Math.max(maxX - minX, 40) // Minimum width
-    const height = Math.max(maxY - minY, 30) // Minimum height
-    const centerX = (minX + maxX) / 2
-    const centerY = (minY + maxY) / 2
-    
-    // Draw revision cloud with scalloped/wavy border (technical drawing style)
-    // This creates a series of semicircular arcs around the perimeter
-    ctx.beginPath()
-    
-    // Calculate perimeter for even spacing of scallops
-    const perimeter = 2 * (width + height)
-    const scallopSize = 15 // Size of each scallop (arc radius)
-    const numScallops = Math.max(8, Math.floor(perimeter / (scallopSize * 2)))
-    
-    // Create a rectangle path with scalloped edges
-    const top = minY
-    const bottom = maxY
-    const left = minX
-    const right = maxX
-    
-    // Calculate number of scallops per side
-    const topScallops = Math.max(2, Math.floor(width / (scallopSize * 2)))
-    const bottomScallops = Math.max(2, Math.floor(width / (scallopSize * 2)))
-    const leftScallops = Math.max(2, Math.floor(height / (scallopSize * 2)))
-    const rightScallops = Math.max(2, Math.floor(height / (scallopSize * 2)))
-    
-    // Start at top-left corner
-    let currentX = left
-    let currentY = top
-    
-    // Top edge - scallops pointing outward (up)
-    ctx.moveTo(Math.round(currentX), Math.round(currentY))
-    const topStep = width / topScallops
-    for (let i = 0; i < topScallops; i++) {
-      const scallopCenterX = Math.round(currentX + topStep / 2)
-      const scallopCenterY = Math.round(top - scallopSize)
-      ctx.arc(scallopCenterX, scallopCenterY, scallopSize, Math.PI, 0, false) // Arc pointing up
-      currentX += topStep
-    }
-    ctx.lineTo(Math.round(right), Math.round(top))
-    
-    // Right edge - scallops pointing outward (right)
-    currentY = top
-    const rightStep = height / rightScallops
-    for (let i = 0; i < rightScallops; i++) {
-      const scallopCenterX = Math.round(right + scallopSize)
-      const scallopCenterY = Math.round(currentY + rightStep / 2)
-      ctx.arc(scallopCenterX, scallopCenterY, scallopSize, -Math.PI / 2, Math.PI / 2, false) // Arc pointing right
-      currentY += rightStep
-    }
-    ctx.lineTo(Math.round(right), Math.round(bottom))
-    
-    // Bottom edge - scallops pointing outward (down)
-    currentX = right
-    const bottomStep = width / bottomScallops
-    for (let i = 0; i < bottomScallops; i++) {
-      const scallopCenterX = Math.round(currentX - bottomStep / 2)
-      const scallopCenterY = Math.round(bottom + scallopSize)
-      ctx.arc(scallopCenterX, scallopCenterY, scallopSize, 0, Math.PI, false) // Arc pointing down
-      currentX -= bottomStep
-    }
-    ctx.lineTo(Math.round(left), Math.round(bottom))
-    
-    // Left edge - scallops pointing outward (left)
-    currentY = bottom
-    const leftStep = height / leftScallops
-    for (let i = 0; i < leftScallops; i++) {
-      const scallopCenterX = Math.round(left - scallopSize)
-      const scallopCenterY = Math.round(currentY - leftStep / 2)
-      ctx.arc(scallopCenterX, scallopCenterY, scallopSize, Math.PI / 2, -Math.PI / 2, false) // Arc pointing left
-      currentY -= leftStep
-    }
-    ctx.closePath()
-    ctx.stroke()
   }
   
   const createTextElement = (x: number, y: number) => {
