@@ -31,7 +31,10 @@ import {
   redrawAllMarkups,
   captureScreenshot as captureScreenshotUtil,
   saveScreenshotToFile,
-  copyScreenshotToClipboard
+  copyScreenshotToClipboard,
+  disableClipping,
+  applyClipping,
+  updateModelBounds
 } from './IFCViewer/utils'
 
 export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, enableMeasurement = false, enableClipping = false, filters, report, isVisible = true }: IFCViewerProps) {
@@ -1837,26 +1840,7 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
   const disableClippingPlane = () => {
     const renderer = rendererRef.current
     const scene = sceneRef.current
-    if (!renderer) return
-    renderer.clippingPlanes = []
-    renderer.localClippingEnabled = false
-    
-    // Remove helper if exists
-    if (clippingHelperRef.current && scene) {
-      scene.remove(clippingHelperRef.current)
-      // Dispose of materials in the group and its children
-      clippingHelperRef.current.traverse((child: THREE.Object3D) => {
-        const obj = child as any
-        if (obj.material) {
-          if (Array.isArray(obj.material)) {
-            obj.material.forEach((mat: THREE.Material) => mat.dispose?.())
-          } else {
-            obj.material.dispose?.()
-          }
-        }
-      })
-      clippingHelperRef.current = null
-    }
+    clippingHelperRef.current = disableClipping(renderer, scene, clippingHelperRef.current)
     clippingPlaneRef.current = null
   }
 
@@ -1867,167 +1851,27 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
     const model = modelRef.current
     if (!renderer || !scene || !model) return
     
-    // Recompute bounds each time to stay accurate with transforms
-    model.updateMatrixWorld(true)
-    const box = new THREE.Box3().setFromObject(model)
-    if (!box.isEmpty()) {
-      const center = box.getCenter(new THREE.Vector3())
-      const size = box.getSize(new THREE.Vector3())
-      modelBoundsRef.current = {
-        min: box.min.clone(),
-        max: box.max.clone(),
-        size: size.clone(),
-        center: center.clone()
-      }
+    // Update model bounds
+    const bounds = updateModelBounds(model)
+    if (bounds) {
+      modelBoundsRef.current = bounds
     }
     
-    const bounds = modelBoundsRef.current
-    if (!bounds) return
-    
-    const { min, max, size, center } = bounds
-    const clampedAmount = Math.min(Math.max(amount, 0), 1)
-    
-    // Determine normal and base origin on the chosen face center
-    const normal = new THREE.Vector3()
-    const faceCenter = new THREE.Vector3() // Save face center for helper positioning
-    const origin = new THREE.Vector3()
-    
-    switch (planeKey) {
-      case 'left': // clip from left face toward +X
-        normal.set(1, 0, 0)
-        faceCenter.set(min.x, center.y, center.z)
-        origin.set(min.x, center.y, center.z)
-        break
-      case 'right': // clip from right face toward -X
-        normal.set(-1, 0, 0)
-        faceCenter.set(max.x, center.y, center.z)
-        origin.set(max.x, center.y, center.z)
-        break
-      case 'bottom': // clip from bottom face toward +Y
-        normal.set(0, 1, 0)
-        faceCenter.set(center.x, min.y, center.z)
-        origin.set(center.x, min.y, center.z)
-        break
-      case 'top': // clip from top face toward -Y
-        normal.set(0, -1, 0)
-        faceCenter.set(center.x, max.y, center.z)
-        origin.set(center.x, max.y, center.z)
-        break
-      case 'back': // clip from back face toward +Z
-        normal.set(0, 0, 1)
-        faceCenter.set(center.x, center.y, min.z)
-        origin.set(center.x, center.y, min.z)
-        break
-      case 'front': // clip from front face toward -Z
-        normal.set(0, 0, -1)
-        faceCenter.set(center.x, center.y, max.z)
-        origin.set(center.x, center.y, max.z)
-        break
-      default:
-        return
-    }
-    
-    // Move inward from the face based on amount (0 = on face, no cut; 1 = through to far side)
-    const distance = (() => {
-      switch (planeKey) {
-        case 'left':
-        case 'right':
-          return size.x * clampedAmount
-        case 'bottom':
-        case 'top':
-          return size.y * clampedAmount
-        case 'back':
-        case 'front':
-          return size.z * clampedAmount
-        default:
-          return 0
-      }
-    })()
-    origin.addScaledVector(normal, distance)
-    
-    const plane = clippingPlaneRef.current ?? new THREE.Plane()
-    plane.set(normal, -normal.dot(origin))
-    clippingPlaneRef.current = plane
-    
-    // Enable clipping only when amount > 0; still show helper at face center when 0
-    if (clampedAmount > 0) {
-      renderer.clippingPlanes = [plane]
-      renderer.localClippingEnabled = true
-    } else {
-      renderer.clippingPlanes = []
-      renderer.localClippingEnabled = false
-    }
-    
-    // Update helper for visual feedback - use a plane positioned at face center for visualization
-    const helperSize = Math.max(size.x, size.y, size.z) * 1.5 || 1
-    if (clippingHelperRef.current) {
-      scene.remove(clippingHelperRef.current)
-      // Dispose of materials in the group and its children
-      clippingHelperRef.current.traverse((child: THREE.Object3D) => {
-        const obj = child as any
-        if (obj.material) {
-          if (Array.isArray(obj.material)) {
-            obj.material.forEach((mat: THREE.Material) => mat.dispose?.())
-          } else {
-            obj.material.dispose?.()
-          }
-        }
-      })
-    }
-    // Create a custom plane visualization at the face center
-    // We'll create a plane geometry that's always visible and not affected by clipping
-    const helperGroup = new THREE.Group()
-    helperGroup.name = 'clipping-plane-helper'
-    helperGroup.position.copy(faceCenter)
-    
-    // Create a plane geometry - default is in XY plane (normal = +Z)
-    const planeGeometry = new THREE.PlaneGeometry(helperSize, helperSize)
-    
-    // Calculate rotation to align the plane normal with our desired normal
-    // Default plane normal is (0, 0, 1), we want it to be our normal vector
-    const defaultNormal = new THREE.Vector3(0, 0, 1)
-    const quaternion = new THREE.Quaternion()
-    quaternion.setFromUnitVectors(defaultNormal, normal)
-    
-    // Create material that's always visible and not affected by clipping
-    const helperMaterial = new THREE.MeshBasicMaterial({
-      color: 0xff0000,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.3,
-      wireframe: true,
-      clippingPlanes: [] // Explicitly exclude from clipping
-    })
-    
-    const planeMesh = new THREE.Mesh(planeGeometry, helperMaterial)
-    planeMesh.quaternion.copy(quaternion)
-    planeMesh.renderOrder = 999 // Render on top
-    
-    // Also add edge lines for better visibility
-    const edges = new THREE.EdgesGeometry(planeGeometry)
-    const edgeMaterial = new THREE.LineBasicMaterial({
-      color: 0xff0000,
-      linewidth: 2,
-      clippingPlanes: [] // Explicitly exclude from clipping
-    })
-    const edgeLines = new THREE.LineSegments(edges, edgeMaterial)
-    edgeLines.quaternion.copy(quaternion)
-    edgeLines.renderOrder = 1000
-    
-    helperGroup.add(planeMesh)
-    helperGroup.add(edgeLines)
-    scene.add(helperGroup)
-    clippingHelperRef.current = helperGroup
-    
-    // Debug output to verify calculations
-    const planeConstant = clippingPlaneRef.current ? clippingPlaneRef.current.constant : -normal.dot(faceCenter)
-    console.log('[CLIPPING] Helper setup:', {
+    // Apply clipping
+    const result = applyClipping(
+      renderer,
+      scene,
+      model,
       planeKey,
-      faceCenter: { x: faceCenter.x.toFixed(2), y: faceCenter.y.toFixed(2), z: faceCenter.z.toFixed(2) },
-      modelCenter: { x: center.x.toFixed(2), y: center.y.toFixed(2), z: center.z.toFixed(2) },
-      normal: { x: normal.x, y: normal.y, z: normal.z },
-      helperConstant: planeConstant.toFixed(2)
-    })
+      amount,
+      clippingPlaneRef.current,
+      clippingHelperRef.current
+    )
+    
+    if (result) {
+      clippingPlaneRef.current = result.plane
+      clippingHelperRef.current = result.helper
+    }
   }
 
   const setupClickSelection = (

@@ -8,4 +8,5 @@ export * from './formatUtils'
 export * from './validationUtils'
 export * from './markupDrawingUtils'
 export * from './screenshotUtils'
+export * from './clippingUtils'
 
