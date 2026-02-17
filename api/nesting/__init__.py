@@ -51,6 +51,26 @@ from .part_sorter import (
     get_parts_statistics
 )
 
+from .pair_detector import (
+    ComplementaryPair,
+    ComplementaryChain,
+    check_slope_match,
+    find_complementary_pairs,
+    find_complementary_chains,
+    mark_parts_in_pairs,
+    mark_parts_in_chains
+)
+
+from .bin_packer import (
+    calculate_combined_length_with_kerf,
+    fits_in_stock,
+    find_best_stock_for_parts,
+    pack_parts_first_fit_decreasing,
+    pack_complementary_pair,
+    optimize_patterns_by_consolidation,
+    calculate_cut_positions
+)
+
 __all__ = [
     # Models
     'SlopeInfo',
@@ -87,6 +107,22 @@ __all__ = [
     'group_parts_by_profile',
     'find_complementary_candidates',
     'sort_parts_for_nesting',
-    'get_parts_statistics'
+    'get_parts_statistics',
+    # Pair detection
+    'ComplementaryPair',
+    'ComplementaryChain',
+    'check_slope_match',
+    'find_complementary_pairs',
+    'find_complementary_chains',
+    'mark_parts_in_pairs',
+    'mark_parts_in_chains',
+    # Bin packing
+    'calculate_combined_length_with_kerf',
+    'fits_in_stock',
+    'find_best_stock_for_parts',
+    'pack_parts_first_fit_decreasing',
+    'pack_complementary_pair',
+    'optimize_patterns_by_consolidation',
+    'calculate_cut_positions'
 ]
 
