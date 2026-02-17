@@ -64,8 +64,15 @@ class NestingOrchestrator:
             log_func: Optional logging function
         """
         # Apply trim to stock lengths (reduce usable length)
-        self.stock_lengths = sorted([length - trim for length in stock_lengths])
         self.original_stock_lengths = sorted(stock_lengths)
+        self.stock_lengths = sorted([length - trim for length in stock_lengths])
+        
+        # Create mapping from usable length to original length
+        self.usable_to_original_map = {
+            (length - trim): length 
+            for length in stock_lengths
+        }
+        
         self.kerf = kerf
         self.trim = trim
         self.angle_tolerance = angle_tolerance
@@ -178,6 +185,16 @@ class NestingOrchestrator:
             self.log_func(f"[ORCHESTRATOR] Optimizing {len(patterns)} patterns")
             patterns = optimize_patterns_by_consolidation(patterns, self.kerf)
             self.log_func(f"[ORCHESTRATOR] Optimized to {len(patterns)} patterns")
+        
+        # Map usable stock lengths back to original stock lengths for display
+        for pattern in patterns:
+            usable_length = pattern.stock_length
+            # Find the closest original length (to handle floating point precision)
+            original_length = min(
+                self.original_stock_lengths,
+                key=lambda x: abs((x - self.trim) - usable_length)
+            )
+            pattern.stock_length = original_length
         
         # Calculate totals
         total_parts = len(parts)
