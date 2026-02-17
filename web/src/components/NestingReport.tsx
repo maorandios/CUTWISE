@@ -1877,20 +1877,9 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                         })
                                       }
                                       
-                                      // Calculate pixel positions with visual gaps for non-shared boundaries
+                                      // Calculate pixel positions
                                       // Use the raw positions from backend, rounding to integers
-                                      const GAP_WIDTH_PX = 8
-                                      
-                                      // Calculate how many gaps come before this part
-                                      let gapsBeforeThis = 0
-                                      for (let i = 0; i < partIdx; i++) {
-                                        const boundaryX = Math.floor(partPositions[i].xEnd)
-                                        if (!sharedBoundarySet.has(boundaryX)) {
-                                          gapsBeforeThis++
-                                        }
-                                      }
-                                      
-                                      const xPx = Math.floor(xStart) + (gapsBeforeThis * GAP_WIDTH_PX)
+                                      const xPx = Math.floor(xStart)
                                       
                                       // Calculate end position
                                       // CRITICAL: For last part, use the exact boundary (same as waste start)
@@ -2294,27 +2283,27 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                                   {!startIsShared && partIdx > 0 && (
                                                     <>
                                                       {startType === 'miter' ? (
-                                                        // Sloped start boundary - draw diagonal line
+                                                        // Sloped start boundary - draw diagonal line with thicker stroke for non-shared
                                                         // Part is on the right of this boundary, so diagonal goes from (boundaryX, 0) to (boundaryX + 12, height)
                                                         <line
                                                           x1={startMarkerTopX}
                                                           y1="0.5"
                                                           x2={startMarkerBottomX}
                                                           y2={barHeight - 0.5}
-                                                          stroke="#9ca3af"
-                                                          strokeWidth="1"
+                                                          stroke="#4b5563"
+                                                          strokeWidth="2"
                                                           strokeLinecap="butt"
                                                           shapeRendering="crispEdges"
                                                         />
                                                       ) : (
-                                                        // Straight start boundary
+                                                        // Straight start boundary - thicker for non-shared
                                                         <line
                                                           x1={polyLeftX}
                                                           y1="0.5"
                                                           x2={polyLeftX}
                                                           y2={barHeight - 0.5}
-                                                          stroke="#9ca3af"
-                                                          strokeWidth="1"
+                                                          stroke="#4b5563"
+                                                          strokeWidth="2"
                                                           strokeLinecap="butt"
                                                           shapeRendering="crispEdges"
                                                         />
@@ -2337,27 +2326,27 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                                     return (
                                                       <>
                                                         {endType === 'miter' ? (
-                                                          // Sloped end boundary - draw diagonal line
+                                                          // Sloped end boundary - draw diagonal line with thicker stroke for non-shared
                                                           // Part is on the left of this boundary, so diagonal goes from (boundaryX - 12, 0) to (boundaryX, height)
                                                           <line
                                                           x1={endMarkerTopX}
                                                             y1="0.5"
                                                           x2={endMarkerBottomX}
                                                             y2={barHeight - 0.5}
-                                                            stroke="#9ca3af"
-                                                            strokeWidth="1"
+                                                            stroke="#4b5563"
+                                                            strokeWidth="2"
                                                             strokeLinecap="butt"
                                                             shapeRendering="crispEdges"
                                                           />
                                                         ) : (
-                                                          // Straight end boundary
+                                                          // Straight end boundary - thicker for non-shared
                                                           <line
                                                             x1={polyRightX}
                                                             y1="0.5"
                                                             x2={polyRightX}
                                                             y2={barHeight - 0.5}
-                                                            stroke="#9ca3af"
-                                                            strokeWidth="1"
+                                                            stroke="#4b5563"
+                                                            strokeWidth="2"
                                                             strokeLinecap="butt"
                                                             shapeRendering="crispEdges"
                                                           />
@@ -2869,19 +2858,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                         ? Math.floor(partPositions[lastPartIdx].xEnd)
                                         : 0
                                       
-                                      // Calculate xPx with visual gaps (same as SVG section)
-                                      const GAP_WIDTH_PX = 8
-                                      
-                                      // Calculate how many gaps come before this part
-                                      let gapsBeforeThis = 0
-                                      for (let i = 0; i < partIdx; i++) {
-                                        const boundaryX = Math.floor(partPositions[i].xEnd)
-                                        if (!sharedBoundarySet.has(boundaryX)) {
-                                          gapsBeforeThis++
-                                        }
-                                      }
-                                      
-                                      const xPx = (partIdx === 0 ? 0 : Math.floor(xStart)) + (gapsBeforeThis * GAP_WIDTH_PX)
+                                      // Calculate xPx (same as SVG line 1150)
+                                      const xPx = partIdx === 0 ? 0 : Math.floor(xStart)
                                       
                                       // Calculate endPx (same as SVG lines 1155-1168)
                                       let endPx: number
