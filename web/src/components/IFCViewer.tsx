@@ -1,7 +1,6 @@
 ﻿import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { IFCViewerProps, ClipPlaneKey, SelectionMode, MarkupTool, MarkupColor, ElementState, ContextMenuState, ElementData, MeasurementData, MarkupElement, TextElement, ModelBounds } from './IFCViewer/types'
 import { LoadingState, ContextMenu, ControlPanel, MarkupCanvas, SelectedElementBanner } from './IFCViewer/components'
 import { setupClickSelection } from './IFCViewer/managers'
@@ -51,7 +50,8 @@ import {
   createMeasurementLabel as createMeasurementLabelUtil,
   createMeasurementArrow as createMeasurementArrowUtil,
   clearMeasurement as clearMeasurementUtil,
-  clearAllMeasurements as clearAllMeasurementsUtil
+  clearAllMeasurements as clearAllMeasurementsUtil,
+  loadGLTFModel
 } from './IFCViewer/utils'
 
 export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, enableMeasurement = false, enableClipping = false, filters, report, isVisible = true }: IFCViewerProps) {
@@ -1034,426 +1034,40 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
       setConversionStatus('')
 
       try {
-        // Determine glTF path - use gltfPath from upload response if available
-        const gltfFilename = gltfPath || `/api/gltf/${filename.replace('.ifc', '.glb').replace('.IFC', '.glb')}`
-        console.log('[IFCViewer] glTF filename to load:', gltfFilename)
+        // Load model using utility function
+        const result = await loadGLTFModel({
+          filename,
+          gltfPath,
+          gltfAvailable,
+          onConversionStatus: setConversionStatus
+        })
         
-        // Check if glTF file exists (skip check if we know it's available from upload)
-        let gltfExists = gltfAvailable
-        if (!gltfExists) {
-          try {
-            const headResponse = await fetch(gltfFilename, { method: 'HEAD' })
-            gltfExists = headResponse.ok
-          } catch (e) {
-            // File doesn't exist, need to convert
-          }
-        }
-
-        if (!gltfExists) {
-          // Trigger conversion
-          setConversionStatus('Converting IFC to glTF... This may take a moment.')
-          
-          const convertResponse = await fetch(`/api/convert-gltf/${filename}`, {
-            method: 'POST'
-          })
-          
-          if (!convertResponse.ok) {
-            const errorData = await convertResponse.json().catch(() => ({ detail: 'Conversion failed' }))
-            console.error('IFCViewer: Conversion request failed:', errorData)
-            throw new Error(errorData.detail || 'Failed to start glTF conversion')
-          }
-          
-          const convertData = await convertResponse.json()
-          
-          // If conversion was successful, the file should exist now
-          if (convertData.gltf_path) {
-            // Check if file exists
-            const checkResponse = await fetch(convertData.gltf_path, { method: 'HEAD' })
-            if (checkResponse.ok) {
-              gltfExists = true
-            }
-          }
-          
-          // If still not exists, poll for conversion completion
-          if (!gltfExists) {
-            let attempts = 0
-            const maxAttempts = 60 // 60 seconds max
-            
-            while (attempts < maxAttempts) {
-              await new Promise(resolve => setTimeout(resolve, 1000))
-              
-              const checkResponse = await fetch(gltfFilename, { method: 'HEAD' })
-              if (checkResponse.ok) {
-                gltfExists = true
-                break
-              }
-              attempts++
-              setConversionStatus(`Converting IFC to glTF... (${attempts}s)`)
-            }
-            
-            if (!gltfExists) {
-              console.error('IFCViewer: glTF conversion timed out after', maxAttempts, 'seconds')
-              throw new Error('glTF conversion timed out. Please try again.')
-            }
-          }
-        }
-
-        setConversionStatus('Loading 3D model...')
-
-        // Load the glTF file
-        console.log('[IFCViewer] About to load glTF file:', gltfFilename)
-        const loader = new GLTFLoader()
-        const gltf = await loader.loadAsync(gltfFilename)
-        console.log('[IFCViewer] glTF loaded successfully, scene:', gltf.scene)
-        console.log('[IFCViewer] Scene has', gltf.scene.children.length, 'children')
-
-        // Declare edge-related arrays at outer scope so they're accessible later
-        const edgeLines: THREE.LineSegments[] = []
-        const meshesToProcessForEdges: any[] = []  // Store meshes for async edge generation
-
+        const gltfScene = result.scene
         // Add model to scene
-        if (gltf.scene) {
-          // Update world matrix before calculating bounding box
-          gltf.scene.updateMatrixWorld(true)
-          
-          // IFC files can use different coordinate systems
-          // Try different rotations to match the original IFC orientation
-          // Option 1: Z-up to Y-up (most common): rotate -90Â° around X
-          // Option 2: No rotation (if already Y-up)
-          // Option 3: Other transformations
-          
-          // For now, try Z-up to Y-up transformation
-          // This rotates: (X, Y, Z) where Z is up -> (X, Z, -Y) where Y is up
-          gltf.scene.rotation.x = -Math.PI / 2  // -90 degrees around X-axis
-          
-          scene.add(gltf.scene)
-          modelRef.current = gltf.scene
+        scene.add(gltfScene)
+        modelRef.current = gltfScene
 
-          // Fit camera to model - position for ground-up view (Y-up coordinate system)
-          const fitResult = fitCameraToModel(gltf.scene, camera, controls, directionalLight1, directionalLight2)
-          
-          if (fitResult) {
-            const { center, size, box } = fitResult
-            modelBoundsRef.current = {
-              min: box.min.clone(),
-              max: box.max.clone(),
-              size: size.clone(),
-              center: center.clone()
-            }
-            
-            // Force a render to show the correct view
-            renderer.render(scene, camera)
+        // Fit camera to model - position for ground-up view (Y-up coordinate system)
+        const fitResult = fitCameraToModel(gltfScene, camera, controls, directionalLight1, directionalLight2)
+        
+        if (fitResult) {
+          const { center, size, box } = fitResult
+          modelBoundsRef.current = {
+            min: box.min.clone(),
+            max: box.max.clone(),
+            size: size.clone(),
+            center: center.clone()
           }
           
-
-          // Simplified material processing - let Three.js handle default colors, only override fasteners
-
-          gltf.scene.traverse((child: any) => {
-            if (child.isMesh) {
-              const material = Array.isArray(child.material) ? child.material[0] : child.material
-              
-              // Enable shadows
-              child.castShadow = true
-              child.receiveShadow = true
-
-              // Extract and store assembly mark from metadata
-              if (!child.userData) child.userData = {}
-              
-              // Try to get assembly mark from various sources
-              if (child.userData.assembly_mark) {
-                // Already stored
-              } else if ((child as any).metadata?.assembly_mark) {
-                child.userData.assembly_mark = (child as any).metadata.assembly_mark
-                child.userData.product_id = (child as any).metadata.product_id
-                child.userData.type = (child as any).metadata.element_type
-              } else if (child.name) {
-                // Try to parse from name (format: "elementType_productID_assemblyMark")
-                const parts = child.name.split('_')
-                if (parts.length >= 3) {
-                  child.userData.assembly_mark = parts.slice(2).join('_')
-                  child.userData.product_id = parseInt(parts[1]) || 0
-                  child.userData.type = parts[0]
-                }
-              }
-              
-              // Also try to get from glTF extras if available
-              if (!child.userData.assembly_mark && (child as any).userData?.extras) {
-                const extras = (child as any).userData.extras
-                if (extras.assembly_mark) {
-                  child.userData.assembly_mark = extras.assembly_mark
-                }
-                if (extras.product_id) {
-                  child.userData.product_id = extras.product_id
-                }
-                if (extras.element_type) {
-                  child.userData.type = extras.element_type
-                }
-              }
-
-              // Check if this is a fastener
-              const matName = (material?.name || '').toString().toLowerCase()
-              const nodeName = (child.name || '').toLowerCase()
-              const isFastener =
-                matName.includes('ifcfastener') ||
-                matName.includes('ifcmechanicalfastener') ||
-                matName.includes('fastener_detected') ||
-                nodeName.includes('ifcfastener') ||
-                nodeName.includes('ifcmechanicalfastener') ||
-                (nodeName.includes('bolt') || nodeName.includes('nut') || nodeName.includes('washer') || 
-                 nodeName.includes('fastener') || nodeName.includes('screw') || nodeName.includes('anchor'))
-
-              if (isFastener) {
-                // Remove vertex colors for fasteners
-                if (child.geometry.hasAttribute('color')) {
-                  child.geometry.deleteAttribute('color')
-                }
-                
-                // Create new geometry without color attribute
-                const originalGeom = child.geometry
-                const newGeom = new THREE.BufferGeometry()
-                
-                if (originalGeom.hasAttribute('position')) {
-                  newGeom.setAttribute('position', originalGeom.getAttribute('position').clone())
-                }
-                if (originalGeom.hasAttribute('normal')) {
-                  newGeom.setAttribute('normal', originalGeom.getAttribute('normal').clone())
-                }
-                if (originalGeom.hasAttribute('uv')) {
-                  newGeom.setAttribute('uv', originalGeom.getAttribute('uv').clone())
-                }
-                if (originalGeom.hasAttribute('uv2')) {
-                  newGeom.setAttribute('uv2', originalGeom.getAttribute('uv2').clone())
-                }
-                if (originalGeom.index) {
-                  newGeom.setIndex(originalGeom.index.clone())
-                }
-                
-                child.geometry = newGeom
-                originalGeom.dispose()
-                
-                // Apply dark brown-gold material for fasteners
-                const darkBrownGoldColor = new THREE.Color(0x8B6914)
-                const goldMaterial = new THREE.MeshStandardMaterial({
-                  color: darkBrownGoldColor,
-                  metalness: 0.3,
-                  roughness: 0.6,
-                  vertexColors: false
-                })
-                
-                if (Array.isArray(child.material)) {
-                  child.material.forEach((m: any) => {
-                    if (m && typeof m.dispose === 'function') {
-                      try { m.dispose() } catch (e) {}
-                    }
-                  })
-                } else if (material && typeof material.dispose === 'function') {
-                  try { material.dispose() } catch (e) {}
-                }
-                
-                child.material = goldMaterial
-                
-                // Add edge lines for fasteners using darker gold color
-                try {
-                  const edgesGeometry = new THREE.EdgesGeometry(newGeom, 10)
-                  // Make it darker by lerping with black (80% towards black = much darker)
-                  const black = new THREE.Color(0x000000)
-                  const darkerGoldColor = darkBrownGoldColor.clone().lerp(black, 0.8)
-                  
-                  const edgesMaterial = new THREE.LineBasicMaterial({ 
-                    color: darkerGoldColor,
-                    linewidth: 1.5,
-                    opacity: 0.8,
-                    transparent: true
-                  })
-                  const edgeLine = new THREE.LineSegments(edgesGeometry, edgesMaterial)
-                  edgeLine.name = `${child.name || 'mesh'}_edges`
-                  edgeLine.castShadow = false
-                  edgeLine.receiveShadow = false
-                  edgeLine.visible = true
-                  
-                  if (!child.userData) child.userData = {}
-                  child.userData.edgeLine = edgeLine
-                  edgeLines.push(edgeLine)
-                  
-                  child.add(edgeLine)
-                } catch (e) {
-                  // Ignore edge creation errors
-                }
-                
-                return
-              }
-
-              // For non-fasteners, let Three.js handle colors from glTF
-              // Only create default material if none exists
-              if (!material) {
-                child.material = new THREE.MeshStandardMaterial({
-                  color: 0x8888aa,
-                  metalness: 0.3,
-                  roughness: 0.7
-                })
-              }
-              
-              // Store mesh for async edge generation (don't generate edges synchronously)
-              meshesToProcessForEdges.push(child)
-            }
-          })
-
-          // Store edge lines reference in scene userData for toggling
-          if (!gltf.scene.userData) gltf.scene.userData = {}
-          gltf.scene.userData.edgeLines = edgeLines
-          
-          // Apply initial visibility - always show all elements
-          updateVisibility(gltf.scene)
-
-          // Load assembly mapping from API
-          const loadAssemblyMapping = async () => {
-            try {
-              // Add timestamp to avoid caching
-              const response = await fetch(`/api/assembly-mapping/${filename}?t=${Date.now()}`)
-              if (response.ok) {
-                const mapping = await response.json()
-                // Debug: Check if plate_thickness is in the mapping
-                const plateEntries = Object.entries(mapping).filter(([_id, entry]: [string, any]) => entry.element_type === 'IfcPlate')
-                if (plateEntries.length > 0) {
-                  const sampleEntry = plateEntries[0][1] as any
-                  console.log('[ASSEMBLY_MAPPING] Sample plate entry from API:', sampleEntry)
-                  console.log('[ASSEMBLY_MAPPING] Has plate_thickness:', 'plate_thickness' in sampleEntry)
-                }
-                // Store mapping in scene userData
-                if (!gltf.scene.userData) gltf.scene.userData = {}
-                gltf.scene.userData.assemblyMapping = mapping
-                
-                // Apply mapping to all meshes - try multiple ways to find product_id
-                let appliedCount = 0
-                gltf.scene.traverse((child: any) => {
-                  if (child.isMesh) {
-                    if (!child.userData) child.userData = {}
-                    
-                    // Try to get product_id from various sources
-                    let productId: number | null = null
-                    
-                    if (child.userData.product_id) {
-                      productId = child.userData.product_id
-                    } else if (child.userData.expressID) {
-                      productId = child.userData.expressID
-                    } else if (child.userData.id) {
-                      productId = child.userData.id
-                    } else if ((child as any).metadata?.product_id) {
-                      productId = (child as any).metadata.product_id
-                    } else if (child.name) {
-                      // Try to parse from name (format might be "elementType_productID" or "elementType_productID_assemblyMark")
-                      const parts = child.name.split('_')
-                      if (parts.length >= 2) {
-                        const parsed = parseInt(parts[1])
-                        if (!isNaN(parsed)) productId = parsed
-                      }
-                    }
-                    
-                    // CRITICAL: Always set product_id if we found it, even if not in mapping
-                    // This ensures selection and filtering work correctly
-                    if (productId) {
-                      child.userData.product_id = productId
-                      
-                      // If this product is in the mapping, apply the mapping data
-                      if (mapping[productId]) {
-                        child.userData.assembly_mark = mapping[productId].assembly_mark
-                        child.userData.assembly_id = mapping[productId].assembly_id || null
-                        child.userData.type = mapping[productId].element_type
-                        
-                        // Store plate thickness if available (even if it's "N/A")
-                        // Check if plate_thickness exists in the mapping entry
-                        if ('plate_thickness' in mapping[productId]) {
-                          child.userData.plate_thickness = mapping[productId].plate_thickness
-                        } else if (mapping[productId].element_type === 'IfcPlate') {
-                          // If it's a plate but plate_thickness is missing, log it and default to "N/A"
-                          console.warn(`[ASSEMBLY_MAPPING] Plate ${productId} missing plate_thickness in mapping`)
-                          child.userData.plate_thickness = "N/A"
-                        }
-                        
-                        // Store profile_name if available (for beams, columns, members)
-                        const elementType = mapping[productId].element_type
-                        if (elementType === 'IfcBeam' || elementType === 'IfcColumn' || elementType === 'IfcMember') {
-                          if ('profile_name' in mapping[productId]) {
-                            child.userData.profile_name = mapping[productId].profile_name
-                          } else {
-                            // If it's a profile element but profile_name is missing, log it and default to "N/A"
-                            console.warn(`[ASSEMBLY_MAPPING] Profile element ${productId} (${elementType}) missing profile_name in mapping`)
-                            child.userData.profile_name = "N/A"
-                          }
-                        }
-                        
-                        appliedCount++
-                      } else {
-                        // Product not in mapping - still set basic info from mesh name/metadata
-                        // This ensures selection still works even if mapping is incomplete
-                        if (!child.userData.type && child.name) {
-                          const parts = child.name.split('_')
-                          if (parts.length >= 1 && parts[0]) {
-                            child.userData.type = parts[0]
-                          }
-                        }
-                        
-                        // Set profile_name for profile elements even if not in mapping
-                        const elementType = child.userData.type || (child.name ? child.name.split('_')[0] : null)
-                        if (elementType === 'IfcBeam' || elementType === 'IfcColumn' || elementType === 'IfcMember') {
-                          if (!child.userData.profile_name) {
-                            child.userData.profile_name = "N/A"
-                          }
-                        }
-                        
-                        // Set plate_thickness for plates even if not in mapping
-                        if (elementType === 'IfcPlate') {
-                          if (!child.userData.plate_thickness) {
-                            child.userData.plate_thickness = "N/A"
-                          }
-                        }
-                        
-                        // Try to extract assembly_mark from mesh name if available (format: "elementType_productID_assemblyMark")
-                        if (!child.userData.assembly_mark && child.name) {
-                          const parts = child.name.split('_')
-                          if (parts.length >= 3) {
-                            // Assembly mark might contain underscores, so join everything after the first two parts
-                            child.userData.assembly_mark = parts.slice(2).join('_')
-                          }
-                        }
-                      }
-                    } else {
-                      // No product_id found - try to set type from name as fallback
-                      if (!child.userData.type && child.name) {
-                        const parts = child.name.split('_')
-                        if (parts.length >= 1 && parts[0]) {
-                          child.userData.type = parts[0]
-                        }
-                      }
-                      
-                      // Still set profile_name and plate_thickness based on element type, even without product_id
-                      const elementType = child.userData.type || (child.name ? child.name.split('_')[0] : null)
-                      if (elementType === 'IfcBeam' || elementType === 'IfcColumn' || elementType === 'IfcMember') {
-                        if (!child.userData.profile_name) {
-                          child.userData.profile_name = "N/A"
-                        }
-                      }
-                      if (elementType === 'IfcPlate') {
-                        if (!child.userData.plate_thickness) {
-                          child.userData.plate_thickness = "N/A"
-                        }
-                      }
-                    }
-                  }
-                })
-                
-                console.log(`Loaded assembly mapping for ${Object.keys(mapping).length} products, applied to ${appliedCount} meshes`)
-              }
-            } catch (error) {
-              console.warn('Failed to load assembly mapping:', error)
-            }
-          }
-          
-          await loadAssemblyMapping()
-          
-          // Setup click selection
-          setupClickSelectionWrapper(gltf.scene, setSelectedElement)
+          // Force a render to show the correct view
+          renderer.render(scene, camera)
         }
+        
+        // Apply initial visibility - always show all elements
+        updateVisibility(gltfScene)
+        
+        // Setup click selection
+        setupClickSelectionWrapper(gltfScene, setSelectedElement)
 
         console.log('[IFCViewer] Model loaded and displayed successfully')
         setIsLoading(false)
@@ -1461,67 +1075,6 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
         isLoadingRef.current = false
         console.log('[IFCViewer] Loading state cleared, overlay should be hidden')
         console.log('[IFCViewer] Edge generation disabled for instant display - model ready!')
-        
-        // PERFORMANCE OPTIMIZATION: Edge generation disabled for instant model display
-        // The model looks great with type-based colors and materials without edge lines
-        // This saves 2-5 seconds of processing time for models with 2000+ meshes
-        // 
-        // To re-enable edges, uncomment the code below:
-        /*
-        if (meshesToProcessForEdges.length > 0) {
-          setTimeout(() => {
-            console.log('[IFCViewer] Starting asynchronous edge generation for', meshesToProcessForEdges.length, 'meshes')
-            let processedCount = 0
-            const CHUNK_SIZE = 50  // Process 50 meshes at a time to avoid blocking
-            
-            const processChunk = () => {
-              const endIndex = Math.min(processedCount + CHUNK_SIZE, meshesToProcessForEdges.length)
-              
-              for (let i = processedCount; i < endIndex; i++) {
-                const child = meshesToProcessForEdges[i]
-                try {
-                  const edgesGeometry = new THREE.EdgesGeometry(child.geometry, 10)
-                  const currentMaterial = Array.isArray(child.material) ? child.material[0] : child.material
-                  const elementColor = currentMaterial?.color || new THREE.Color(0x8888aa)
-                  const black = new THREE.Color(0x000000)
-                  const darkerColor = elementColor.clone().lerp(black, 0.8)
-                  
-                  const edgesMaterial = new THREE.LineBasicMaterial({ 
-                    color: darkerColor,
-                    linewidth: 1.5,
-                    opacity: 0.8,
-                    transparent: true
-                  })
-                  const edgeLine = new THREE.LineSegments(edgesGeometry, edgesMaterial)
-                  edgeLine.name = `${child.name || 'mesh'}_edges`
-                  edgeLine.castShadow = false
-                  edgeLine.receiveShadow = false
-                  edgeLine.visible = true
-                  
-                  if (!child.userData) child.userData = {}
-                  child.userData.edgeLine = edgeLine
-                  edgeLines.push(edgeLine)
-                  child.add(edgeLine)
-                } catch (e) {
-                  // Ignore edge creation errors
-                }
-              }
-              
-              processedCount = endIndex
-              
-              if (processedCount < meshesToProcessForEdges.length) {
-                // Process next chunk on next animation frame
-                requestAnimationFrame(processChunk)
-              } else {
-                console.log('[IFCViewer] Edge generation complete for all', processedCount, 'meshes')
-              }
-            }
-            
-            // Start processing after a small delay to let the model render first
-            requestAnimationFrame(processChunk)
-          }, 100)
-        }
-        */
       } catch (error) {
         console.error('[IFCViewer] Error loading glTF:', error)
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
