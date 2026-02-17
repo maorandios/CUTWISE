@@ -54,7 +54,7 @@ class ComplementaryChain:
 def check_slope_match(
     angle1: Optional[float],
     angle2: Optional[float],
-    angle_tolerance: float = 2.0,  # Reduced from 5.0 to prevent false matches
+    angle_tolerance: float = 0.5,  # Very strict - 56° vs 58° should NOT match
     min_angle: float = 1.0
 ) -> bool:
     """

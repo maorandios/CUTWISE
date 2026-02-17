@@ -801,7 +801,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 const totalWidth = 1000
                                 const stockLengthMm = pattern.stock_length
                                 const pxPerMm = totalWidth / stockLengthMm
-                                const ANGLE_MATCH_TOL = 2.0 // Tolerance for matching angles (degrees) - used in boundary resolution
+                                const ANGLE_MATCH_TOL = 0.5 // Very strict tolerance - 56° vs 58° should NOT match
                                 const allowTwoSlopes = true // Allow parts to have 2 sloped ends
                                 const markerInset = 8 // Inset from part edge for end markers (px)
                                 
@@ -1617,7 +1617,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 // Optimize part orientations for minimum waste visualization
                                 // Determine which parts should be flipped to:
                                 // 1. Start with straight cut if possible
-                                const DISPLAY_ANGLE_MATCH_TOL = 2.0 // Match backend tolerance - reduced from 5.0 to prevent false flush display
+                                const DISPLAY_ANGLE_MATCH_TOL = 0.5 // Strict tolerance - only truly matching angles (56° vs 58° = NOT flush)
                                 
                                 // NO DP, NO FLIPPING - just render parts with their canonical geometry
                                 const displayFlipStates: boolean[] = new Array(numParts).fill(false)
@@ -2111,7 +2111,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                               if (startType === 'miter' && leftEndType === 'miter') {
                                                 const devDiff = Math.abs(startDev - leftDev)
                                                 const isLeftCompPair = (leftPartData as any)?.slope_info?.complementary_pair === true
-                                                leftIsComplementary = isInComplementaryPair && isLeftCompPair && devDiff <= 2.0
+                                                leftIsComplementary = isInComplementaryPair && isLeftCompPair && devDiff <= 0.5
                                               }
                                             }
                                             
@@ -2125,7 +2125,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                               if (endType === 'miter' && rightStartType === 'miter') {
                                                 const devDiff = Math.abs(endDev - rightDev)
                                                 const isRightCompPair = (rightPartData as any)?.slope_info?.complementary_pair === true
-                                                rightIsComplementary = isInComplementaryPair && isRightCompPair && devDiff <= 2.0
+                                                rightIsComplementary = isInComplementaryPair && isRightCompPair && devDiff <= 0.5
                                               }
                                             }
                                             
