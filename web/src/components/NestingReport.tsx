@@ -921,13 +921,27 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 // Calculate px per mm to fit all parts in available space
                                 const partsPxPerMm = totalPartsLengthMm > 0 ? availableForPartsPx / totalPartsLengthMm : pxPerMm
                                 
-                                // Parts are flush (no gaps) in manufacturing mode
+                                // Add visual gaps between non-complementary parts
+                                const GAP_WIDTH_PX = 8 // Visual gap between non-complementary parts
                                 let cumulativeX = 0
                                 const partPositions = sortedParts.map((part, partIdx) => {
                                   const lengthMm = part.length || 0
                                   const xStart = cumulativeX
                                   const xEnd = cumulativeX + (lengthMm * partsPxPerMm)
                                   cumulativeX = xEnd
+                                  
+                                  // Add gap after this part if next part is NOT complementary
+                                  if (partIdx < sortedParts.length - 1) {
+                                    const nextPart = sortedParts[partIdx + 1]
+                                    const currentIsComp = (part as any)?.slope_info?.complementary_pair === true
+                                    const nextIsComp = (nextPart as any)?.slope_info?.complementary_pair === true
+                                    
+                                    // Only add gap if NOT both complementary
+                                    if (!(currentIsComp && nextIsComp)) {
+                                      cumulativeX += GAP_WIDTH_PX
+                                    }
+                                  }
+                                  
                                   return { part, xStart, xEnd, lengthMm }
                                 })
                                 
@@ -2837,12 +2851,27 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 const availableForPartsPx = 1000 * (1 - wasteMm / pattern.stock_length)
                                 const partsPxPerMm = totalPartsLengthMm > 0 ? availableForPartsPx / totalPartsLengthMm : pxPerMm
                                 
+                                // Add visual gaps between non-complementary parts (same as SVG section)
+                                const GAP_WIDTH_PX = 8
                                 let cumulativeX = 0
                                 const partPositions = sortedParts.map((part, partIdx) => {
                                   const lengthMm = part.length || 0
                                   const xStart = cumulativeX
                                   const xEnd = cumulativeX + (lengthMm * partsPxPerMm)
                                   cumulativeX = xEnd
+                                  
+                                  // Add gap after this part if next part is NOT complementary
+                                  if (partIdx < sortedParts.length - 1) {
+                                    const nextPart = sortedParts[partIdx + 1]
+                                    const currentIsComp = (part as any)?.slope_info?.complementary_pair === true
+                                    const nextIsComp = (nextPart as any)?.slope_info?.complementary_pair === true
+                                    
+                                    // Only add gap if NOT both complementary
+                                    if (!(currentIsComp && nextIsComp)) {
+                                      cumulativeX += GAP_WIDTH_PX
+                                    }
+                                  }
+                                  
                                   return { part, xStart, xEnd, lengthMm }
                                 })
                                 
