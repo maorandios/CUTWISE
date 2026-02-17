@@ -21,6 +21,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   const [error, setError] = useState<string | null>(null)
   const [expandedProfiles, setExpandedProfiles] = useState<Set<string>>(new Set())
   const [kerfValue, setKerfValue] = useState<number>(3.0) // Default kerf: 3mm
+  const [trimValue, setTrimValue] = useState<number>(5.0) // Default trim: 5mm
 
   // Get available profiles from report
   const availableProfiles = report?.profiles || []
@@ -197,7 +198,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       const params = new URLSearchParams({
         stock_lengths: stockLengths,
         profiles: Array.from(selectedProfiles).join(','),  // Pass selected profiles
-        kerf: kerfValue.toString()  // Pass kerf value
+        kerf: kerfValue.toString(),  // Pass kerf value
+        trim: trimValue.toString()  // Pass trim value
       })
       const url = `/api/nesting/${encodedFilename}?${params.toString()}`
 
@@ -375,10 +377,12 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                     })}
                   </div>
 
-                  {/* Kerf Configuration */}
+                  {/* Cutting Configuration */}
                   <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                     <h4 className="font-semibold text-gray-900 mb-3">Cutting Configuration</h4>
-                    <div className="flex items-center gap-4">
+                    
+                    {/* Kerf Setting */}
+                    <div className="flex items-center gap-4 mb-4">
                       <label className="flex items-center gap-2">
                         <span className="text-sm text-gray-700 font-medium">Kerf (cutting width):</span>
                         <input
@@ -394,6 +398,26 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                       </label>
                       <p className="text-xs text-gray-500">
                         Distance between parts to account for cutting blade width (typically 3mm for steel)
+                      </p>
+                    </div>
+                    
+                    {/* Trim Setting */}
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2">
+                        <span className="text-sm text-gray-700 font-medium">Trim (end cut):</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="50"
+                          step="1"
+                          value={trimValue}
+                          onChange={(e) => setTrimValue(Math.min(50, parseFloat(e.target.value) || 0))}
+                          className="w-20 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-600">mm</span>
+                      </label>
+                      <p className="text-xs text-gray-500">
+                        Material removed from stock bar ends for clean cuts (reduces usable length by trim amount)
                       </p>
                     </div>
                   </div>

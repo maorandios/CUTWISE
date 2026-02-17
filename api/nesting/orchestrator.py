@@ -49,6 +49,7 @@ class NestingOrchestrator:
         self,
         stock_lengths: List[float],
         kerf: float = 3.0,
+        trim: float = 5.0,
         angle_tolerance: float = 5.0,
         log_func: Optional[Callable] = None
     ):
@@ -58,15 +59,19 @@ class NestingOrchestrator:
         Args:
             stock_lengths: Available stock lengths in mm (sorted ascending)
             kerf: Kerf width (cutting blade width) in mm
+            trim: Trim amount in mm (material removed from stock bar ends)
             angle_tolerance: Maximum angle difference for complementary matching
             log_func: Optional logging function
         """
-        self.stock_lengths = sorted(stock_lengths)
+        # Apply trim to stock lengths (reduce usable length)
+        self.stock_lengths = sorted([length - trim for length in stock_lengths])
+        self.original_stock_lengths = sorted(stock_lengths)
         self.kerf = kerf
+        self.trim = trim
         self.angle_tolerance = angle_tolerance
         self.log_func = log_func or logger.info
         
-        self.max_stock_length = max(stock_lengths) if stock_lengths else float('inf')
+        self.max_stock_length = max(self.stock_lengths) if self.stock_lengths else float('inf')
     
     def nest_profile(
         self,
@@ -225,8 +230,10 @@ class NestingOrchestrator:
         """
         self.log_func(f"[ORCHESTRATOR] Starting nesting for {filename}")
         self.log_func(f"[ORCHESTRATOR] Selected profiles: {selected_profiles}")
-        self.log_func(f"[ORCHESTRATOR] Stock lengths: {self.stock_lengths}")
+        self.log_func(f"[ORCHESTRATOR] Stock lengths (original): {self.original_stock_lengths}")
+        self.log_func(f"[ORCHESTRATOR] Stock lengths (usable after trim): {self.stock_lengths}")
         self.log_func(f"[ORCHESTRATOR] Kerf: {self.kerf}mm")
+        self.log_func(f"[ORCHESTRATOR] Trim: {self.trim}mm")
         
         # Normalize profile names
         base_profile_names = [extract_base_profile_name(p) for p in selected_profiles]
@@ -263,7 +270,7 @@ class NestingOrchestrator:
             filename=filename,
             profiles=profile_nestings,
             kerf=self.kerf,
-            stock_lengths=self.stock_lengths
+            stock_lengths=self.original_stock_lengths  # Use original stock lengths for display
         )
         
         # Log summary
@@ -310,6 +317,7 @@ def create_nesting_report(
     selected_profiles: List[str],
     stock_lengths: List[float],
     kerf: float = 3.0,
+    trim: float = 5.0,
     extractor: Optional[any] = None,
     use_complementary_pairing: bool = True,
     log_func: Optional[Callable] = None
@@ -325,6 +333,7 @@ def create_nesting_report(
         selected_profiles: List of profile names to nest
         stock_lengths: Available stock lengths in mm
         kerf: Kerf width in mm
+        trim: Trim amount in mm (material removed from stock bar ends)
         extractor: Optional CutPieceExtractor for slope detection
         use_complementary_pairing: Whether to use complementary slope pairing
         log_func: Optional logging function
@@ -335,6 +344,7 @@ def create_nesting_report(
     orchestrator = NestingOrchestrator(
         stock_lengths=stock_lengths,
         kerf=kerf,
+        trim=trim,
         log_func=log_func
     )
     
