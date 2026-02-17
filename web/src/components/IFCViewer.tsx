@@ -2,20 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { FilterState } from '../types'
-
-interface IFCViewerProps {
-  filename: string
-  gltfPath?: string
-  gltfAvailable?: boolean
-  enableMeasurement?: boolean // Feature flag for measurement tool
-  enableClipping?: boolean // Feature flag for clipping planes
-  filters?: FilterState
-  report?: any // Report data to get plate thickness information
-  isVisible?: boolean // Whether the viewer is currently visible (for CSS hiding support)
-}
-
-type ClipPlaneKey = 'top' | 'bottom' | 'left' | 'right' | 'front' | 'back'
+import { IFCViewerProps, ClipPlaneKey, SelectionMode, MarkupTool, MarkupColor, ElementState, ContextMenuState, ElementData, MeasurementData, MarkupElement, TextElement, ModelBounds } from './IFCViewer/types'
+import { LoadingState } from './IFCViewer/components'
 
 export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, enableMeasurement = false, enableClipping = false, filters, report, isVisible = true }: IFCViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -5350,14 +5338,11 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
             </div>
           </div>
         )}
-        {(isLoading || conversionStatus) && !loadError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-90 z-10">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-700">{conversionStatus || 'Loading 3D model...'}</p>
-            </div>
-          </div>
-        )}
+        <LoadingState 
+          isLoading={isLoading} 
+          loadError={loadError} 
+          conversionStatus={conversionStatus} 
+        />
         
         {/* Floating control panel at the bottom */}
         {modelRef.current && (
