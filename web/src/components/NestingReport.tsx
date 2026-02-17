@@ -2280,35 +2280,18 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                                 {/* Marker lines are vertical for straight cuts, diagonal for miter cuts */}
                                                 <g clipPath={isLastPart ? `url(#${partClipId!})` : undefined}>
                                                   {/* Start cut marker - only if NOT shared AND NOT first part (first part start is stock bar edge) */}
-                                                  {!startIsShared && partIdx > 0 && (
-                                                    <>
-                                                      {startType === 'miter' ? (
-                                                        // Sloped start boundary - draw diagonal line with thicker stroke for non-shared
-                                                        // Part is on the right of this boundary, so diagonal goes from (boundaryX, 0) to (boundaryX + 12, height)
-                                                        <line
-                                                          x1={startMarkerTopX}
-                                                          y1="0.5"
-                                                          x2={startMarkerBottomX}
-                                                          y2={barHeight - 0.5}
-                                                          stroke="#4b5563"
-                                                          strokeWidth="2"
-                                                          strokeLinecap="butt"
-                                                          shapeRendering="crispEdges"
-                                                        />
-                                                      ) : (
-                                                        // Straight start boundary - thicker for non-shared
-                                                        <line
-                                                          x1={polyLeftX}
-                                                          y1="0.5"
-                                                          x2={polyLeftX}
-                                                          y2={barHeight - 0.5}
-                                                          stroke="#4b5563"
-                                                          strokeWidth="2"
-                                                          strokeLinecap="butt"
-                                                          shapeRendering="crispEdges"
-                                                        />
-                                                      )}
-                                                    </>
+                                                  {/* ONLY show for straight cuts - sloped non-shared boundaries don't need markers */}
+                                                  {!startIsShared && partIdx > 0 && startType === 'straight' && (
+                                                    <line
+                                                      x1={polyLeftX}
+                                                      y1="0.5"
+                                                      x2={polyLeftX}
+                                                      y2={barHeight - 0.5}
+                                                      stroke="#9ca3af"
+                                                      strokeWidth="1"
+                                                      strokeLinecap="butt"
+                                                      shapeRendering="crispEdges"
+                                                    />
                                                   )}
                                                   
                                                   {/* End cut marker - for non-last parts or last part with waste */}
@@ -2325,28 +2308,15 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                                     
                                                     return (
                                                       <>
-                                                        {endType === 'miter' ? (
-                                                          // Sloped end boundary - draw diagonal line with thicker stroke for non-shared
-                                                          // Part is on the left of this boundary, so diagonal goes from (boundaryX - 12, 0) to (boundaryX, height)
-                                                          <line
-                                                          x1={endMarkerTopX}
-                                                            y1="0.5"
-                                                          x2={endMarkerBottomX}
-                                                            y2={barHeight - 0.5}
-                                                            stroke="#4b5563"
-                                                            strokeWidth="2"
-                                                            strokeLinecap="butt"
-                                                            shapeRendering="crispEdges"
-                                                          />
-                                                        ) : (
-                                                          // Straight end boundary - thicker for non-shared
+                                                        {/* ONLY show for straight cuts - sloped non-shared boundaries don't need markers */}
+                                                        {endType === 'straight' && (
                                                           <line
                                                             x1={polyRightX}
                                                             y1="0.5"
                                                             x2={polyRightX}
                                                             y2={barHeight - 0.5}
-                                                            stroke="#4b5563"
-                                                            strokeWidth="2"
+                                                            stroke="#9ca3af"
+                                                            strokeWidth="1"
                                                             strokeLinecap="butt"
                                                             shapeRendering="crispEdges"
                                                           />
