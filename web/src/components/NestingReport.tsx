@@ -2085,20 +2085,60 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                             // Create polygon from this part's own geometry (consistent per part number)
                                             let points: string
                                             
-                                            // SIMPLIFIED LOGIC: Just use the geometry from the backend directly
-                                            // The backend knows best - if it says there's a miter, show it (except at stock edges)
-                                            // First part should never have slope at start (stock edge)
-                                            // Last part should never have slope at end (stock edge) unless there's waste
+                                            // CRITICAL FIX: Only show slopes when they're ACTUALLY part of a complementary pair
+                                            // Don't show slopes just because the part has a miter cut - only show if it's being shared
                                             let hasSlopedStart: boolean
                                             let hasSlopedEnd: boolean
                                             
-                                            // Show slope at start if: geometry has miter AND (not at stock edge OR part has two significant slopes)
-                                            // For first part (partIdx === 0): show start slope ONLY if part has TWO significant miters
-                                            const bothSignificantMiters = startType === 'miter' && endType === 'miter' && startDev >= 1.0 && endDev >= 1.0
-                                            hasSlopedStart = startType === 'miter' && startDev > 0 && (partIdx > 0 || bothSignificantMiters)
+                                            // Check if this part is in a complementary pair
+                                            const currentPartData = partPositions[partIdx]?.part
+                                            const isInComplementaryPair = (currentPartData as any)?.slope_info?.complementary_pair === true
                                             
-                                            // Show slope at end if: geometry has miter AND (not at last part OR last part with waste)
-                                            hasSlopedEnd = endType === 'miter' && endDev > 0 && (partIdx < numParts - 1 || (partIdx === lastPartIdx && pattern.waste > 0))
+                                            // Check if adjacent parts share complementary cuts
+                                            const leftPartIdx = partIdx - 1
+                                            const rightPartIdx = partIdx + 1
+                                            
+                                            let leftIsComplementary = false
+                                            let rightIsComplementary = false
+                                            
+                                            if (leftPartIdx >= 0) {
+                                              const leftPartData = partPositions[leftPartIdx]?.part
+                                              const leftPartEnd = getDisplayEndsForPart(leftPartIdx, shouldCanonicalizePart(leftPartIdx))
+                                              const leftEndType = leftPartEnd.endCut.type
+                                              const leftDev = leftPartEnd.endCut.deviation
+                                              
+                                              // Check if left boundary is a shared complementary cut
+                                              if (startType === 'miter' && leftEndType === 'miter') {
+                                                const devDiff = Math.abs(startDev - leftDev)
+                                                const isLeftCompPair = (leftPartData as any)?.slope_info?.complementary_pair === true
+                                                leftIsComplementary = isInComplementaryPair && isLeftCompPair && devDiff <= 2.0
+                                              }
+                                            }
+                                            
+                                            if (rightPartIdx < numParts) {
+                                              const rightPartData = partPositions[rightPartIdx]?.part
+                                              const rightPartEnd = getDisplayEndsForPart(rightPartIdx, shouldCanonicalizePart(rightPartIdx))
+                                              const rightStartType = rightPartEnd.startCut.type
+                                              const rightDev = rightPartEnd.startCut.deviation
+                                              
+                                              // Check if right boundary is a shared complementary cut
+                                              if (endType === 'miter' && rightStartType === 'miter') {
+                                                const devDiff = Math.abs(endDev - rightDev)
+                                                const isRightCompPair = (rightPartData as any)?.slope_info?.complementary_pair === true
+                                                rightIsComplementary = isInComplementaryPair && isRightCompPair && devDiff <= 2.0
+                                              }
+                                            }
+                                            
+                                            // Show slope at start ONLY if:
+                                            // 1. It's a complementary boundary with the left part, OR
+                                            // 2. It's the first part with two significant miters (both ends sloped)
+                                            const bothSignificantMiters = startType === 'miter' && endType === 'miter' && startDev >= 1.0 && endDev >= 1.0
+                                            hasSlopedStart = leftIsComplementary || (partIdx === 0 && bothSignificantMiters)
+                                            
+                                            // Show slope at end ONLY if:
+                                            // 1. It's a complementary boundary with the right part, OR
+                                            // 2. It's the last part with waste and has a miter
+                                            hasSlopedEnd = rightIsComplementary || (partIdx === lastPartIdx && pattern.waste > 0 && endType === 'miter' && endDev > 0)
                                             
                                             const actualRightX = (partIdx === lastPartIdx && pattern.waste > 0 && hasSlopedEnd)
                                               ? exactPartsEndPx + 0.5
