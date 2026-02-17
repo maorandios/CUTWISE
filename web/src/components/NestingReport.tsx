@@ -921,27 +921,13 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 // Calculate px per mm to fit all parts in available space
                                 const partsPxPerMm = totalPartsLengthMm > 0 ? availableForPartsPx / totalPartsLengthMm : pxPerMm
                                 
-                                // Add visual gaps between non-complementary parts
-                                const GAP_WIDTH_PX = 8 // Visual gap between non-complementary parts
+                                // Parts are flush (no gaps) - gaps will be added visually later based on boundary sharing
                                 let cumulativeX = 0
                                 const partPositions = sortedParts.map((part, partIdx) => {
                                   const lengthMm = part.length || 0
                                   const xStart = cumulativeX
                                   const xEnd = cumulativeX + (lengthMm * partsPxPerMm)
                                   cumulativeX = xEnd
-                                  
-                                  // Add gap after this part if next part is NOT complementary
-                                  if (partIdx < sortedParts.length - 1) {
-                                    const nextPart = sortedParts[partIdx + 1]
-                                    const currentIsComp = (part as any)?.slope_info?.complementary_pair === true
-                                    const nextIsComp = (nextPart as any)?.slope_info?.complementary_pair === true
-                                    
-                                    // Only add gap if NOT both complementary
-                                    if (!(currentIsComp && nextIsComp)) {
-                                      cumulativeX += GAP_WIDTH_PX
-                                    }
-                                  }
-                                  
                                   return { part, xStart, xEnd, lengthMm }
                                 })
                                 
@@ -1891,9 +1877,20 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                         })
                                       }
                                       
-                                      // Calculate pixel positions
+                                      // Calculate pixel positions with visual gaps for non-shared boundaries
                                       // Use the raw positions from backend, rounding to integers
-                                      const xPx = Math.floor(xStart)
+                                      const GAP_WIDTH_PX = 8
+                                      
+                                      // Calculate how many gaps come before this part
+                                      let gapsBeforeThis = 0
+                                      for (let i = 0; i < partIdx; i++) {
+                                        const boundaryX = Math.floor(partPositions[i].xEnd)
+                                        if (!sharedBoundarySet.has(boundaryX)) {
+                                          gapsBeforeThis++
+                                        }
+                                      }
+                                      
+                                      const xPx = Math.floor(xStart) + (gapsBeforeThis * GAP_WIDTH_PX)
                                       
                                       // Calculate end position
                                       // CRITICAL: For last part, use the exact boundary (same as waste start)
@@ -2851,27 +2848,12 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 const availableForPartsPx = 1000 * (1 - wasteMm / pattern.stock_length)
                                 const partsPxPerMm = totalPartsLengthMm > 0 ? availableForPartsPx / totalPartsLengthMm : pxPerMm
                                 
-                                // Add visual gaps between non-complementary parts (same as SVG section)
-                                const GAP_WIDTH_PX = 8
                                 let cumulativeX = 0
                                 const partPositions = sortedParts.map((part, partIdx) => {
                                   const lengthMm = part.length || 0
                                   const xStart = cumulativeX
                                   const xEnd = cumulativeX + (lengthMm * partsPxPerMm)
                                   cumulativeX = xEnd
-                                  
-                                  // Add gap after this part if next part is NOT complementary
-                                  if (partIdx < sortedParts.length - 1) {
-                                    const nextPart = sortedParts[partIdx + 1]
-                                    const currentIsComp = (part as any)?.slope_info?.complementary_pair === true
-                                    const nextIsComp = (nextPart as any)?.slope_info?.complementary_pair === true
-                                    
-                                    // Only add gap if NOT both complementary
-                                    if (!(currentIsComp && nextIsComp)) {
-                                      cumulativeX += GAP_WIDTH_PX
-                                    }
-                                  }
-                                  
                                   return { part, xStart, xEnd, lengthMm }
                                 })
                                 
@@ -2887,8 +2869,19 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                         ? Math.floor(partPositions[lastPartIdx].xEnd)
                                         : 0
                                       
-                                      // Calculate xPx (same as SVG line 1150)
-                                      const xPx = partIdx === 0 ? 0 : Math.floor(xStart)
+                                      // Calculate xPx with visual gaps (same as SVG section)
+                                      const GAP_WIDTH_PX = 8
+                                      
+                                      // Calculate how many gaps come before this part
+                                      let gapsBeforeThis = 0
+                                      for (let i = 0; i < partIdx; i++) {
+                                        const boundaryX = Math.floor(partPositions[i].xEnd)
+                                        if (!sharedBoundarySet.has(boundaryX)) {
+                                          gapsBeforeThis++
+                                        }
+                                      }
+                                      
+                                      const xPx = (partIdx === 0 ? 0 : Math.floor(xStart)) + (gapsBeforeThis * GAP_WIDTH_PX)
                                       
                                       // Calculate endPx (same as SVG lines 1155-1168)
                                       let endPx: number
