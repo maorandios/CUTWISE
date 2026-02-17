@@ -12,4 +12,5 @@ export * from './clippingUtils'
 export * from './visibilityUtils'
 export * from './filterUtils'
 export * from './cameraUtils'
+export * from './measurementUtils'
 

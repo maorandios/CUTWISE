@@ -45,7 +45,13 @@ import {
   createOrbitControls,
   fitCameraToModel,
   animatePivotTransition,
-  startPivotAnimation
+  startPivotAnimation,
+  createMeasurementDotWithScene,
+  createPreviewArrow,
+  createMeasurementLabel as createMeasurementLabelUtil,
+  createMeasurementArrow as createMeasurementArrowUtil,
+  clearMeasurement as clearMeasurementUtil,
+  clearAllMeasurements as clearAllMeasurementsUtil
 } from './IFCViewer/utils'
 
 export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, enableMeasurement = false, enableClipping = false, filters, report, isVisible = true }: IFCViewerProps) {
@@ -1835,132 +1841,23 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
   const clearAllMeasurements = () => {
     const scene = sceneRef.current
     if (!scene) return
-    
-    // Remove all stored measurements
-    allMeasurementsRef.current.forEach(measurement => {
-      // Remove arrow
-      if (measurement.arrow) {
-        scene.remove(measurement.arrow)
-        measurement.arrow.traverse((child: any) => {
-          if (child.geometry) child.geometry.dispose()
-          if (child.material) {
-            if (Array.isArray(child.material)) {
-              child.material.forEach((mat: THREE.Material) => mat.dispose())
-            } else {
-              child.material.dispose()
-            }
-          }
-        })
-      }
-      
-      // Remove label
-      if (measurement.label) {
-        measurement.label.remove()
-      }
-      
-      // Remove dots
-      measurement.dots.forEach(dot => {
-        scene.remove(dot)
-        dot.geometry.dispose()
-        if (dot.material) {
-          if (Array.isArray(dot.material)) {
-            dot.material.forEach((mat: THREE.Material) => mat.dispose())
-          } else {
-            dot.material.dispose()
-          }
-        }
-      })
-    })
-    
-    // Clear the array
-    allMeasurementsRef.current = []
-    
-    console.log('[MEASUREMENT] All measurements cleared')
+    clearAllMeasurementsUtil(scene, allMeasurementsRef)
   }
   
   // Clear current measurement visualization (for in-progress measurements)
   const clearMeasurement = () => {
     const scene = sceneRef.current
     if (!scene) return
-    
-    // Remove measurement arrow
-    if (measurementLineRef.current) {
-      scene.remove(measurementLineRef.current)
-      // ArrowHelper has children, dispose them
-      measurementLineRef.current.traverse((child: any) => {
-        if (child.geometry) child.geometry.dispose()
-        if (child.material) {
-          if (Array.isArray(child.material)) {
-            child.material.forEach((mat: THREE.Material) => mat.dispose())
-          } else {
-            child.material.dispose()
-          }
-        }
-      })
-      measurementLineRef.current = null
-    }
-    
-    // Remove measurement label (HTML overlay)
-    if (measurementLabelDivRef.current) {
-      measurementLabelDivRef.current.remove()
-      measurementLabelDivRef.current = null
-    }
-    
-    // Clean up legacy sprite label if it exists
-    if (measurementLabelRef.current && scene) {
-      scene.remove(measurementLabelRef.current)
-      measurementLabelRef.current.traverse((child: any) => {
-        if (child.geometry) child.geometry.dispose()
-        if (child.material) {
-          if (Array.isArray(child.material)) {
-            child.material.forEach((mat: THREE.Material) => mat.dispose())
-          } else {
-            child.material.dispose()
-          }
-        }
-      })
-      measurementLabelRef.current = null
-    }
-    
-    measurementPointsRef.current = []
-    
-    // Remove measurement dots
-    if (scene) {
-      measurementDotsRef.current.forEach(dot => {
-        scene.remove(dot)
-        dot.geometry.dispose()
-        if (dot.material) {
-          if (Array.isArray(dot.material)) {
-            dot.material.forEach((mat: THREE.Material) => mat.dispose())
-          } else {
-            dot.material.dispose()
-          }
-        }
-      })
-      measurementDotsRef.current = []
-    }
-    
-    // Remove preview arrow
-    if (previewArrowRef.current && scene) {
-      scene.remove(previewArrowRef.current)
-      previewArrowRef.current.traverse((child: THREE.Object3D) => {
-        const obj = child as any
-        if (obj.geometry) obj.geometry.dispose()
-        if (obj.material) {
-          if (Array.isArray(obj.material)) {
-            obj.material.forEach((mat: THREE.Material) => mat.dispose())
-          } else {
-            obj.material.dispose()
-          }
-        }
-      })
-      previewArrowRef.current = null
-    }
-    
-    // Hide hover preview marker
-    if (hoverPreviewMarkerRef.current) {
-      hoverPreviewMarkerRef.current.visible = false
-    }
+    clearMeasurementUtil(
+      scene,
+      measurementLineRef,
+      measurementLabelRef,
+      measurementLabelDivRef,
+      measurementPointsRef,
+      measurementDotsRef,
+      previewArrowRef,
+      hoverPreviewMarkerRef
+    )
   }
   
   // Find closest corner/vertex for snapping
@@ -1971,14 +1868,13 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
     const scene = sceneRef.current
     const camera = cameraRef.current
     if (!scene || !camera) return null
-    
-    const dotSize = calculateDotSize(point, camera, containerRef.current?.clientHeight || 1, 8)
-    const dot = createMeasurementDotUtil(point, dotSize, 0xff0000)
-    
-    scene.add(dot)
-    measurementDotsRef.current.push(dot)
-    
-    return dot
+    return createMeasurementDotWithScene(
+      point,
+      scene,
+      camera,
+      containerRef.current?.clientHeight || 1,
+      measurementDotsRef.current
+    )
   }
   
   // Create an arrow from start to end point (currently unused)
@@ -2053,101 +1949,27 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
   // Create final measurement arrow between two points
   const createMeasurementArrow = (start: THREE.Vector3, end: THREE.Vector3) => {
     const scene = sceneRef.current
-    if (!scene) {
-      console.log('[MEASUREMENT] createMeasurementArrow: No scene')
+    const camera = cameraRef.current
+    const container = containerRef.current
+    if (!scene || !camera || !container) {
+      console.log('[MEASUREMENT] createMeasurementArrow: Missing scene, camera, or container')
       return
     }
     
-    console.log('[MEASUREMENT] createMeasurementArrow called with:', start, end)
-    
-    // Remove preview arrow
-    if (previewArrowRef.current) {
-      scene.remove(previewArrowRef.current)
-      previewArrowRef.current.traverse((child: THREE.Object3D) => {
-        const obj = child as any
-        if (obj.geometry) obj.geometry.dispose()
-        if (obj.material) {
-          if (Array.isArray(obj.material)) {
-            obj.material.forEach((mat: THREE.Material) => mat.dispose())
-          } else {
-            obj.material.dispose()
-          }
-        }
-      })
-      previewArrowRef.current = null
-    }
-    
-    // Clear existing measurement arrow
-    if (measurementLineRef.current) {
-      scene.remove(measurementLineRef.current)
-      measurementLineRef.current.traverse((child: any) => {
-        if (child.geometry) child.geometry.dispose()
-        if (child.material) {
-          if (Array.isArray(child.material)) {
-            child.material.forEach((mat: THREE.Material) => mat.dispose())
-          } else {
-            child.material.dispose()
-          }
-        }
-      })
-      measurementLineRef.current = null
-    }
-    
-    if (measurementLabelRef.current) {
-      scene.remove(measurementLabelRef.current)
-      measurementLabelRef.current.traverse((child: any) => {
-        if (child.geometry) child.geometry.dispose()
-        if (child.material) {
-          if (Array.isArray(child.material)) {
-            child.material.forEach((mat: THREE.Material) => mat.dispose())
-          } else {
-            child.material.dispose()
-          }
-        }
-      })
-      measurementLabelRef.current = null
-    }
-    
-    // Create final arrow
-    const direction = new THREE.Vector3().subVectors(end, start)
-    const length = direction.length()
-    const arrowDirection = direction.clone().normalize()
-    
-    const arrowHelper = new THREE.ArrowHelper(
-      arrowDirection,
+    createMeasurementArrowUtil(
       start,
-      length,
-      0xff0000, // Red color
-      length * 0.1, // Head length (10% of total)
-      length * 0.05 // Head width (5% of total)
+      end,
+      scene,
+      camera,
+      container,
+      measurementLineRef,
+      measurementLabelRef,
+      measurementLabelDivRef,
+      measurementDotsRef,
+      measurementPointsRef,
+      previewArrowRef,
+      allMeasurementsRef
     )
-    
-    arrowHelper.name = 'measurement-arrow'
-    scene.add(arrowHelper)
-    console.log('[MEASUREMENT] Arrow added to scene')
-    
-    // Calculate distance in mm
-    const distance = start.distanceTo(end) * 1000 // Convert from meters to mm
-    console.log('[MEASUREMENT] Distance calculated:', distance, 'mm')
-    
-    // Create label at midpoint
-    createMeasurementLabel(start, end, distance)
-    
-    // Store this measurement in the all measurements array
-    const measurement = {
-      arrow: arrowHelper,
-      label: measurementLabelDivRef.current,
-      dots: [...measurementDotsRef.current], // Copy the dots array
-      start: start.clone(),
-      end: end.clone()
-    }
-    allMeasurementsRef.current.push(measurement)
-    
-    // Clear current measurement refs (but keep the visuals in allMeasurementsRef)
-    measurementLineRef.current = null
-    measurementLabelDivRef.current = null
-    measurementDotsRef.current = []
-    measurementPointsRef.current = []
   }
 
   // Create text label showing distance using HTML overlay
@@ -2156,82 +1978,7 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
     const container = containerRef.current
     if (!camera || !container) return
     
-    // Calculate midpoint
-    const midpoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5)
-    
-    // Format distance - show in mm, or m if > 1000mm
-    const distanceInMm = distance
-    let displayText: string
-    if (distanceInMm >= 1000) {
-      displayText = `${(distanceInMm / 1000).toFixed(2)} m`
-    } else {
-      displayText = `${distanceInMm.toFixed(0)} mm`
-    }
-    
-    // Remove existing label if any
-    if (measurementLabelDivRef.current) {
-      measurementLabelDivRef.current.remove()
-      measurementLabelDivRef.current = null
-    }
-    
-    // Create HTML div for label
-    const labelDiv = document.createElement('div')
-    labelDiv.textContent = displayText
-    labelDiv.style.position = 'absolute'
-    labelDiv.style.pointerEvents = 'none'
-    labelDiv.style.userSelect = 'none'
-    labelDiv.style.color = '#ffffff'
-    labelDiv.style.fontSize = '16px'
-    labelDiv.style.fontWeight = 'bold'
-    labelDiv.style.fontFamily = 'Arial, sans-serif'
-    labelDiv.style.background = 'rgba(0, 0, 0, 0.85)'
-    labelDiv.style.border = '2px solid #ff0000'
-    labelDiv.style.borderRadius = '8px'
-    labelDiv.style.padding = '6px 12px'
-    labelDiv.style.whiteSpace = 'nowrap'
-    labelDiv.style.zIndex = '1000'
-    labelDiv.style.transform = 'translate(-50%, -50%)' // Center on point
-    labelDiv.style.textAlign = 'center'
-    
-    container.appendChild(labelDiv)
-    measurementLabelDivRef.current = labelDiv
-    
-    // Store midpoint on the label div so update function can access it
-    const storedMidpoint = midpoint.clone()
-    ;(labelDiv as any).midpoint = storedMidpoint
-    
-    // Update position function
-    const updateLabelPosition = () => {
-      if (!labelDiv || !camera || !container) return
-      
-      // Get stored midpoint
-      const storedMidpoint = (labelDiv as any).midpoint as THREE.Vector3
-      if (!storedMidpoint) return
-      
-      // Project 3D point to screen coordinates
-      const vector = storedMidpoint.clone()
-      vector.project(camera)
-      
-      const x = (vector.x * 0.5 + 0.5) * container.clientWidth
-      const y = (-vector.y * 0.5 + 0.5) * container.clientHeight
-      
-      // Only show if point is in front of camera
-      if (vector.z < 1) {
-        labelDiv.style.left = `${x}px`
-        labelDiv.style.top = `${y}px`
-        labelDiv.style.display = 'block'
-      } else {
-        labelDiv.style.display = 'none'
-      }
-    }
-    
-    // Update position immediately
-    updateLabelPosition()
-    
-    // Store update function for animate loop
-    ;(labelDiv as any).updatePosition = updateLabelPosition
-    
-    console.log('[MEASUREMENT] HTML Label created:', displayText, 'at midpoint:', midpoint)
+    createMeasurementLabelUtil(start, end, distance, camera, container, measurementLabelDivRef)
   }
   
   // --- Clipping controls ---
