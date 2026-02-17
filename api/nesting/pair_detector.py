@@ -160,7 +160,8 @@ def find_complementary_pairs(
     parts: List[Part],
     angle_tolerance: float = 5.0,
     min_angle: float = 1.0,
-    kerf: float = 3.0
+    kerf: float = 3.0,
+    log_func=None
 ) -> List[ComplementaryPair]:
     """
     Find all complementary pairs in a list of parts.
@@ -170,11 +171,16 @@ def find_complementary_pairs(
         angle_tolerance: Maximum angle difference for complementary match
         min_angle: Minimum angle to consider as slope
         kerf: Kerf width for savings calculation
+        log_func: Optional logging function
     
     Returns:
         List of ComplementaryPair objects, sorted by match quality
     """
     pairs = []
+    
+    if log_func:
+        log_func(f"[PAIR_DETECTOR] Finding complementary pairs among {len(parts)} parts")
+        log_func(f"[PAIR_DETECTOR] Angle tolerance: {angle_tolerance}°, Min angle: {min_angle}°")
     
     for i, part1 in enumerate(parts):
         # Skip if part1 has no slopes
@@ -201,8 +207,12 @@ def find_complementary_pairs(
             
             # start-end: part1 start matches part2 end
             if part1.start_slope.has_slope and part2.end_slope.has_slope:
-                if check_slope_match(part1.start_slope.angle, part2.end_slope.angle, 
-                                    angle_tolerance, min_angle):
+                match_result = check_slope_match(part1.start_slope.angle, part2.end_slope.angle, 
+                                    angle_tolerance, min_angle)
+                if log_func:
+                    log_func(f"[PAIR_DETECTOR]   Checking part {part1.product_id} start ({part1.start_slope.angle:.2f}°) "
+                            f"vs part {part2.product_id} end ({part2.end_slope.angle:.2f}°): {match_result}")
+                if match_result:
                     quality = calculate_angle_match_quality(
                         part1.start_slope.angle, part2.end_slope.angle
                     )
@@ -211,8 +221,12 @@ def find_complementary_pairs(
             
             # end-start: part1 end matches part2 start
             if part1.end_slope.has_slope and part2.start_slope.has_slope:
-                if check_slope_match(part1.end_slope.angle, part2.start_slope.angle,
-                                    angle_tolerance, min_angle):
+                match_result = check_slope_match(part1.end_slope.angle, part2.start_slope.angle,
+                                    angle_tolerance, min_angle)
+                if log_func:
+                    log_func(f"[PAIR_DETECTOR]   Checking part {part1.product_id} end ({part1.end_slope.angle:.2f}°) "
+                            f"vs part {part2.product_id} start ({part2.start_slope.angle:.2f}°): {match_result}")
+                if match_result:
                     quality = calculate_angle_match_quality(
                         part1.end_slope.angle, part2.start_slope.angle
                     )
@@ -221,8 +235,12 @@ def find_complementary_pairs(
             
             # start-start: both start slopes match (one part flipped)
             if part1.start_slope.has_slope and part2.start_slope.has_slope:
-                if check_slope_match(part1.start_slope.angle, part2.start_slope.angle,
-                                    angle_tolerance, min_angle):
+                match_result = check_slope_match(part1.start_slope.angle, part2.start_slope.angle,
+                                    angle_tolerance, min_angle)
+                if log_func:
+                    log_func(f"[PAIR_DETECTOR]   Checking part {part1.product_id} start ({part1.start_slope.angle:.2f}°) "
+                            f"vs part {part2.product_id} start ({part2.start_slope.angle:.2f}°): {match_result}")
+                if match_result:
                     quality = calculate_angle_match_quality(
                         part1.start_slope.angle, part2.start_slope.angle
                     )
@@ -231,8 +249,12 @@ def find_complementary_pairs(
             
             # end-end: both end slopes match (one part flipped)
             if part1.end_slope.has_slope and part2.end_slope.has_slope:
-                if check_slope_match(part1.end_slope.angle, part2.end_slope.angle,
-                                    angle_tolerance, min_angle):
+                match_result = check_slope_match(part1.end_slope.angle, part2.end_slope.angle,
+                                    angle_tolerance, min_angle)
+                if log_func:
+                    log_func(f"[PAIR_DETECTOR]   Checking part {part1.product_id} end ({part1.end_slope.angle:.2f}°) "
+                            f"vs part {part2.product_id} end ({part2.end_slope.angle:.2f}°): {match_result}")
+                if match_result:
                     quality = calculate_angle_match_quality(
                         part1.end_slope.angle, part2.end_slope.angle
                     )
@@ -245,6 +267,10 @@ def find_complementary_pairs(
                 pairings.sort(key=lambda x: (x[1], x[2]), reverse=True)
                 best_pairing_type, best_quality, best_savings = pairings[0]
                 
+                if log_func:
+                    log_func(f"[PAIR_DETECTOR]   ✓ MATCHED: part {part1.product_id} + part {part2.product_id} "
+                            f"({best_pairing_type}, quality={best_quality:.3f}, savings={best_savings:.1f}mm)")
+                
                 pair = ComplementaryPair(
                     part1=part1,
                     part2=part2,
@@ -256,6 +282,9 @@ def find_complementary_pairs(
     
     # Sort pairs by match quality
     pairs.sort(key=lambda p: p.angle_match_quality, reverse=True)
+    
+    if log_func:
+        log_func(f"[PAIR_DETECTOR] Found {len(pairs)} complementary pairs total")
     
     return pairs
 

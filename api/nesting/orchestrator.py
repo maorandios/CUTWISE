@@ -115,8 +115,10 @@ class NestingOrchestrator:
             # Find pairs
             complementary_pairs = find_complementary_pairs(
                 sorted_parts,
-                self.angle_tolerance,
-                kerf=self.kerf
+                angle_tolerance=self.angle_tolerance,
+                min_angle=self.min_angle,
+                kerf=self.kerf,
+                log_func=self.log_func
             )
             self.log_func(f"[ORCHESTRATOR] Found {len(complementary_pairs)} complementary pair(s)")
             
