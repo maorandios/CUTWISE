@@ -20,7 +20,7 @@ LARGE_ANGLE_THRESHOLD = 15.0  # Minimum angle for dual-slope detection
 SIMILAR_ANGLE_TOLERANCE = 2.0  # Maximum difference for "similar" angles
 
 # Thresholds for complementary matching
-COMPLEMENTARY_ANGLE_TOLERANCE = 5.0  # Maximum angle difference for complementary match
+COMPLEMENTARY_ANGLE_TOLERANCE = 2.0  # Maximum angle difference for complementary match (reduced from 5.0)
 COMPLEMENTARY_MIN_ANGLE = 1.0  # Minimum angle to consider as slope
 
 

@@ -54,17 +54,22 @@ class ComplementaryChain:
 def check_slope_match(
     angle1: Optional[float],
     angle2: Optional[float],
-    angle_tolerance: float = 5.0,
+    angle_tolerance: float = 2.0,  # Reduced from 5.0 to prevent false matches
     min_angle: float = 1.0
 ) -> bool:
     """
     Check if two angles match (are complementary).
     
+    Two angles are complementary if:
+    1. Both are above minimum threshold
+    2. Their absolute difference is within tight tolerance
+    3. They use the same angle convention (ABSOLUTE vs DEVIATION)
+    
     Args:
         angle1: First angle in degrees
         angle2: Second angle in degrees
-        angle_tolerance: Maximum angle difference
-        min_angle: Minimum angle to consider as slope
+        angle_tolerance: Maximum angle difference (default: 2.0°)
+        min_angle: Minimum angle to consider as slope (default: 1.0°)
     
     Returns:
         True if angles match within tolerance
@@ -72,8 +77,26 @@ def check_slope_match(
     if angle1 is None or angle2 is None:
         return False
     
+    # Both must be significant slopes
+    if abs(angle1) < min_angle or abs(angle2) < min_angle:
+        return False
+    
+    # Calculate angle difference
     angle_diff = abs(abs(angle1) - abs(angle2))
-    return angle_diff < angle_tolerance and abs(angle1) > min_angle
+    
+    if angle_diff >= angle_tolerance:
+        return False
+    
+    # Check if both use same angle convention
+    # This prevents matching a 30° ABSOLUTE angle with a 30° DEVIATION angle
+    from .slope_detector import detect_angle_convention
+    conv1, _ = detect_angle_convention(angle1)
+    conv2, _ = detect_angle_convention(angle2)
+    
+    if conv1 != conv2:
+        return False
+    
+    return True
 
 
 def calculate_angle_match_quality(angle1: float, angle2: float) -> float:
