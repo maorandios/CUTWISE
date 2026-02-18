@@ -2155,7 +2155,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                               
                                               // Check if left boundary is a shared sloped cut
                                               // This includes: complementary pairs OR identical parts with matching slopes
-                                              if (startType === 'miter' && leftEndType === 'miter') {
+                                              if (startType === 'miter' && leftEndType === 'miter' && startDev !== null && leftDev !== null) {
                                                 const devDiff = Math.abs(startDev - leftDev)
                                                 const isLeftCompPair = (leftPartData as any)?.slope_info?.complementary_pair === true
                                                 const isSamePart = leftPartName === partName
@@ -2181,7 +2181,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                               
                                               // Check if right boundary is a shared sloped cut
                                               // This includes: complementary pairs OR identical parts with matching slopes
-                                              if (endType === 'miter' && rightStartType === 'miter') {
+                                              if (endType === 'miter' && rightStartType === 'miter' && endDev !== null && rightDev !== null) {
                                                 const devDiff = Math.abs(endDev - rightDev)
                                                 const isRightCompPair = (rightPartData as any)?.slope_info?.complementary_pair === true
                                                 const isSamePart = rightPartName === partName

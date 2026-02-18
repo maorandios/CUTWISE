@@ -96,7 +96,7 @@ export interface NestingReport {
     total_parts: number
     total_stock_bars: number
     total_waste: number  // in mm
-    average_waste_percentage: number
+    avg_waste_percentage: number  // Fixed to match backend response
   }
   settings: {
     stock_lengths: number[]  // in mm
