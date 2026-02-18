@@ -29,9 +29,25 @@ def build_pattern_dict(pattern: CuttingPattern) -> Dict[str, Any]:
     Returns:
         Dictionary suitable for JSON serialization
     """
+    # Build parts list with nested structure to match frontend expectations
+    parts_list = []
+    for part in pattern.parts:
+        parts_list.append({
+            "part": part.to_dict(),  # Nested part object
+            "length": part.length,
+            "slope_info": {
+                "start_angle": part.start_slope.angle,
+                "end_angle": part.end_slope.angle,
+                "start_has_slope": bool(part.start_slope.has_slope),  # Convert to native Python bool
+                "end_has_slope": bool(part.end_slope.has_slope),  # Convert to native Python bool
+                "has_slope": bool(part.has_any_slope),  # Convert to native Python bool
+                "complementary_pair": bool(part.complementary_pair)  # Convert to native Python bool
+            }
+        })
+    
     return {
         "stock_length": pattern.stock_length,
-        "parts": [part.to_dict() for part in pattern.parts],
+        "parts": parts_list,  # Nested structure
         "waste": pattern.waste,
         "waste_percentage": pattern.waste_percentage,
         "cut_positions": pattern.cut_positions,

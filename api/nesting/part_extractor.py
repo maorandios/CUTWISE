@@ -67,6 +67,17 @@ def extract_part_from_ifc_element(
         reference = extract_reference(element)
         assembly_mark, assembly_id = extract_assembly_info(element)
         
+        # Extract element name separately (from Name attribute)
+        # This matches the old API behavior where reference and element_name were separate
+        element_name = getattr(element, 'Name', None)
+        if element_name:
+            element_name = str(element_name).strip()
+        else:
+            element_name = ''
+        
+        # Log extraction for debugging
+        log_func(f"[PART_EXTRACTOR] Element {product_id}: reference='{reference}', element_name='{element_name}', type={element_type}")
+        
         # Create Part object
         part = Part(
             product_id=product_id,
@@ -75,12 +86,13 @@ def extract_part_from_ifc_element(
             start_slope=start_slope,
             end_slope=end_slope,
             element_type=element_type,
-            reference=reference or f"{element_type}_{product_id}",
+            reference=reference or '',  # Keep empty if not found (don't use fallback)
             assembly_mark=assembly_mark or "N/A",
             assembly_id=assembly_id,
             original_data={
                 "ifc_id": product_id,
-                "ifc_type": element_type
+                "ifc_type": element_type,
+                "element_name": element_name  # Store for frontend compatibility
             }
         )
         
@@ -272,9 +284,9 @@ def estimate_length_from_weight(element: Any, log_func: callable) -> float:
 
 def extract_reference(element: Any) -> Optional[str]:
     """
-    Extract reference/name from IFC element.
+    Extract reference from IFC element.
     
-    Checks: Reference property, Tag attribute, Name attribute
+    Checks ONLY: Reference property, Tag attribute (NOT Name - that's element_name)
     
     Args:
         element: IFC element
@@ -301,12 +313,7 @@ def extract_reference(element: Any) -> Optional[str]:
         if tag and tag.upper() not in ['NONE', 'NULL', 'N/A', '']:
             return tag
     
-    # Try Name attribute
-    if hasattr(element, 'Name') and element.Name:
-        name = str(element.Name).strip()
-        if name and name.upper() not in ['NONE', 'NULL', 'N/A', '']:
-            return name
-    
+    # Don't fall back to Name - that's handled separately as element_name
     return None
 
 

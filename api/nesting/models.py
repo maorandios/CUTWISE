@@ -166,6 +166,9 @@ class Part:
         # Convert original_data values to JSON-serializable types
         serializable_original_data = {}
         for key, value in self.original_data.items():
+            # Skip element_name - we'll add it explicitly below
+            if key == "element_name":
+                continue
             # Convert numpy booleans and other special types to native Python types
             if hasattr(value, 'item'):  # numpy types have .item() method
                 serializable_original_data[key] = value.item()
@@ -183,6 +186,7 @@ class Part:
             "profile_name": self.profile_name,
             "element_type": self.element_type,
             "reference": self.reference,
+            "element_name": self.original_data.get("element_name", ""),  # For frontend compatibility
             "assembly_mark": self.assembly_mark,
             "assembly_id": self.assembly_id,
             "start_has_slope": bool(self.start_slope.has_slope),
@@ -265,9 +269,26 @@ class CuttingPattern:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
+        # Match the old API structure where parts are wrapped with "part" key
+        # This maintains compatibility with the frontend
+        parts_list = []
+        for part in self.parts:
+            parts_list.append({
+                "part": part.to_dict(),  # Nested part object for frontend compatibility
+                "length": part.length,
+                "slope_info": {
+                    "start_angle": part.start_slope.angle,
+                    "end_angle": part.end_slope.angle,
+                    "start_has_slope": part.start_slope.has_slope,
+                    "end_has_slope": part.end_slope.has_slope,
+                    "has_slope": part.has_any_slope,
+                    "complementary_pair": part.complementary_pair
+                }
+            })
+        
         return {
             "stock_length": self.stock_length,
-            "parts": [part.to_dict() for part in self.parts],
+            "parts": parts_list,
             "waste": self.waste,
             "waste_percentage": self.waste_percentage,
             "cut_positions": self.cut_positions,

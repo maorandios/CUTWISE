@@ -67,11 +67,14 @@ def find_best_stock_for_parts(
     shared_cut_savings: float = 0.0
 ) -> Optional[float]:
     """
-    Find the smallest stock length that fits the given parts.
+    Find the best stock length that fits the given parts.
+    
+    STRATEGY: Prefer longer stocks first (12m before 6m) to maximize utilization.
+    This matches the original algorithm behavior before refactoring.
     
     Args:
         parts: List of Part objects
-        stock_lengths: Available stock lengths in mm (sorted ascending)
+        stock_lengths: Available stock lengths in mm
         kerf: Kerf width in mm
         shared_cut_savings: Length saved by shared cuts in mm
     
@@ -80,8 +83,9 @@ def find_best_stock_for_parts(
     """
     required_length = calculate_combined_length_with_kerf(parts, kerf, shared_cut_savings)
     
-    # Find smallest stock that fits
-    for stock_length in sorted(stock_lengths):
+    # CHANGED: Check longer stocks first (12m before 6m)
+    # This prefers filling longer bars first to minimize number of bars and cuts
+    for stock_length in sorted(stock_lengths, reverse=True):
         if required_length <= stock_length:
             return stock_length
     

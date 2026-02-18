@@ -1965,6 +1965,42 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str, ker
                    f"{result['summary']['total_waste']:.0f}mm waste "
                    f"({result['summary']['avg_waste_percentage']:.1f}%)")
         
+        # Debug: Save first pattern to file for inspection
+        try:
+            import json
+            if result.get('profiles') and len(result['profiles']) > 0:
+                profile = result['profiles'][0]
+                if profile.get('patterns') and len(profile['patterns']) > 0:
+                    pattern = profile['patterns'][0]
+                    print(f"\n=== DEBUG: First pattern has {len(pattern.get('parts', []))} parts ===")
+                    if pattern.get('parts') and len(pattern['parts']) > 0:
+                        first_part = pattern['parts'][0]
+                        print(f"First part keys: {list(first_part.keys())}")
+                        if 'part' in first_part:
+                            part_data = first_part['part']
+                            print(f"Part data keys: {list(part_data.keys())}")
+                            print(f"Part reference: '{part_data.get('reference')}'")
+                            print(f"Part element_name: '{part_data.get('element_name')}'")
+                            print(f"Part start_angle: {part_data.get('start_angle')}")
+                            print(f"Part end_angle: {part_data.get('end_angle')}")
+                            print(f"Part start_has_slope: {part_data.get('start_has_slope')}")
+                            print(f"Part end_has_slope: {part_data.get('end_has_slope')}")
+                        
+                        # Save first 3 parts to debug file
+                        debug_data = {
+                            'first_3_parts': pattern['parts'][:3],
+                            'pattern_info': {
+                                'stock_length': pattern.get('stock_length'),
+                                'waste': pattern.get('waste'),
+                                'total_parts': len(pattern.get('parts', []))
+                            }
+                        }
+                        with open('C:\\CUTWISE\\debug_nesting_response.json', 'w') as f:
+                            json.dump(debug_data, f, indent=2)
+                        print(f"Debug data saved to C:\\CUTWISE\\debug_nesting_response.json")
+        except Exception as e:
+            print(f"Debug logging error: {e}")
+        
         return JSONResponse(result)
         
     except HTTPException:
