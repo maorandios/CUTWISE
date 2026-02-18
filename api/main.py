@@ -4595,6 +4595,37 @@ async def health():
     return {"status": "ok"}
 
 
+# Serve static frontend files (for Railway deployment)
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
+
+# Get the path to the frontend build directory
+frontend_build_path = Path(__file__).parent.parent / "web" / "dist"
+
+# Only mount static files if the build directory exists
+if frontend_build_path.exists():
+    app.mount("/assets", StaticFiles(directory=str(frontend_build_path / "assets")), name="assets")
+    
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        """Serve frontend files for all non-API routes."""
+        # Don't serve frontend for API routes
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        
+        # Try to serve the requested file
+        file_path = frontend_build_path / full_path
+        if file_path.is_file():
+            return FileResponse(file_path)
+        
+        # Otherwise serve index.html (for client-side routing)
+        index_path = frontend_build_path / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+        
+        raise HTTPException(status_code=404, detail="Frontend not built")
+
+
 
 
 
