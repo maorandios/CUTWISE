@@ -1,10 +1,9 @@
 [phases.setup]
-nixPkgs = ["python311", "python311Packages.pip", "python311Packages.virtualenv", "nodejs-18_x"]
+nixPkgs = ["python311", "python311Packages.pip", "nodejs-18_x"]
 
 [phases.install]
 cmds = [
-  "python -m venv /opt/venv",
-  "/opt/venv/bin/pip install --no-cache-dir -r api/requirements.txt",
+  "pip install --break-system-packages --no-cache-dir -r api/requirements.txt",
   "cd web && npm install"
 ]
 
@@ -14,5 +13,5 @@ cmds = [
 ]
 
 [start]
-cmd = "bash -c 'source /opt/venv/bin/activate && cd /app && python api/run.py'"
+cmd = "cd api && python run.py"
 
