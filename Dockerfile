@@ -29,5 +29,5 @@ RUN cd web && npm install && npm run build
 EXPOSE 8000
 
 # Start command
-CMD cd api && python run.py
+CMD ["sh", "-c", "cd api && python run.py"]
 
