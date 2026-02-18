@@ -189,8 +189,12 @@ class NestingOrchestrator:
             patterns = optimize_patterns_by_consolidation(patterns, self.kerf)
             self.log_func(f"[ORCHESTRATOR] Optimized to {len(patterns)} patterns")
         
+        # Optimize part order within patterns (straight cuts at ends, sloped in middle)
+        from .bin_packer import optimize_stock_selection, optimize_part_order_in_patterns
+        patterns = optimize_part_order_in_patterns(patterns, self.kerf)
+        self.log_func(f"[ORCHESTRATOR] Part order optimization complete")
+        
         # Optimize stock selection (downgrade to smaller stocks when possible)
-        from .bin_packer import optimize_stock_selection
         usable_stock_lengths = [length - self.trim for length in self.original_stock_lengths]
         patterns = optimize_stock_selection(patterns, usable_stock_lengths, self.kerf)
         self.log_func(f"[ORCHESTRATOR] Stock optimization complete")

@@ -18,6 +18,14 @@ def calculate_combined_length_with_kerf(
     """
     Calculate total length needed for a list of parts including kerf.
     
+    Physical reality:
+    - We need a cut BEFORE the first part (to separate from stock)
+    - We need cuts BETWEEN each part
+    - We need a cut AFTER the last part (to separate from waste)
+    
+    For N parts, we need N cuts total (one after each part).
+    The cut before the first part is handled by the trim parameter.
+    
     Args:
         parts: List of Part objects
         kerf: Kerf width (cutting blade width) in mm
@@ -29,9 +37,10 @@ def calculate_combined_length_with_kerf(
     if not parts:
         return 0.0
     
-    # Total length = sum of part lengths + kerf between each part - shared savings
+    # Total length = sum of part lengths + kerf for each part (including last one)
     total_length = sum(p.length for p in parts)
-    kerf_length = kerf * (len(parts) - 1)  # Kerf between parts, not at ends
+    # N parts need N cuts (one after each part, including the last one before waste)
+    kerf_length = kerf * len(parts)
     
     return total_length + kerf_length - shared_cut_savings
 
@@ -140,6 +149,93 @@ def optimize_stock_selection(
             pattern.stock_length = best_stock
             pattern.waste = best_stock - required_length
             pattern.waste_percentage = (pattern.waste / best_stock) * 100.0
+        
+        optimized_patterns.append(pattern)
+    
+    return optimized_patterns
+
+
+def optimize_part_order_in_patterns(
+    patterns: List[CuttingPattern],
+    kerf: float = 3.0
+) -> List[CuttingPattern]:
+    """
+    Optimize the order of parts within each pattern to minimize waste.
+    
+    Strategy:
+    1. Place straight-cut parts at the START and END of the bar (minimize waste)
+    2. Place sloped-cut parts in the MIDDLE (where they can share cuts)
+    
+    This reduces waste at the bar ends where we can't share cuts.
+    
+    Args:
+        patterns: List of CuttingPattern objects
+        kerf: Kerf width in mm
+    
+    Returns:
+        Patterns with optimized part order
+    """
+    optimized_patterns = []
+    
+    for pattern in patterns:
+        if len(pattern.parts) <= 1:
+            # No need to reorder single part
+            optimized_patterns.append(pattern)
+            continue
+        
+        # Categorize parts by cut type
+        straight_both = []
+        straight_start = []
+        straight_end = []
+        sloped_both = []
+        
+        for part in pattern.parts:
+            if not part.start_slope.has_slope and not part.end_slope.has_slope:
+                straight_both.append(part)
+            elif not part.start_slope.has_slope and part.end_slope.has_slope:
+                straight_start.append(part)
+            elif part.start_slope.has_slope and not part.end_slope.has_slope:
+                straight_end.append(part)
+            else:
+                sloped_both.append(part)
+        
+        # Sort each category by length (longest first) for easier reading and cutting
+        straight_both.sort(key=lambda p: p.length, reverse=True)
+        straight_start.sort(key=lambda p: p.length, reverse=True)
+        straight_end.sort(key=lambda p: p.length, reverse=True)
+        sloped_both.sort(key=lambda p: p.length, reverse=True)
+        
+        # Optimal ordering strategy:
+        # 1. Start with straight-end parts (straight cut at bar start)
+        # 2. Then sloped-both parts (in the middle)
+        # 3. Then straight-start parts (straight cut at bar end)
+        # 4. Finally straight-both parts (can go anywhere, prefer ends)
+        # Within each group: longest to shortest for convenience
+        
+        reordered_parts = []
+        
+        # Start: Prefer straight-end (straight cut at beginning)
+        if straight_end:
+            reordered_parts.extend(straight_end)
+        elif straight_both:
+            reordered_parts.append(straight_both.pop(0))
+        
+        # Middle: Place sloped-both parts (longest first)
+        reordered_parts.extend(sloped_both)
+        
+        # Add remaining straight-start parts (longest first)
+        reordered_parts.extend(straight_start)
+        
+        # End: Add remaining straight-both parts (longest first)
+        reordered_parts.extend(straight_both)
+        
+        # Update pattern with reordered parts
+        pattern.parts = reordered_parts
+        
+        # Recalculate waste (order doesn't change length, but good practice)
+        used_length = calculate_combined_length_with_kerf(pattern.parts, kerf)
+        pattern.waste = pattern.stock_length - used_length
+        pattern.waste_percentage = (pattern.waste / pattern.stock_length) * 100.0
         
         optimized_patterns.append(pattern)
     
