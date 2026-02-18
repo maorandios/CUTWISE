@@ -28,6 +28,9 @@ RUN cd web && npm install && npm run build
 # Expose port (Railway will set PORT env var)
 EXPOSE 8000
 
+# Set working directory to api folder
+WORKDIR /app/api
+
 # Start command
-CMD ["sh", "-c", "cd api && python run.py"]
+CMD ["python", "run.py"]
 
