@@ -1198,9 +1198,20 @@ def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
         settings.set(settings.WELD_VERTICES, False)  # Faster - skip welding
         settings.set(settings.DISABLE_OPENING_SUBTRACTIONS, True)  # Much faster - skip holes/cuts
         settings.set(settings.APPLY_DEFAULT_MATERIALS, False)  # Faster - skip materials
-        # SPEED OPTIMIZATION: Lower mesh detail for faster conversion
-        settings.set(settings.DEFLECTION_TOLERANCE, 0.05)  # Higher = fewer triangles (default: 0.001)
-        settings.set(settings.ANGULAR_TOLERANCE, 0.5)      # Higher = fewer triangles (default: 0.5)
+        
+        # SPEED OPTIMIZATION: Lower mesh detail for faster conversion (if available)
+        try:
+            settings.set(settings.DEFLECTION_TOLERANCE, 0.05)  # Higher = fewer triangles (default: 0.001)
+            print("[GLTF] Using DEFLECTION_TOLERANCE=0.05 for faster conversion")
+        except AttributeError:
+            print("[GLTF] DEFLECTION_TOLERANCE not available in this ifcopenshell version")
+        
+        try:
+            settings.set(settings.ANGULAR_TOLERANCE, 0.5)      # Higher = fewer triangles (default: 0.5)
+            print("[GLTF] Using ANGULAR_TOLERANCE=0.5 for faster conversion")
+        except AttributeError:
+            print("[GLTF] ANGULAR_TOLERANCE not available in this ifcopenshell version")
+        
         # Note: USE_BREP_DATA and SEW_SHELLS not available in all IfcOpenShell versions
         
         print(f"[GLTF] Using ITERATOR mode with ULTRA-FAST settings (C++ optimized)")
