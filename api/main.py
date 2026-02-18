@@ -1197,7 +1197,7 @@ def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
         settings.set(settings.USE_WORLD_COORDS, True)  # Use world coordinates
         settings.set(settings.WELD_VERTICES, False)  # Faster - skip welding
         settings.set(settings.DISABLE_OPENING_SUBTRACTIONS, True)  # Much faster - skip holes/cuts
-        settings.set(settings.APPLY_DEFAULT_MATERIALS, True)  # Enable materials for color extraction
+        settings.set(settings.APPLY_DEFAULT_MATERIALS, False)  # Faster - materials still available in geometry
         
         # SPEED OPTIMIZATION: Lower mesh detail for faster conversion (if available)
         try:
@@ -1382,12 +1382,11 @@ def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
                                     pass
                             
                             if rgb_values and len(rgb_values) >= 3:
-                                # Convert from 0-1 range to 0-255 range with brightness boost
-                                brightness_multiplier = 1.3  # Make colors 30% brighter
+                                # Convert from 0-1 range to 0-255 range (no brightness boost)
                                 color = [
-                                    min(255, int(rgb_values[0] * 255 * brightness_multiplier)),
-                                    min(255, int(rgb_values[1] * 255 * brightness_multiplier)),
-                                    min(255, int(rgb_values[2] * 255 * brightness_multiplier)),
+                                    int(rgb_values[0] * 255),
+                                    int(rgb_values[1] * 255),
+                                    int(rgb_values[2] * 255),
                                     255  # Alpha
                                 ]
                                 color_source = "geometry.materials"
