@@ -1216,38 +1216,22 @@ def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
         
         print(f"[GLTF] Using ITERATOR mode with ULTRA-FAST settings (C++ optimized)")
         
-        # Skip non-geometric types (fasteners handled separately via instancing)
+        # Skip non-geometric types AND fasteners for speed
         skip_types = {
             "IfcGrid", "IfcGridAxis", "IfcAnnotation", "IfcOpeningElement",
             "IfcSpace", "IfcSite", "IfcBuilding", "IfcBuildingStorey",
-            "IfcProxy", "IfcDistributionElement"
-            # Fasteners will be processed separately for instancing
+            "IfcProxy", "IfcDistributionElement",
+            # Skip fasteners for optimal performance (too numerous, add 40+ seconds)
+            "IfcFastener", "IfcMechanicalFastener", "IfcDiscreteAccessory"
         }
         
-        # Fastener types to handle with instancing
-        fastener_types = {"IfcFastener", "IfcMechanicalFastener", "IfcDiscreteAccessory"}
-        
-        # Pre-filter products - separate fasteners for simplified geometry
+        # Pre-filter products
         filter_start = time.time()
         all_products = ifc_file.by_type("IfcProduct")
+        product_ids_to_include = {p.id() for p in all_products if p.is_a() not in skip_types}
         
-        # Separate fasteners from regular products
-        fastener_products = []
-        regular_products = []
-        
-        for p in all_products:
-            p_type = p.is_a()
-            if p_type in skip_types:
-                continue  # Skip non-geometric
-            elif p_type in fastener_types:
-                fastener_products.append(p)  # Handle separately
-            else:
-                regular_products.append(p)  # Normal processing
-        
-        product_ids_to_include = {p.id() for p in regular_products}
-        
-        print(f"[GLTF] Filtered {len(all_products)} -> {len(product_ids_to_include)} regular products + {len(fastener_products)} fasteners")
-        print(f"[GLTF] Skipped {len(all_products) - len(product_ids_to_include) - len(fastener_products)} non-geometric products")
+        print(f"[GLTF] Filtered {len(all_products)} -> {len(product_ids_to_include)} products")
+        print(f"[GLTF] Skipped {len(all_products) - len(product_ids_to_include)} products (fasteners, annotations, etc)")
         print(f"[GLTF-TIMING] Filtering took {time.time() - filter_start:.2f}s")
         
         # ITERATOR MODE: Process all geometry in one go (C++ optimized)
@@ -1374,62 +1358,6 @@ def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
         
         print(f"[GLTF-TIMING] Iterator geometry extraction took {time.time() - geom_start:.2f}s")
         print(f"[GLTF] Extracted {len(meshes)} meshes ({skipped} skipped)")
-        
-        # Add simplified fastener geometry (cylinders for bolts, boxes for nuts/washers)
-        if fastener_products:
-            fastener_start = time.time()
-            print(f"[GLTF] Adding {len(fastener_products)} fasteners as simplified geometry...")
-            
-            for fastener in fastener_products:
-                try:
-                    # Get fastener position from ObjectPlacement
-                    placement = fastener.ObjectPlacement
-                    if not placement or not hasattr(placement, 'RelativePlacement'):
-                        continue
-                    
-                    rel_placement = placement.RelativePlacement
-                    if not hasattr(rel_placement, 'Location'):
-                        continue
-                    
-                    location = rel_placement.Location
-                    if not hasattr(location, 'Coordinates'):
-                        continue
-                    
-                    coords = location.Coordinates
-                    if len(coords) < 3:
-                        continue
-                    
-                    # Create simple cylinder for fastener (very low poly)
-                    # Typical bolt: 12-16mm diameter, 50-100mm length
-                    cylinder = trimesh.creation.cylinder(
-                        radius=0.008,  # 8mm radius (16mm diameter)
-                        height=0.05,   # 50mm length
-                        sections=6     # Only 6 sides (very low poly for speed)
-                    )
-                    
-                    # Position the cylinder
-                    cylinder.apply_translation([coords[0], coords[1], coords[2]])
-                    
-                    # Set fastener color (dark brown-gold)
-                    fastener_type = fastener.is_a()
-                    if "Discrete" in fastener_type or "washer" in getattr(fastener, 'Name', '').lower():
-                        color = [120, 90, 15, 255]  # Darker gold for nuts/washers
-                    else:
-                        color = [139, 105, 20, 255]  # Dark brown-gold for bolts
-                    
-                    cylinder.visual.vertex_colors = color
-                    
-                    # Add to meshes
-                    meshes.append(cylinder)
-                    product_ids.append(fastener.id())
-                    assembly_marks.append(getattr(fastener, 'Tag', None) or getattr(fastener, 'Name', None) or fastener.id())
-                    
-                except Exception as e:
-                    # Skip fasteners that fail
-                    continue
-            
-            print(f"[GLTF-TIMING] Fastener generation took {time.time() - fastener_start:.2f}s")
-            print(f"[GLTF] Total meshes with fasteners: {len(meshes)}")
         
         if not meshes:
             raise Exception("No valid geometry found in IFC file")
