@@ -109,6 +109,14 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
   const clippingHelperRef = useRef<THREE.Group | null>(null)
   const modelBoundsRef = useRef<{ min: THREE.Vector3; max: THREE.Vector3; size: THREE.Vector3; center: THREE.Vector3 } | null>(null)
   
+  // Layer visibility state
+  const [platesVisible, setPlatesVisible] = useState<boolean>(false)
+  const [boltsVisible, setBoltsVisible] = useState<boolean>(false)
+  const [platesLoading, setPlatesLoading] = useState<boolean>(false)
+  const [boltsLoading, setBoltsLoading] = useState<boolean>(false)
+  const platesModelRef = useRef<THREE.Group | null>(null)
+  const boltsModelRef = useRef<THREE.Group | null>(null)
+  
   // Markup (using custom hook)
   const {
     markupMode,
@@ -1386,6 +1394,101 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
     console.log('[handleShowAll] Cleared all state maps and selection')
   }
 
+  // Layer toggle handlers
+  const handleTogglePlates = async () => {
+    if (platesLoading) return
+    
+    if (platesVisible) {
+      // Hide plates
+      console.log('[LAYERS] Hiding plates layer')
+      if (platesModelRef.current && sceneRef.current) {
+        sceneRef.current.remove(platesModelRef.current)
+        platesModelRef.current = null
+      }
+      setPlatesVisible(false)
+    } else {
+      // Load and show plates
+      console.log('[LAYERS] Loading plates layer')
+      setPlatesLoading(true)
+      try {
+        const { getBackendUrl } = await import('../utils/api')
+        const response = await fetch(`${getBackendUrl()}/api/gltf-layer/${filename}?layer=plates`, {
+          method: 'POST'
+        })
+        const data = await response.json()
+        console.log('[LAYERS] Plates layer response:', data)
+        
+        // Load the plates GLTF
+        const platesGltfPath = `/api/gltf/${data.filename}`
+        console.log('[LAYERS] Loading plates GLTF from:', platesGltfPath)
+        
+        const result = await loadGLTFModel({
+          filename: data.filename,
+          gltfPath: platesGltfPath,
+          gltfAvailable: true
+        })
+        
+        if (result && result.scene && sceneRef.current) {
+          platesModelRef.current = result.scene
+          sceneRef.current.add(result.scene)
+          setPlatesVisible(true)
+          console.log('[LAYERS] Plates layer loaded and added to scene')
+        }
+      } catch (error) {
+        console.error('[LAYERS] Error loading plates layer:', error)
+      } finally {
+        setPlatesLoading(false)
+      }
+    }
+  }
+  
+  const handleToggleBolts = async () => {
+    if (boltsLoading) return
+    
+    if (boltsVisible) {
+      // Hide bolts
+      console.log('[LAYERS] Hiding bolts layer')
+      if (boltsModelRef.current && sceneRef.current) {
+        sceneRef.current.remove(boltsModelRef.current)
+        boltsModelRef.current = null
+      }
+      setBoltsVisible(false)
+    } else {
+      // Load and show bolts
+      console.log('[LAYERS] Loading bolts layer')
+      setBoltsLoading(true)
+      try {
+        const { getBackendUrl } = await import('../utils/api')
+        const response = await fetch(`${getBackendUrl()}/api/gltf-layer/${filename}?layer=bolts`, {
+          method: 'POST'
+        })
+        const data = await response.json()
+        console.log('[LAYERS] Bolts layer response:', data)
+        
+        // Load the bolts GLTF
+        const boltsGltfPath = `/api/gltf/${data.filename}`
+        console.log('[LAYERS] Loading bolts GLTF from:', boltsGltfPath)
+        
+        const result = await loadGLTFModel({
+          filename: data.filename,
+          gltfPath: boltsGltfPath,
+          gltfAvailable: true
+        })
+        
+        if (result && result.scene && sceneRef.current) {
+          boltsModelRef.current = result.scene
+          sceneRef.current.add(result.scene)
+          setBoltsVisible(true)
+          console.log('[LAYERS] Bolts layer loaded and added to scene')
+        }
+      } catch (error) {
+        console.error('[LAYERS] Error loading bolts layer:', error)
+      } finally {
+        setBoltsLoading(false)
+      }
+    }
+  }
+
   // Clear all measurements from the view
   const clearAllMeasurements = () => {
     const scene = sceneRef.current
@@ -1847,6 +1950,12 @@ export default function IFCViewer({ filename, gltfPath, gltfAvailable = false, e
                   console.log('[BUTTON] Show All clicked')
                   handleShowAll()
                 }}
+          platesVisible={platesVisible}
+          boltsVisible={boltsVisible}
+          onTogglePlates={handleTogglePlates}
+          onToggleBolts={handleToggleBolts}
+          platesLoading={platesLoading}
+          boltsLoading={boltsLoading}
         />
       </div>
     </div>

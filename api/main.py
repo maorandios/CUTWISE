@@ -959,9 +959,10 @@ async def upload_ifc(file: UploadFile = File(...)):
             # Try conversion, but don't block upload if it fails
             try:
                 gltf_start = time.time()
-                print(f"[UPLOAD] Starting glTF conversion for {safe_filename}...")
-                convert_ifc_to_gltf(file_path, gltf_path)
-                print(f"[UPLOAD-TIMING] glTF conversion took {time.time() - gltf_start:.2f}s")
+                print(f"[UPLOAD] Starting glTF conversion for {safe_filename} (STRUCTURE layer only)...")
+                # Generate structure layer only (fastest - beams, columns, members)
+                convert_ifc_to_gltf(file_path, gltf_path, layer="structure")
+                print(f"[UPLOAD-TIMING] glTF conversion (structure) took {time.time() - gltf_start:.2f}s")
                 gltf_available = gltf_path.exists()
                 if gltf_available:
                     print(f"[UPLOAD] glTF conversion completed: {gltf_path}")
@@ -1176,8 +1177,15 @@ async def export_report(filename: str, report_type: str):
     )
 
 
-def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
-    """Convert IFC file to glTF format using IfcOpenShell ITERATOR mode - ULTRA FAST."""
+def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path, layer: str = "structure") -> bool:
+    """
+    Convert IFC file to glTF format using IfcOpenShell ITERATOR mode - ULTRA FAST.
+    
+    Args:
+        ifc_path: Path to IFC file
+        gltf_path: Path to output GLTF file
+        layer: Which layer to convert - "structure" (default), "plates", or "bolts"
+    """
     try:
         import ifcopenshell.geom
         import trimesh
@@ -1216,22 +1224,54 @@ def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
         
         print(f"[GLTF] Using ITERATOR mode with ULTRA-FAST settings (C++ optimized)")
         
-        # Skip non-geometric types AND fasteners for speed
-        skip_types = {
+        # Define layer types
+        structure_types = {"IfcBeam", "IfcColumn", "IfcMember"}
+        plate_types = {"IfcPlate"}  # ONLY plates, not slabs
+        bolt_types = {"IfcFastener", "IfcMechanicalFastener", "IfcDiscreteAccessory"}
+        
+        # Always skip non-geometric types
+        always_skip = {
             "IfcGrid", "IfcGridAxis", "IfcAnnotation", "IfcOpeningElement",
             "IfcSpace", "IfcSite", "IfcBuilding", "IfcBuildingStorey",
-            "IfcProxy", "IfcDistributionElement",
-            # Skip fasteners for optimal performance (too numerous, add 40+ seconds)
-            "IfcFastener", "IfcMechanicalFastener", "IfcDiscreteAccessory"
+            "IfcProxy", "IfcDistributionElement"
         }
         
-        # Pre-filter products
+        # Determine what to include based on layer
+        if layer == "structure":
+            # Structure + everything else EXCEPT plates and bolts
+            # This includes: Beams, Columns, Members, Slabs, Walls, etc.
+            skip_types = always_skip | plate_types | bolt_types
+            include_types = None  # Include everything not in skip_types
+            print(f"[GLTF] Layer: STRUCTURE (All elements except Plates and Bolts)")
+        elif layer == "plates":
+            # Only plates (IfcPlate)
+            include_types = plate_types
+            skip_types = always_skip
+            print(f"[GLTF] Layer: PLATES (IfcPlate only)")
+        elif layer == "bolts":
+            # Only fasteners
+            include_types = bolt_types
+            skip_types = always_skip
+            print(f"[GLTF] Layer: BOLTS (Fasteners only)")
+        else:
+            # Default to structure
+            skip_types = always_skip | plate_types | bolt_types
+            include_types = None
+            print(f"[GLTF] Layer: STRUCTURE (default)")
+        
+        # Pre-filter products based on layer
         filter_start = time.time()
         all_products = ifc_file.by_type("IfcProduct")
-        product_ids_to_include = {p.id() for p in all_products if p.is_a() not in skip_types}
         
-        print(f"[GLTF] Filtered {len(all_products)} -> {len(product_ids_to_include)} products")
-        print(f"[GLTF] Skipped {len(all_products) - len(product_ids_to_include)} products (fasteners, annotations, etc)")
+        if include_types is None:
+            # Include everything EXCEPT skip_types
+            product_ids_to_include = {p.id() for p in all_products if p.is_a() not in skip_types}
+        else:
+            # Include only specific types
+            product_ids_to_include = {p.id() for p in all_products if p.is_a() in include_types}
+        
+        print(f"[GLTF] Filtered {len(all_products)} -> {len(product_ids_to_include)} products for layer '{layer}'")
+        print(f"[GLTF] Skipped {len(all_products) - len(product_ids_to_include)} products")
         print(f"[GLTF-TIMING] Filtering took {time.time() - filter_start:.2f}s")
         
         # ITERATOR MODE: Process all geometry in one go (C++ optimized)
@@ -1452,6 +1492,71 @@ async def get_gltf_file(filename: str):
         media_type=media_type,
         filename=filename
     )
+
+
+@app.post("/api/gltf-layer/{filename}")
+async def generate_gltf_layer(filename: str, layer: str = "plates"):
+    """
+    Generate additional GLTF layer (plates or bolts) for an existing IFC file.
+    
+    Args:
+        filename: IFC filename (without extension)
+        layer: "plates" or "bolts"
+    """
+    from urllib.parse import unquote
+    import time
+    
+    decoded_filename = unquote(filename)
+    
+    # Validate layer
+    if layer not in ["plates", "bolts"]:
+        raise HTTPException(status_code=400, detail="Layer must be 'plates' or 'bolts'")
+    
+    # Handle filename with or without .ifc extension
+    if decoded_filename.endswith('.ifc'):
+        ifc_filename = decoded_filename
+        base_filename = decoded_filename[:-4]  # Remove .ifc extension
+    else:
+        ifc_filename = f"{decoded_filename}.ifc"
+        base_filename = decoded_filename
+    
+    # Find IFC file
+    ifc_path = IFC_DIR / ifc_filename
+    if not ifc_path.exists():
+        raise HTTPException(status_code=404, detail=f"IFC file not found: {ifc_filename}")
+    
+    # Generate layer-specific GLTF filename
+    layer_gltf_filename = f"{base_filename}_{layer}.glb"
+    layer_gltf_path = GLTF_DIR / layer_gltf_filename
+    
+    # Check if layer already exists
+    if layer_gltf_path.exists():
+        print(f"[GLTF-LAYER] Layer '{layer}' already exists: {layer_gltf_path}")
+        return JSONResponse({
+            "message": f"Layer '{layer}' already generated",
+            "filename": layer_gltf_filename,
+            "exists": True
+        })
+    
+    # Generate the layer
+    try:
+        layer_start = time.time()
+        print(f"[GLTF-LAYER] Generating '{layer}' layer for {base_filename}...")
+        convert_ifc_to_gltf(ifc_path, layer_gltf_path, layer=layer)
+        layer_time = time.time() - layer_start
+        print(f"[GLTF-LAYER] Layer '{layer}' generated in {layer_time:.2f}s")
+        
+        return JSONResponse({
+            "message": f"Layer '{layer}' generated successfully",
+            "filename": layer_gltf_filename,
+            "generation_time": round(layer_time, 2),
+            "exists": False
+        })
+    except Exception as e:
+        print(f"[GLTF-LAYER] ERROR generating layer '{layer}': {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Layer generation failed: {str(e)}")
 
 
 def analyze_fastener_structure(ifc_path: Path):

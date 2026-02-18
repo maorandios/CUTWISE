@@ -519,8 +519,14 @@ export const loadGLTFModel = async (options: LoadGLTFOptions): Promise<LoadGLTFR
   if (!scene.userData) scene.userData = {};
   scene.userData.edgeLines = edgeLines;
 
-  // Load assembly mapping
-  await loadAndApplyAssemblyMapping(scene, filename);
+  // Load assembly mapping (only for main file, not layer files)
+  // Layer files end with _plates.glb or _bolts.glb
+  const isLayerFile = filename.includes('_plates.glb') || filename.includes('_bolts.glb');
+  if (!isLayerFile) {
+    await loadAndApplyAssemblyMapping(scene, filename);
+  } else {
+    console.log('[IFCViewer] Skipping assembly mapping for layer file:', filename);
+  }
 
   console.log('[IFCViewer] Model loaded and processed successfully');
   console.log('[IFCViewer] Edge generation disabled for instant display - model ready!');

@@ -46,6 +46,14 @@ interface ControlPanelProps {
   onHide: () => void
   onHideAllExcept: () => void
   onShowAll: () => void
+  
+  // Layer toggles
+  platesVisible: boolean
+  boltsVisible: boolean
+  onTogglePlates: () => void
+  onToggleBolts: () => void
+  platesLoading?: boolean
+  boltsLoading?: boolean
 }
 
 export function ControlPanel({
@@ -78,7 +86,13 @@ export function ControlPanel({
   onTransparent,
   onHide,
   onHideAllExcept,
-  onShowAll
+  onShowAll,
+  platesVisible,
+  boltsVisible,
+  onTogglePlates,
+  onToggleBolts,
+  platesLoading = false,
+  boltsLoading = false
 }: ControlPanelProps) {
   if (!visible) return null
 
@@ -116,6 +130,46 @@ export function ControlPanel({
         >
           Assemblies
         </button>
+        
+        {/* Divider */}
+        <div className="border-l border-gray-300 mx-1"></div>
+        
+        {/* Layer toggles */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            onTogglePlates()
+          }}
+          disabled={platesLoading}
+          className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+            platesVisible
+              ? 'bg-purple-600 text-white hover:bg-purple-700'
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          } ${platesLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+          title="Toggle plates visibility"
+        >
+          {platesLoading ? '⏳ Loading...' : platesVisible ? '✓ Plates' : 'Plates'}
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            onToggleBolts()
+          }}
+          disabled={boltsLoading}
+          className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+            boltsVisible
+              ? 'bg-orange-600 text-white hover:bg-orange-700'
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          } ${boltsLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+          title="Toggle bolts visibility"
+        >
+          {boltsLoading ? '⏳ Loading...' : boltsVisible ? '✓ Bolts' : 'Bolts'}
+        </button>
+        
+        {/* Divider */}
+        <div className="border-l border-gray-300 mx-1"></div>
         
         {/* Measurement button - only show if feature is enabled */}
         {enableMeasurement && (
