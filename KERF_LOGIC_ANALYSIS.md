@@ -45,3 +45,5 @@ Check if RHS500*300*20.0 parts have:
 The algorithm is working correctly IF parts have incompatible cuts.
 The issue might be that parts with straight cuts are incorrectly getting kerf applied.
 
+
+

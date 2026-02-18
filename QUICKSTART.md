@@ -33,11 +33,11 @@ npm install
 npm run dev
 ```
 
-Frontend will run on `http://localhost:5173`
+Frontend will run on `http://localhost:5180`
 
 ## Usage
 
-1. Open `http://localhost:5173` in your browser
+1. Open `http://localhost:5180` in your browser
 2. Click "Upload IFC File" and select an IFC file
 3. View the 3D model and steel reports
 4. Use toggles to show/hide different element types

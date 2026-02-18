@@ -163,6 +163,20 @@ class Part:
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
+        # Convert original_data values to JSON-serializable types
+        serializable_original_data = {}
+        for key, value in self.original_data.items():
+            # Convert numpy booleans and other special types to native Python types
+            if hasattr(value, 'item'):  # numpy types have .item() method
+                serializable_original_data[key] = value.item()
+            elif isinstance(value, bool):
+                serializable_original_data[key] = bool(value)
+            elif value is None or isinstance(value, (str, int, float, list, dict)):
+                serializable_original_data[key] = value
+            else:
+                # Skip non-serializable values
+                continue
+        
         return {
             "product_id": self.product_id,
             "length": self.length,
@@ -171,15 +185,15 @@ class Part:
             "reference": self.reference,
             "assembly_mark": self.assembly_mark,
             "assembly_id": self.assembly_id,
-            "start_has_slope": self.start_slope.has_slope,
+            "start_has_slope": bool(self.start_slope.has_slope),
             "start_angle": self.start_slope.angle,
             "start_confidence": self.start_slope.confidence,
-            "end_has_slope": self.end_slope.has_slope,
+            "end_has_slope": bool(self.end_slope.has_slope),
             "end_angle": self.end_slope.angle,
             "end_confidence": self.end_slope.confidence,
-            "complementary_pair": self.complementary_pair,
-            "flipped": self.flipped,
-            **self.original_data
+            "complementary_pair": bool(self.complementary_pair),
+            "flipped": bool(self.flipped),
+            **serializable_original_data
         }
     
     @classmethod

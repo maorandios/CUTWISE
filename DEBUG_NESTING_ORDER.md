@@ -45,3 +45,5 @@ The issue might be that:
 2. Verify that parts have correct slope information
 3. Add more detailed logging to show which category each part falls into
 
+
+
