@@ -1197,7 +1197,7 @@ def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
         settings.set(settings.USE_WORLD_COORDS, True)  # Use world coordinates
         settings.set(settings.WELD_VERTICES, False)  # Faster - skip welding
         settings.set(settings.DISABLE_OPENING_SUBTRACTIONS, True)  # Much faster - skip holes/cuts
-        settings.set(settings.APPLY_DEFAULT_MATERIALS, False)  # Faster - skip materials
+        settings.set(settings.APPLY_DEFAULT_MATERIALS, True)  # Enable materials for color extraction
         
         # SPEED OPTIMIZATION: Lower mesh detail for faster conversion (if available)
         try:
@@ -1286,19 +1286,61 @@ def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
                 # Create trimesh
                 mesh = trimesh.Trimesh(vertices=vertices, faces=face_indices)
                 
-                # Simple type-based coloring (fast)
+                # Extract IFC material colors
                 element_type = product.is_a()
-                color_map = {
-                    "IfcBeam": [180, 180, 220, 255],            # Light blue-gray
-                    "IfcColumn": [150, 200, 220, 255],          # Light blue
-                    "IfcMember": [200, 180, 150, 255],          # Light brown
-                    "IfcPlate": [220, 200, 180, 255],           # Light tan
-                    "IfcSlab": [200, 200, 210, 255],            # Light gray
-                    "IfcFastener": [139, 105, 20, 255],         # Dark brown-gold for bolts
-                    "IfcMechanicalFastener": [139, 105, 20, 255],  # Dark brown-gold for bolts
-                    "IfcDiscreteAccessory": [120, 90, 15, 255],    # Darker gold for nuts/washers
-                }
-                color = color_map.get(element_type, [190, 190, 220, 255])  # Default steel
+                color = None
+                
+                # Try to get color from shape.geometry.materials (ifcopenshell style data)
+                try:
+                    if hasattr(shape.geometry, 'materials') and shape.geometry.materials:
+                        # Materials are tuples of (style_id, surface_style_id, diffuse_color)
+                        # diffuse_color is typically (R, G, B) in 0-1 range
+                        material = shape.geometry.materials[0]
+                        if len(material) >= 3 and material[2]:
+                            diffuse = material[2]
+                            if len(diffuse) >= 3:
+                                # Convert from 0-1 range to 0-255 range
+                                color = [
+                                    int(diffuse[0] * 255),
+                                    int(diffuse[1] * 255),
+                                    int(diffuse[2] * 255),
+                                    255  # Alpha
+                                ]
+                except Exception as e:
+                    pass  # Fall back to default coloring
+                
+                # Fallback: Try to get color from IFC style
+                if not color:
+                    try:
+                        import ifcopenshell.util.style
+                        styles = ifcopenshell.util.style.get_style(product)
+                        if styles:
+                            for style in styles:
+                                if hasattr(style, 'SurfaceColour') and style.SurfaceColour:
+                                    rgb = style.SurfaceColour
+                                    color = [
+                                        int(rgb.Red * 255),
+                                        int(rgb.Green * 255),
+                                        int(rgb.Blue * 255),
+                                        255
+                                    ]
+                                    break
+                    except:
+                        pass
+                
+                # Final fallback: Type-based coloring
+                if not color:
+                    color_map = {
+                        "IfcBeam": [180, 180, 220, 255],            # Light blue-gray
+                        "IfcColumn": [150, 200, 220, 255],          # Light blue
+                        "IfcMember": [200, 180, 150, 255],          # Light brown
+                        "IfcPlate": [220, 200, 180, 255],           # Light tan
+                        "IfcSlab": [200, 200, 210, 255],            # Light gray
+                        "IfcFastener": [139, 105, 20, 255],         # Dark brown-gold for bolts
+                        "IfcMechanicalFastener": [139, 105, 20, 255],  # Dark brown-gold for bolts
+                        "IfcDiscreteAccessory": [120, 90, 15, 255],    # Darker gold for nuts/washers
+                    }
+                    color = color_map.get(element_type, [190, 190, 220, 255])  # Default steel
                 
                 # Set vertex colors
                 mesh.visual.vertex_colors = color
