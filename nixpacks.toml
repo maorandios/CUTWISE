@@ -13,5 +13,5 @@ cmds = [
 ]
 
 [start]
-cmd = "cd api && python run.py"
+cmd = "bash -c 'export LD_LIBRARY_PATH=/nix/store/*-gcc-*/lib:$LD_LIBRARY_PATH && cd api && python run.py'"
 
