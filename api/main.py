@@ -1216,13 +1216,12 @@ def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
         
         print(f"[GLTF] Using ITERATOR mode with ULTRA-FAST settings (C++ optimized)")
         
-        # Skip non-geometric types AND small fasteners for speed
+        # Skip only non-geometric types (fasteners now INCLUDED for visualization)
         skip_types = {
             "IfcGrid", "IfcGridAxis", "IfcAnnotation", "IfcOpeningElement",
             "IfcSpace", "IfcSite", "IfcBuilding", "IfcBuildingStorey",
-            "IfcProxy", "IfcDistributionElement",
-            # SPEED OPTIMIZATION: Skip fasteners (tiny but numerous - 30-50% of elements)
-            "IfcFastener", "IfcMechanicalFastener", "IfcDiscreteAccessory"
+            "IfcProxy", "IfcDistributionElement"
+            # Fasteners (IfcFastener, IfcMechanicalFastener, IfcDiscreteAccessory) now INCLUDED
         }
         
         # Pre-filter products
