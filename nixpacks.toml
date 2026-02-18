@@ -14,5 +14,5 @@ cmds = [
 ]
 
 [start]
-cmd = "/opt/venv/bin/python api/run.py"
+cmd = "cd /app && /opt/venv/bin/python api/run.py"
 
