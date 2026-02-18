@@ -621,8 +621,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                           }, 0).toFixed(2)}
                         </td>
                         <td className="border border-gray-300 px-4 py-3 text-right">
-                          <span className={nestingReport.summary.average_waste_percentage > 5 ? 'text-red-600' : 'text-green-600'}>
-                            {nestingReport.summary.average_waste_percentage.toFixed(2)}%
+                          <span className={nestingReport.summary.avg_waste_percentage > 5 ? 'text-red-600' : 'text-green-600'}>
+                            {nestingReport.summary.avg_waste_percentage.toFixed(2)}%
                           </span>
                         </td>
                       </tr>

@@ -51,6 +51,7 @@ class NestingOrchestrator:
         kerf: float = 3.0,
         trim: float = 5.0,
         angle_tolerance: float = 5.0,
+        min_angle: float = 1.0,
         log_func: Optional[Callable] = None
     ):
         """
@@ -61,6 +62,7 @@ class NestingOrchestrator:
             kerf: Kerf width (cutting blade width) in mm
             trim: Trim amount in mm (material removed from stock bar ends)
             angle_tolerance: Maximum angle difference for complementary matching
+            min_angle: Minimum angle to consider as slope (default: 1.0°)
             log_func: Optional logging function
         """
         # Apply trim to stock lengths (reduce usable length)
@@ -76,6 +78,7 @@ class NestingOrchestrator:
         self.kerf = kerf
         self.trim = trim
         self.angle_tolerance = angle_tolerance
+        self.min_angle = min_angle
         self.log_func = log_func or logger.info
         
         self.max_stock_length = max(self.stock_lengths) if self.stock_lengths else float('inf')
@@ -335,6 +338,7 @@ def create_nesting_report(
     stock_lengths: List[float],
     kerf: float = 3.0,
     trim: float = 5.0,
+    min_angle: float = 1.0,
     extractor: Optional[any] = None,
     use_complementary_pairing: bool = True,
     log_func: Optional[Callable] = None
@@ -351,6 +355,7 @@ def create_nesting_report(
         stock_lengths: Available stock lengths in mm
         kerf: Kerf width in mm
         trim: Trim amount in mm (material removed from stock bar ends)
+        min_angle: Minimum angle to consider as slope (default: 1.0°)
         extractor: Optional CutPieceExtractor for slope detection
         use_complementary_pairing: Whether to use complementary slope pairing
         log_func: Optional logging function
@@ -362,6 +367,7 @@ def create_nesting_report(
         stock_lengths=stock_lengths,
         kerf=kerf,
         trim=trim,
+        min_angle=min_angle,
         log_func=log_func
     )
     

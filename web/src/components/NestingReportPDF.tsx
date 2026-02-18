@@ -1310,7 +1310,7 @@ export const NestingReportPDF: React.FC<NestingReportPDFProps> = ({
             </Text>
             <Text style={[styles.tableCell, { width: '20%' }]}>Avg Waste %</Text>
             <Text style={[styles.tableCell, styles.textRight, { width: '20%' }]}>
-              {nestingReport.summary.average_waste_percentage.toFixed(2)}%
+              {nestingReport.summary.avg_waste_percentage.toFixed(2)}%
             </Text>
             <Text style={[styles.tableCell, { width: '20%' }]}>Total Tonnage</Text>
             <Text style={[styles.tableCell, styles.textRight, { width: '20%' }]}>
@@ -1354,7 +1354,7 @@ export const NestingReportPDF: React.FC<NestingReportPDFProps> = ({
             </Text>
             <Text style={[styles.tableCell, { width: '20%' }]}>Material Efficiency</Text>
             <Text style={[styles.tableCell, styles.textRight, { width: '20%' }]}>
-              {(100 - nestingReport.summary.average_waste_percentage).toFixed(2)}%
+              {(100 - nestingReport.summary.avg_waste_percentage).toFixed(2)}%
             </Text>
           </View>
         </View>
@@ -1556,10 +1556,10 @@ export const NestingReportPDF: React.FC<NestingReportPDFProps> = ({
                 width: '15%', 
                 fontSize: 8,
                 fontWeight: 'bold',
-                color: nestingReport.summary.average_waste_percentage > 5 ? '#dc2626' : '#16a34a'
+                color: nestingReport.summary.avg_waste_percentage > 5 ? '#dc2626' : '#16a34a'
               }
             ]}>
-              {nestingReport.summary.average_waste_percentage.toFixed(2)}%
+              {nestingReport.summary.avg_waste_percentage.toFixed(2)}%
             </Text>
           </View>
         </View>

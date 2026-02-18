@@ -39,3 +39,5 @@ Get-Process | Where-Object {$_.ProcessName -like "*node*" -or $_.ProcessName -li
 Write-Host "If both ports are open, the servers are ready!" -ForegroundColor Green
 Write-Host "Open your browser to: http://localhost:5180" -ForegroundColor Cyan
 
+
+
