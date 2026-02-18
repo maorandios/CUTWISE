@@ -1289,33 +1289,51 @@ def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
                 # Extract IFC material colors
                 element_type = product.is_a()
                 color = None
+                color_source = "fallback"
+                
+                # DEBUG: Log first element's color data
+                if processed == 0:
+                    print(f"[GLTF-COLOR-DEBUG] First element ({element_type}):")
+                    print(f"  - Has materials attr: {hasattr(shape.geometry, 'materials')}")
+                    if hasattr(shape.geometry, 'materials'):
+                        print(f"  - Materials: {shape.geometry.materials}")
+                    print(f"  - Has material_ids attr: {hasattr(shape.geometry, 'material_ids')}")
+                    if hasattr(shape.geometry, 'material_ids'):
+                        print(f"  - Material IDs: {shape.geometry.material_ids}")
                 
                 # Try to get color from shape.geometry.materials (ifcopenshell style data)
                 try:
                     if hasattr(shape.geometry, 'materials') and shape.geometry.materials:
-                        # Materials are tuples of (style_id, surface_style_id, diffuse_color)
-                        # diffuse_color is typically (R, G, B) in 0-1 range
+                        # Materials is a tuple of style objects
+                        # Each style has a 'diffuse' attribute with 'colour' (R, G, B) in 0-1 range
                         material = shape.geometry.materials[0]
-                        if len(material) >= 3 and material[2]:
-                            diffuse = material[2]
-                            if len(diffuse) >= 3:
-                                # Convert from 0-1 range to 0-255 range
-                                color = [
-                                    int(diffuse[0] * 255),
-                                    int(diffuse[1] * 255),
-                                    int(diffuse[2] * 255),
-                                    255  # Alpha
-                                ]
+                        if hasattr(material, 'diffuse') and hasattr(material.diffuse, 'colour'):
+                            rgb = material.diffuse.colour
+                            # Convert from 0-1 range to 0-255 range
+                            color = [
+                                int(rgb[0] * 255),
+                                int(rgb[1] * 255),
+                                int(rgb[2] * 255),
+                                255  # Alpha
+                            ]
+                            color_source = "geometry.materials"
+                            if processed == 0:
+                                print(f"[GLTF-COLOR-DEBUG] Successfully extracted color from geometry.materials: {color}")
                 except Exception as e:
-                    pass  # Fall back to default coloring
+                    if processed == 0:
+                        print(f"[GLTF-COLOR-DEBUG] Error extracting from geometry.materials: {e}")
                 
                 # Fallback: Try to get color from IFC style
                 if not color:
                     try:
                         import ifcopenshell.util.style
                         styles = ifcopenshell.util.style.get_style(product)
+                        if processed == 0:
+                            print(f"[GLTF-COLOR-DEBUG] get_style returned: {styles}")
                         if styles:
                             for style in styles:
+                                if processed == 0:
+                                    print(f"[GLTF-COLOR-DEBUG] Style: {style}, type: {type(style)}")
                                 if hasattr(style, 'SurfaceColour') and style.SurfaceColour:
                                     rgb = style.SurfaceColour
                                     color = [
@@ -1324,9 +1342,11 @@ def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
                                         int(rgb.Blue * 255),
                                         255
                                     ]
+                                    color_source = "IFC style"
                                     break
-                    except:
-                        pass
+                    except Exception as e:
+                        if processed == 0:
+                            print(f"[GLTF-COLOR-DEBUG] Error extracting from IFC style: {e}")
                 
                 # Final fallback: Type-based coloring
                 if not color:
@@ -1341,6 +1361,9 @@ def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
                         "IfcDiscreteAccessory": [120, 90, 15, 255],    # Darker gold for nuts/washers
                     }
                     color = color_map.get(element_type, [190, 190, 220, 255])  # Default steel
+                
+                if processed == 0:
+                    print(f"[GLTF-COLOR-DEBUG] Final color: {color}, source: {color_source}")
                 
                 # Set vertex colors
                 mesh.visual.vertex_colors = color
