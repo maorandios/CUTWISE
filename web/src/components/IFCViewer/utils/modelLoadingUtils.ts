@@ -272,13 +272,22 @@ export const processMeshes = (
         return;
       }
 
-      // For non-fasteners, let Three.js handle colors from glTF
-      // Only create default material if none exists
-      if (!material) {
+      // For non-fasteners, enable vertex colors from GLTF
+      if (material && material.isMeshStandardMaterial) {
+        // CRITICAL: Enable vertex colors to use IFC material colors
+        material.vertexColors = true;
+        material.needsUpdate = true;
+        
+        // Adjust material properties for better visibility
+        material.metalness = 0.1;  // Less metallic = brighter
+        material.roughness = 0.7;  // Keep some roughness
+      } else if (!material) {
+        // Only create default material if none exists
         child.material = new THREE.MeshStandardMaterial({
           color: 0x8888aa,
-          metalness: 0.3,
-          roughness: 0.7
+          metalness: 0.1,
+          roughness: 0.7,
+          vertexColors: true  // Enable vertex colors
         });
       }
       
