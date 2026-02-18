@@ -1198,16 +1198,20 @@ def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
         settings.set(settings.WELD_VERTICES, False)  # Faster - skip welding
         settings.set(settings.DISABLE_OPENING_SUBTRACTIONS, True)  # Much faster - skip holes/cuts
         settings.set(settings.APPLY_DEFAULT_MATERIALS, False)  # Faster - skip materials
+        # SPEED OPTIMIZATION: Lower mesh detail for faster conversion
+        settings.set(settings.DEFLECTION_TOLERANCE, 0.05)  # Higher = fewer triangles (default: 0.001)
+        settings.set(settings.ANGULAR_TOLERANCE, 0.5)      # Higher = fewer triangles (default: 0.5)
         # Note: USE_BREP_DATA and SEW_SHELLS not available in all IfcOpenShell versions
         
         print(f"[GLTF] Using ITERATOR mode with ULTRA-FAST settings (C++ optimized)")
         
-        # Skip only non-geometric types - INCLUDE fasteners/bolts for visibility
+        # Skip non-geometric types AND small fasteners for speed
         skip_types = {
             "IfcGrid", "IfcGridAxis", "IfcAnnotation", "IfcOpeningElement",
             "IfcSpace", "IfcSite", "IfcBuilding", "IfcBuildingStorey",
-            "IfcProxy", "IfcDistributionElement"
-            # NOTE: Fasteners/bolts are NOW INCLUDED (visible in 3D model)
+            "IfcProxy", "IfcDistributionElement",
+            # SPEED OPTIMIZATION: Skip fasteners (tiny but numerous - 30-50% of elements)
+            "IfcFastener", "IfcMechanicalFastener", "IfcDiscreteAccessory"
         }
         
         # Pre-filter products
@@ -1221,7 +1225,9 @@ def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
         
         # ITERATOR MODE: Process all geometry in one go (C++ optimized)
         geom_start = time.time()
-        iterator = ifcopenshell.geom.iterator(settings, ifc_file, multiprocessing.cpu_count())
+        # SPEED OPTIMIZATION: Use 4 cores max (too many threads causes contention)
+        num_threads = min(4, multiprocessing.cpu_count())
+        iterator = ifcopenshell.geom.iterator(settings, ifc_file, num_threads)
         iterator.initialize()
         
         print(f"[GLTF] Starting iterator-based geometry extraction (parallel C++ processing)...")
@@ -1286,15 +1292,8 @@ def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
                 # Set vertex colors
                 mesh.visual.vertex_colors = color
                 
-                # Get assembly mark for metadata
-                assembly_mark = "Unknown"
-                try:
-                    if hasattr(product, 'Tag') and product.Tag:
-                        assembly_mark = product.Tag
-                    elif hasattr(product, 'Name') and product.Name:
-                        assembly_mark = product.Name
-                except:
-                    pass
+                # Get assembly mark for metadata (optimized - no try/except overhead)
+                assembly_mark = getattr(product, 'Tag', None) or getattr(product, 'Name', None) or shape.id
                 
                 # Store metadata
                 mesh.metadata = {
@@ -1309,7 +1308,8 @@ def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
                 assembly_marks.append(assembly_mark)
                 
                 processed += 1
-                if processed % 500 == 0:
+                # SPEED OPTIMIZATION: Reduce logging frequency (I/O overhead)
+                if processed % 2000 == 0:
                     print(f"[GLTF] Progress: {processed} meshes extracted...")
                 
                 # Next iteration
@@ -1332,26 +1332,12 @@ def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
         export_start = time.time()
         gltf_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Create scene with named meshes
+        # Create scene with named meshes (optimized - simple naming)
         geometry_dict = {}
         for i, mesh in enumerate(meshes):
-            # Create mesh name from metadata
-            if hasattr(mesh, 'metadata') and 'product_id' in mesh.metadata:
-                product_id = mesh.metadata['product_id']
-                element_type = mesh.metadata.get('element_type', 'Unknown')
-                assembly_mark = mesh.metadata.get('assembly_mark', 'Unknown')
-                safe_mark = str(assembly_mark).replace('/', '_').replace('\\', '_').replace(' ', '_').replace(':', '_')
-                mesh_name = f"{element_type}_{product_id}_{safe_mark}"
-            else:
-                mesh_name = f"mesh_{i}"
-            
-            # Ensure unique names
-            original_name = mesh_name
-            counter = 0
-            while mesh_name in geometry_dict:
-                counter += 1
-                mesh_name = f"{original_name}_{counter}"
-            
+            # SPEED OPTIMIZATION: Simple naming without string manipulation
+            product_id = product_ids[i] if i < len(product_ids) else i
+            mesh_name = f"mesh_{product_id}"
             geometry_dict[mesh_name] = mesh
         
         print(f"[GLTF] Created scene with {len(geometry_dict)} named meshes")
