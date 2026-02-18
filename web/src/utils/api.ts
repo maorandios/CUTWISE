@@ -1,13 +1,18 @@
 /**
  * Get the backend API base URL
- * Works with both localhost and network IP access
+ * Works with both localhost, network IP, and production deployment
  */
 export function getBackendUrl(): string {
   const hostname = window.location.hostname
-  // If accessing via localhost, use localhost for backend
-  // Otherwise use the same hostname (network IP)
-  const backendHost = hostname === 'localhost' ? 'localhost' : hostname
-  return `http://${backendHost}:8000`
+  const protocol = window.location.protocol
+  
+  // If accessing via localhost, use localhost with port 8000
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return `http://${hostname}:8000`
+  }
+  
+  // For production (Railway, Vercel, etc.), use same origin (no port, same protocol)
+  return `${protocol}//${hostname}`
 }
 
 /**
