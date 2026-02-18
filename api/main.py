@@ -1305,23 +1305,99 @@ def convert_ifc_to_gltf(ifc_path: Path, gltf_path: Path) -> bool:
                 try:
                     if hasattr(shape.geometry, 'materials') and shape.geometry.materials:
                         # Materials is a tuple of style objects
-                        # Each style has a 'diffuse' attribute with 'colour' (R, G, B) in 0-1 range
+                        # The style object is printed as text, but we need to access its attributes
                         material = shape.geometry.materials[0]
-                        if hasattr(material, 'diffuse') and hasattr(material.diffuse, 'colour'):
-                            rgb = material.diffuse.colour
-                            # Convert from 0-1 range to 0-255 range
-                            color = [
-                                int(rgb[0] * 255),
-                                int(rgb[1] * 255),
-                                int(rgb[2] * 255),
-                                255  # Alpha
-                            ]
-                            color_source = "geometry.materials"
+                        
+                        if processed == 0:
+                            print(f"[GLTF-COLOR-DEBUG] Material type: {type(material)}")
+                            print(f"[GLTF-COLOR-DEBUG] Material dir: {[x for x in dir(material) if not x.startswith('_')]}")
+                        
+                        # Try different attribute access patterns
+                        rgb = None
+                        
+                        # Pattern 1: Use get_color() method if available
+                        if hasattr(material, 'get_color') and callable(material.get_color):
+                            try:
+                                rgb = material.get_color()
+                                if processed == 0:
+                                    print(f"[GLTF-COLOR-DEBUG] get_color() returned: {rgb}")
+                            except:
+                                pass
+                        
+                        # Pattern 2: material.diffuse IS the colour object (not .diffuse.colour)
+                        if not rgb and hasattr(material, 'diffuse'):
+                            diffuse = material.diffuse
                             if processed == 0:
-                                print(f"[GLTF-COLOR-DEBUG] Successfully extracted color from geometry.materials: {color}")
+                                print(f"[GLTF-COLOR-DEBUG] Diffuse type: {type(diffuse)}, value: {diffuse}")
+                            # The diffuse IS a colour object, try to access it as a tuple/list
+                            try:
+                                # Try accessing as indexable (tuple/list)
+                                if len(diffuse) >= 3:
+                                    rgb = diffuse
+                            except:
+                                pass
+                        
+                        if rgb:
+                            if processed == 0:
+                                print(f"[GLTF-COLOR-DEBUG] RGB type: {type(rgb)}, value: {rgb}")
+                                print(f"[GLTF-COLOR-DEBUG] RGB dir: {[x for x in dir(rgb) if not x.startswith('_')]}")
+                            
+                            # Convert colour object to list - try different methods
+                            rgb_values = None
+                            
+                            # Method 1: Try as_tuple() or similar
+                            for method_name in ['as_tuple', 'to_tuple', 'tuple', 'values']:
+                                if hasattr(rgb, method_name):
+                                    try:
+                                        rgb_values = getattr(rgb, method_name)()
+                                        if processed == 0:
+                                            print(f"[GLTF-COLOR-DEBUG] Used {method_name}(): {rgb_values}")
+                                        break
+                                    except:
+                                        pass
+                            
+                            # Method 2: Try calling r(), g(), b() methods
+                            if not rgb_values:
+                                try:
+                                    if hasattr(rgb, 'r') and hasattr(rgb, 'g') and hasattr(rgb, 'b'):
+                                        # They are methods, not properties - need to call them
+                                        rgb_values = (rgb.r(), rgb.g(), rgb.b())
+                                        if processed == 0:
+                                            print(f"[GLTF-COLOR-DEBUG] Used .r() .g() .b() methods: {rgb_values}")
+                                except:
+                                    pass
+                            
+                            # Method 3: Parse the string representation
+                            if not rgb_values:
+                                try:
+                                    # "colour 0.356863 0.592157 0.137255" -> extract numbers
+                                    rgb_str = str(rgb)
+                                    if 'colour' in rgb_str:
+                                        parts = rgb_str.replace('colour', '').strip().split()
+                                        if len(parts) >= 3:
+                                            rgb_values = (float(parts[0]), float(parts[1]), float(parts[2]))
+                                            if processed == 0:
+                                                print(f"[GLTF-COLOR-DEBUG] Parsed from string: {rgb_values}")
+                                except:
+                                    pass
+                            
+                            if rgb_values and len(rgb_values) >= 3:
+                                # Convert from 0-1 range to 0-255 range with brightness boost
+                                brightness_multiplier = 1.3  # Make colors 30% brighter
+                                color = [
+                                    min(255, int(rgb_values[0] * 255 * brightness_multiplier)),
+                                    min(255, int(rgb_values[1] * 255 * brightness_multiplier)),
+                                    min(255, int(rgb_values[2] * 255 * brightness_multiplier)),
+                                    255  # Alpha
+                                ]
+                                color_source = "geometry.materials"
+                                if processed == 0:
+                                    print(f"[GLTF-COLOR-DEBUG] Successfully extracted color from geometry.materials: {color}")
                 except Exception as e:
                     if processed == 0:
                         print(f"[GLTF-COLOR-DEBUG] Error extracting from geometry.materials: {e}")
+                        import traceback
+                        print(f"[GLTF-COLOR-DEBUG] Traceback: {traceback.format_exc()}")
                 
                 # Fallback: Try to get color from IFC style
                 if not color:
