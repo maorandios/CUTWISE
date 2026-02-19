@@ -838,13 +838,13 @@ async def upload_ifc(file: UploadFile = File(...)):
         
         # ===== CACHE CHECK: Skip processing if file exists with same size =====
         use_cache = False
-        if file_path.exists() and report_path.exists() and gltf_path.exists():
+        if file_path.exists() and report_path.exists():
             existing_size = file_path.stat().st_size
             if existing_size == len(content):
                 print(f"[UPLOAD-CACHE] CACHE HIT! File already processed: {safe_filename}")
                 print(f"[UPLOAD-CACHE] File size: {existing_size} bytes (matches upload)")
                 print(f"[UPLOAD-CACHE] Loading cached report from: {report_path}")
-                print(f"[UPLOAD-CACHE] Using cached GLTF from: {gltf_path}")
+                print(f"[UPLOAD-CACHE] Using IFCM viewer (no GLTF needed)")
                 use_cache = True
             else:
                 print(f"[UPLOAD-CACHE] File exists but size differs (old: {existing_size}, new: {len(content)})")
@@ -855,8 +855,6 @@ async def upload_ifc(file: UploadFile = File(...)):
                 missing.append("IFC file")
             if not report_path.exists():
                 missing.append("report")
-            if not gltf_path.exists():
-                missing.append("GLTF")
             print(f"[UPLOAD-CACHE] CACHE MISS - Missing: {', '.join(missing)}")
         
         if use_cache:
@@ -868,12 +866,13 @@ async def upload_ifc(file: UploadFile = File(...)):
                 "filename": safe_filename,
                 "original_filename": file.filename,
                 "report": report,
-                "gltf_available": True,
+                "gltf_available": False,  # GLTF disabled - using IFCM viewer
                 "gltf_path": f"/api/gltf/{gltf_filename}",
                 "from_cache": True
             }
             
             print(f"[UPLOAD-CACHE] Returned cached data in {time.time() - upload_start:.2f}s")
+            print(f"[UPLOAD-CACHE] GLTF disabled - using IFCM viewer")
             print(f"[UPLOAD] ===== UPLOAD COMPLETE (FROM CACHE) =====")
             return JSONResponse(response_data)
         
@@ -956,24 +955,33 @@ async def upload_ifc(file: UploadFile = File(...)):
             gltf_available = False
             conversion_error = None
             
-            # Try conversion, but don't block upload if it fails
-            try:
-                gltf_start = time.time()
-                print(f"[UPLOAD] Starting glTF conversion for {safe_filename} (STRUCTURE layer only)...")
-                # Generate structure layer only (fastest - beams, columns, members)
-                convert_ifc_to_gltf(file_path, gltf_path, layer="structure")
-                print(f"[UPLOAD-TIMING] glTF conversion (structure) took {time.time() - gltf_start:.2f}s")
-                gltf_available = gltf_path.exists()
-                if gltf_available:
-                    print(f"[UPLOAD] glTF conversion completed: {gltf_path}")
-                else:
-                    print(f"[UPLOAD] WARNING: glTF conversion completed but file not found: {gltf_path}")
-            except Exception as e:
-                conversion_error = str(e)
-                print(f"[UPLOAD] ERROR: glTF conversion failed: {e}")
-                import traceback
-                traceback.print_exc()
-                # Don't fail the upload, just log the error
+            # GLTF CONVERSION DISABLED - Using IFCM viewer instead
+            # Code preserved for future use if needed
+            ENABLE_GLTF_CONVERSION = False  # Set to True to re-enable
+            
+            if ENABLE_GLTF_CONVERSION:
+                # Try conversion, but don't block upload if it fails
+                try:
+                    gltf_start = time.time()
+                    print(f"[UPLOAD] Starting glTF conversion for {safe_filename} (STRUCTURE layer only)...")
+                    # Generate structure layer only (fastest - beams, columns, members)
+                    convert_ifc_to_gltf(file_path, gltf_path, layer="structure")
+                    print(f"[UPLOAD-TIMING] glTF conversion (structure) took {time.time() - gltf_start:.2f}s")
+                    gltf_available = gltf_path.exists()
+                    if gltf_available:
+                        print(f"[UPLOAD] glTF conversion completed: {gltf_path}")
+                    else:
+                        print(f"[UPLOAD] WARNING: glTF conversion completed but file not found: {gltf_path}")
+                except Exception as e:
+                    conversion_error = str(e)
+                    print(f"[UPLOAD] ERROR: glTF conversion failed: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    # Don't fail the upload, just log the error
+            else:
+                print(f"[UPLOAD] ===== glTF conversion SKIPPED (ENABLE_GLTF_CONVERSION=False) =====")
+                print(f"[UPLOAD] Using IFCM viewer instead - no conversion needed!")
+                print(f"[UPLOAD] This saves significant processing time on upload")
             
             # Log profiles in the report being returned
             print(f"[UPLOAD] Report contains {len(report.get('profiles', []))} profiles:")

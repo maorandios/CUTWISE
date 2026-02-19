@@ -102,3 +102,4 @@ To verify the fix:
 
 **The nesting algorithm now matches the original behavior and should optimize with longer stock bars first!** 🎯
 
+

@@ -119,3 +119,4 @@ Generate a new nesting report and verify:
 
 **The nesting report should now show proper part names matching the old API behavior!** 🎯
 
+

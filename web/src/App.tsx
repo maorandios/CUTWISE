@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import FileUpload from './components/FileUpload'
 import IFCViewer from './components/IFCViewer'
+import IFCViewerWebIFC from './components/IFCViewerWebIFC'
 import SteelReports from './components/SteelReports'
 import NestingReport from './components/NestingReport'
 import Dashboard from './components/Dashboard'
@@ -55,7 +56,7 @@ function App() {
     plateThicknesses: new Set<string>(),
     assemblyMarks: new Set<string>()
   })
-  const [activeTab, setActiveTab] = useState<'model' | 'nesting' | 'dashboard' | 'profiles' | 'plates' | 'assemblies' | 'bolts' | 'fasteners' | 'plate-nesting' | 'shipment' | 'management'>(savedState?.activeTab || 'model')
+  const [activeTab, setActiveTab] = useState<'model' | 'ifcm' | 'nesting' | 'dashboard' | 'profiles' | 'plates' | 'assemblies' | 'bolts' | 'fasteners' | 'plate-nesting' | 'shipment' | 'management'>(savedState?.activeTab || 'ifcm')
   const [nestingReport, setNestingReport] = useState<NestingReportType | null>(null)  // Always start with null
   
   // Cache for tab data - loaded once and kept in memory
@@ -103,7 +104,7 @@ function App() {
       plateThicknesses: new Set(),
       assemblyMarks: new Set()
     })
-    setActiveTab('dashboard')  // Reset to dashboard tab
+    setActiveTab('ifcm')  // Open IFCM viewer after upload
     
     // Clear tab data cache when new file is uploaded
     setTabDataCache({})
@@ -147,10 +148,23 @@ function App() {
                 >
                   Dashboard
                 </button>
+                {/* GLTF Model tab - DISABLED (code preserved for future use) */}
+                {false && (
+                  <button
+                    onClick={() => setActiveTab('model')}
+                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === 'model'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Model (GLTF)
+                  </button>
+                )}
                 <button
-                  onClick={() => setActiveTab('model')}
+                  onClick={() => setActiveTab('ifcm')}
                   className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'model'
+                    activeTab === 'ifcm'
                       ? 'border-blue-600 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700'
                   }`}
@@ -283,6 +297,16 @@ function App() {
                 />
               </div>
             </div>
+
+            {/* IFCM tab - Fast web-ifc viewer */}
+            {activeTab === 'ifcm' && (
+              <div className="flex-1 overflow-hidden">
+                <IFCViewerWebIFC 
+                  filename={currentFile}
+                  isVisible={true}
+                />
+              </div>
+            )}
 
             {activeTab === 'profiles' && (
               <div className="flex-1 overflow-y-auto">
