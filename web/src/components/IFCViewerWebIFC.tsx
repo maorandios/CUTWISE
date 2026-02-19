@@ -67,24 +67,25 @@ export default function IFCViewerWebIFC({ filename, isVisible = true }: IFCViewe
     scene.background = new THREE.Color(0xffffff) // Pure white background
     sceneRef.current = scene
 
-    // Camera
+    // Camera - Optimized for close-up viewing
     const camera = new THREE.PerspectiveCamera(
       75,
       containerRef.current.clientWidth / containerRef.current.clientHeight,
-      0.1,
+      0.01, // Very close near plane (was 0.1) - allows zooming very close
       10000
     )
     camera.position.set(50, 50, 50)
     cameraRef.current = camera
 
-    // Renderer - Optimized for clean visuals
+    // Renderer - Optimized for performance
     const renderer = new THREE.WebGLRenderer({ 
       antialias: true,
-      alpha: true
+      alpha: true,
+      powerPreference: 'high-performance' // Use high-performance GPU
     })
     renderer.setSize(width, height)
-    renderer.setPixelRatio(window.devicePixelRatio) // Sharp rendering on high-DPI screens
-    renderer.shadowMap.enabled = false // Disable shadows for cleaner look
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)) // Cap at 2x for performance
+    renderer.shadowMap.enabled = false // Disable shadows for performance
     renderer.domElement.style.display = 'block'
     renderer.domElement.style.width = '100%'
     renderer.domElement.style.height = '100%'
@@ -94,35 +95,28 @@ export default function IFCViewerWebIFC({ filename, isVisible = true }: IFCViewe
     containerRef.current.appendChild(renderer.domElement)
     rendererRef.current = renderer
 
-    // Controls - Optimized for sharp, responsive movement
+    // Controls - Optimized for sharp, responsive movement and close-up viewing
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = false // Disable damping for instant response
     controls.rotateSpeed = 1.0
-    controls.zoomSpeed = 1.2
-    controls.panSpeed = 1.0
+    controls.zoomSpeed = 1.5 // Faster zoom
+    controls.panSpeed = 1.5 // Faster panning
+    controls.minDistance = 0.01 // Allow zooming very close (was default ~0)
+    controls.maxDistance = 10000 // Allow zooming very far
+    controls.enablePan = true // Ensure panning is enabled
     controlsRef.current = controls
 
-    // Lights - Realistic lighting setup for depth and dimension
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5) // Moderate ambient for base illumination
+    // Lights - Optimized for performance while maintaining good visuals
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6) // Higher ambient = less directional light needed
     scene.add(ambientLight)
 
-    // Main key light (sun-like, from top-right)
-    const directionalLight1 = new THREE.DirectionalLight(0xffffff, 1.0)
-    directionalLight1.position.set(100, 150, 100)
-    scene.add(directionalLight1)
+    // Single main directional light (reduced from 4 lights to 1 for performance)
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8)
+    directionalLight.position.set(100, 150, 100)
+    scene.add(directionalLight)
 
-    // Fill light (softer, from opposite side)
-    const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5)
-    directionalLight2.position.set(-100, 80, -100)
-    scene.add(directionalLight2)
-
-    // Rim light (from behind/side for edge definition)
-    const directionalLight3 = new THREE.DirectionalLight(0xffffff, 0.4)
-    directionalLight3.position.set(50, 50, -150)
-    scene.add(directionalLight3)
-
-    // Subtle bottom light to prevent completely dark undersides
-    const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.3)
+    // Hemisphere light for subtle fill (very cheap performance-wise)
+    const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x888888, 0.3)
     scene.add(hemisphereLight)
 
     // No grid for cleaner appearance
@@ -486,17 +480,17 @@ export default function IFCViewerWebIFC({ filename, isVisible = true }: IFCViewe
               color = colorMap[elementType] || 0x999999
             }
 
-            // Create material with real IFC color - realistic appearance with depth
+            // Create material with real IFC color - optimized for performance
             const material = new THREE.MeshPhongMaterial({
               color: color,
               side: THREE.DoubleSide,
               flatShading: false,
               opacity: ifcColor && ifcColor.w !== undefined ? ifcColor.w : 1.0,
               transparent: ifcColor && ifcColor.w !== undefined && ifcColor.w < 1.0,
-              shininess: 60, // Higher shininess for realistic metal/painted surfaces
-              specular: 0x444444, // Moderate specular for subtle highlights
+              shininess: 40, // Moderate shininess
+              specular: 0x333333, // Subtle specular
               emissive: color, // Slight emissive to maintain color visibility
-              emissiveIntensity: 0.08 // Reduced emissive for more realistic look
+              emissiveIntensity: 0.05 // Minimal emissive for performance
             })
 
             // Create mesh
@@ -511,19 +505,21 @@ export default function IFCViewerWebIFC({ filename, isVisible = true }: IFCViewe
 
             modelGroup.add(mesh)
             
-            // Add edge lines for better visibility
+            // Add edge lines for all elements - essential to distinguish parts with same color
             try {
-              const edges = new THREE.EdgesGeometry(bufferGeometry, 20) // 20 degree threshold for edge detection
+              // Use higher angle threshold for better performance while maintaining visibility
+              const edges = new THREE.EdgesGeometry(bufferGeometry, 25) // 25 degree threshold
               
               // Create darker version of the element color for edges
               const edgeColor = new THREE.Color(color)
-              edgeColor.multiplyScalar(0.6) // Make it 40% darker
+              edgeColor.multiplyScalar(0.5) // Make it 50% darker for better contrast
               
               const lineMaterial = new THREE.LineBasicMaterial({ 
                 color: edgeColor,
                 linewidth: 1,
-                transparent: true,
-                opacity: 0.8
+                transparent: false, // Disable transparency for performance
+                depthTest: true,
+                depthWrite: true
               })
               
               const edgeLine = new THREE.LineSegments(edges, lineMaterial)
