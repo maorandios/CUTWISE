@@ -32,6 +32,10 @@ from .bin_packer import (
 
 logger = logging.getLogger(__name__)
 
+# Stock bars have 10-50mm excess beyond nominal length for safety tolerance
+# We account for 20mm average tolerance in calculations
+STOCK_SAFETY_TOLERANCE_MM = 20.0
+
 
 class NestingOrchestrator:
     """
@@ -52,6 +56,7 @@ class NestingOrchestrator:
         trim: float = 5.0,
         angle_tolerance: float = 5.0,
         min_angle: float = 1.0,
+        stock_tolerance: float = 0.0,
         log_func: Optional[Callable] = None
     ):
         """
@@ -63,15 +68,20 @@ class NestingOrchestrator:
             trim: Trim amount in mm (material removed from stock bar ends)
             angle_tolerance: Maximum angle difference for complementary matching
             min_angle: Minimum angle to consider as slope (default: 1.0°)
+            stock_tolerance: Safety tolerance in mm (stock bars have 10-50mm excess, default: 0.0 = disabled)
             log_func: Optional logging function
         """
-        # Apply trim to stock lengths (reduce usable length)
+        # Apply trim AND safety tolerance to stock lengths
+        # Stock bars have 10-50mm excess beyond nominal length
+        # If stock_tolerance is 0, no tolerance is applied (disabled)
+        # Example: 6000mm nominal + 20mm tolerance - 5mm trim = 6015mm usable
         self.original_stock_lengths = sorted(stock_lengths)
-        self.stock_lengths = sorted([length - trim for length in stock_lengths])
+        self.stock_tolerance = stock_tolerance
+        self.stock_lengths = sorted([length - trim + stock_tolerance for length in stock_lengths])
         
         # Create mapping from usable length to original length
         self.usable_to_original_map = {
-            (length - trim): length 
+            (length - trim + stock_tolerance): length 
             for length in stock_lengths
         }
         
@@ -195,7 +205,7 @@ class NestingOrchestrator:
         self.log_func(f"[ORCHESTRATOR] Part order optimization complete")
         
         # Optimize stock selection (downgrade to smaller stocks when possible)
-        usable_stock_lengths = [length - self.trim for length in self.original_stock_lengths]
+        usable_stock_lengths = [length - self.trim + self.stock_tolerance for length in self.original_stock_lengths]
         patterns = optimize_stock_selection(patterns, usable_stock_lengths, self.kerf)
         self.log_func(f"[ORCHESTRATOR] Stock optimization complete")
         
@@ -260,10 +270,14 @@ class NestingOrchestrator:
         """
         self.log_func(f"[ORCHESTRATOR] Starting nesting for {filename}")
         self.log_func(f"[ORCHESTRATOR] Selected profiles: {selected_profiles}")
-        self.log_func(f"[ORCHESTRATOR] Stock lengths (original): {self.original_stock_lengths}")
-        self.log_func(f"[ORCHESTRATOR] Stock lengths (usable after trim): {self.stock_lengths}")
+        self.log_func(f"[ORCHESTRATOR] Stock lengths (nominal): {self.original_stock_lengths}")
+        self.log_func(f"[ORCHESTRATOR] Stock lengths (usable after trim + tolerance): {self.stock_lengths}")
         self.log_func(f"[ORCHESTRATOR] Kerf: {self.kerf}mm")
         self.log_func(f"[ORCHESTRATOR] Trim: {self.trim}mm")
+        if self.stock_tolerance > 0:
+            self.log_func(f"[ORCHESTRATOR] Stock safety tolerance: +{self.stock_tolerance}mm (enabled)")
+        else:
+            self.log_func(f"[ORCHESTRATOR] Stock safety tolerance: disabled (0mm)")
         
         # Normalize profile names
         base_profile_names = [extract_base_profile_name(p) for p in selected_profiles]
@@ -349,6 +363,7 @@ def create_nesting_report(
     kerf: float = 3.0,
     trim: float = 5.0,
     min_angle: float = 1.0,
+    stock_tolerance: float = 0.0,
     extractor: Optional[any] = None,
     use_complementary_pairing: bool = True,
     log_func: Optional[Callable] = None
@@ -366,6 +381,7 @@ def create_nesting_report(
         kerf: Kerf width in mm
         trim: Trim amount in mm (material removed from stock bar ends)
         min_angle: Minimum angle to consider as slope (default: 1.0°)
+        stock_tolerance: Safety tolerance in mm (stock bars have 10-50mm excess, default: 0.0 = disabled)
         extractor: Optional CutPieceExtractor for slope detection
         use_complementary_pairing: Whether to use complementary slope pairing
         log_func: Optional logging function
@@ -378,6 +394,7 @@ def create_nesting_report(
         kerf=kerf,
         trim=trim,
         min_angle=min_angle,
+        stock_tolerance=stock_tolerance,
         log_func=log_func
     )
     

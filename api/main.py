@@ -2010,7 +2010,14 @@ async def get_assembly_mapping(filename: str):
 
 
 @app.get("/api/nesting/{filename}")
-async def generate_nesting(filename: str, stock_lengths: str, profiles: str, kerf: float = 3.0, trim: float = 5.0):
+async def generate_nesting(
+    filename: str, 
+    stock_lengths: str, 
+    profiles: str, 
+    kerf: float = 3.0, 
+    trim: float = 5.0,
+    stock_tolerance: float = 0.0
+):
     """Generate nesting optimization report for selected profiles with slope-aware cutting.
     
     Args:
@@ -2019,6 +2026,7 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str, ker
         profiles: Comma-separated list of profile names to nest (e.g., "IPE200,HEA300")
         kerf: Kerf width in mm (cutting blade width, default: 3.0mm)
         trim: Trim amount in mm (material removed from stock bar ends, default: 5.0mm)
+        stock_tolerance: Safety tolerance in mm (stock bars have 10-50mm excess, default: 0.0 = disabled)
     """
     import sys
     
@@ -2033,6 +2041,7 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str, ker
     nesting_log(f"[NESTING] Profiles: {profiles}", flush=True)
     nesting_log(f"[NESTING] Kerf: {kerf}mm", flush=True)
     nesting_log(f"[NESTING] Trim: {trim}mm", flush=True)
+    nesting_log(f"[NESTING] Stock tolerance: {stock_tolerance}mm {'(enabled)' if stock_tolerance > 0 else '(disabled)'}", flush=True)
     nesting_log("=" * 60, flush=True)
     
     try:
@@ -2084,6 +2093,7 @@ async def generate_nesting(filename: str, stock_lengths: str, profiles: str, ker
             stock_lengths=stock_lengths_list,
             kerf=kerf,
             trim=trim,
+            stock_tolerance=stock_tolerance,
             extractor=extractor,
             use_complementary_pairing=True,
             log_func=nesting_log

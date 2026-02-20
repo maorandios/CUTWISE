@@ -22,6 +22,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   const [expandedProfiles, setExpandedProfiles] = useState<Set<string>>(new Set())
   const [kerfValue, setKerfValue] = useState<number>(3.0) // Default kerf: 3mm
   const [trimValue, setTrimValue] = useState<number>(5.0) // Default trim: 5mm
+  const [stockToleranceEnabled, setStockToleranceEnabled] = useState<boolean>(true) // Default: enabled
+  const [stockToleranceValue, setStockToleranceValue] = useState<number>(20.0) // Default: 20mm
 
   // Get available profiles from report
   const availableProfiles = report?.profiles || []
@@ -199,7 +201,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         stock_lengths: stockLengths,
         profiles: Array.from(selectedProfiles).join(','),  // Pass selected profiles
         kerf: kerfValue.toString(),  // Pass kerf value
-        trim: trimValue.toString()  // Pass trim value
+        trim: trimValue.toString(),  // Pass trim value
+        stock_tolerance: stockToleranceEnabled ? stockToleranceValue.toString() : '0'  // Pass tolerance (0 if disabled)
       })
       const url = `/api/nesting/${encodedFilename}?${params.toString()}`
 
@@ -418,6 +421,45 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                       </label>
                       <p className="text-xs text-gray-500">
                         Material removed from stock bar ends for clean cuts (reduces usable length by trim amount)
+                      </p>
+                    </div>
+                    
+                    {/* Stock Tolerance Setting */}
+                    <div className="border-t pt-4">
+                      <div className="flex items-center gap-3 mb-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={stockToleranceEnabled}
+                            onChange={(e) => setStockToleranceEnabled(e.target.checked)}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700 font-medium">Enable Stock Tolerance</span>
+                        </label>
+                        {stockToleranceEnabled && (
+                          <label className="flex items-center gap-2">
+                            <span className="text-sm text-gray-700">Value:</span>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="1"
+                              value={stockToleranceValue}
+                              onChange={(e) => setStockToleranceValue(Math.min(100, parseFloat(e.target.value) || 0))}
+                              className="w-20 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-600">mm</span>
+                          </label>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {stockToleranceEnabled 
+                          ? `Stock bars have 10-50mm excess beyond nominal length. We add ${stockToleranceValue}mm to account for this tolerance in calculations.`
+                          : 'Stock bars are treated as exact nominal length (e.g., 6000mm = 6000mm usable after trim).'
+                        }
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Example: With tolerance enabled ({stockToleranceValue}mm), a 6000mm stock bar becomes {6000 - trimValue + stockToleranceValue}mm usable (6000 - {trimValue} trim + {stockToleranceValue} tolerance).
                       </p>
                     </div>
                   </div>
