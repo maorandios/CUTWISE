@@ -66,7 +66,7 @@ def build_profile_dict(profile: ProfileNesting) -> Dict[str, Any]:
     Returns:
         Dictionary suitable for JSON serialization
     """
-    return {
+    result = {
         "profile_name": profile.profile_name,
         "total_parts": profile.total_parts,
         "total_length": profile.total_length,
@@ -78,6 +78,12 @@ def build_profile_dict(profile: ProfileNesting) -> Dict[str, Any]:
         "num_patterns": len(profile.cutting_patterns),
         "num_rejected": len(profile.rejected_parts)
     }
+    
+    # Include alternative waste percentage if available
+    if profile.alternative_waste_percentage is not None:
+        result["alternative_waste_percentage"] = float(profile.alternative_waste_percentage)
+    
+    return result
 
 
 def build_report_dict(report: NestingReport) -> Dict[str, Any]:

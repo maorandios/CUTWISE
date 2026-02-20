@@ -516,7 +516,9 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                         <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Number of Cuts</th>
                         <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Total Waste Tonnage</th>
                         <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Total Waste in M</th>
-                        <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Total Waste %</th>
+                        <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Cutwise Waste %</th>
+                        <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Without Cutwise %</th>
+                        <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Savings</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -607,6 +609,24 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                   {wasteForThisStock.toFixed(2)}%
                                 </span>
                               </td>
+                              <td className="border border-gray-300 px-4 py-3 text-right">
+                                {profile.alternative_waste_percentage != null ? (
+                                  <span className="text-gray-600">
+                                    {profile.alternative_waste_percentage.toFixed(2)}%
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400">N/A</span>
+                                )}
+                              </td>
+                              <td className="border border-gray-300 px-4 py-3 text-right">
+                                {profile.alternative_waste_percentage != null ? (
+                                  <span className="text-green-600 font-semibold">
+                                    {(profile.alternative_waste_percentage - wasteForThisStock).toFixed(2)}%
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400">N/A</span>
+                                )}
+                              </td>
                             </tr>
                           )
                         })
@@ -666,6 +686,29 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                           <span className={nestingReport.summary.avg_waste_percentage > 5 ? 'text-red-600' : 'text-green-600'}>
                             {nestingReport.summary.avg_waste_percentage.toFixed(2)}%
                           </span>
+                        </td>
+                        <td className="border border-gray-300 px-4 py-3 text-right">
+                          {(() => {
+                            const avgAlt = nestingReport.profiles.reduce((sum, p) => 
+                              sum + (p.alternative_waste_percentage || 0), 0) / nestingReport.profiles.length
+                            return avgAlt > 0 ? (
+                              <span className="text-gray-600">{avgAlt.toFixed(2)}%</span>
+                            ) : (
+                              <span className="text-gray-400">N/A</span>
+                            )
+                          })()}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-3 text-right">
+                          {(() => {
+                            const avgAlt = nestingReport.profiles.reduce((sum, p) => 
+                              sum + (p.alternative_waste_percentage || 0), 0) / nestingReport.profiles.length
+                            const savings = avgAlt - nestingReport.summary.avg_waste_percentage
+                            return avgAlt > 0 ? (
+                              <span className="text-green-600 font-semibold">{savings.toFixed(2)}%</span>
+                            ) : (
+                              <span className="text-gray-400">N/A</span>
+                            )
+                          })()}
                         </td>
                       </tr>
                     </tfoot>

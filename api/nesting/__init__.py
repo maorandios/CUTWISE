@@ -85,6 +85,10 @@ from .report_builder import (
     export_to_json
 )
 
+from .alternative_calculator import (
+    calculate_alternative_waste
+)
+
 __all__ = [
     # Models
     'SlopeInfo',
@@ -147,6 +151,8 @@ __all__ = [
     'format_report_text_summary',
     'format_pattern_text_summary',
     'calculate_material_savings',
-    'export_to_json'
+    'export_to_json',
+    # Alternative calculator
+    'calculate_alternative_waste'
 ]
 

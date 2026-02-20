@@ -350,9 +350,12 @@ class ProfileNesting:
     rejected_parts: List[RejectedPart] = field(default_factory=list)
     """Parts that could not be nested."""
     
+    alternative_waste_percentage: Optional[float] = None
+    """Alternative waste percentage (manual approach without optimization)."""
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        return {
+        result = {
             "profile_name": self.profile_name,
             "total_parts": self.total_parts,
             "total_length": self.total_length,
@@ -362,6 +365,9 @@ class ProfileNesting:
             "total_waste_percentage": self.total_waste_percentage,
             "rejected_parts": [part.to_dict() for part in self.rejected_parts]
         }
+        if self.alternative_waste_percentage is not None:
+            result["alternative_waste_percentage"] = float(self.alternative_waste_percentage)
+        return result
 
 
 @dataclass

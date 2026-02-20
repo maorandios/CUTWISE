@@ -307,6 +307,18 @@ class NestingOrchestrator:
                 use_complementary_pairing
             )
             
+            # Calculate alternative waste (manual approach without optimization)
+            from .alternative_calculator import calculate_alternative_waste
+            alt_result = calculate_alternative_waste(
+                parts,
+                profile_name,
+                self.original_stock_lengths,
+                self.kerf,
+                self.trim,
+                self.stock_tolerance
+            )
+            profile_nesting.alternative_waste_percentage = alt_result["waste_percentage"]
+            
             profile_nestings.append(profile_nesting)
         
         # Create report
