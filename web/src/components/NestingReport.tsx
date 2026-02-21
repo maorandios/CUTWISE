@@ -24,12 +24,56 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   const [trimValue, setTrimValue] = useState<number>(5.0) // Default trim: 5mm
   const [stockToleranceEnabled, setStockToleranceEnabled] = useState<boolean>(true) // Default: enabled
   const [stockToleranceValue, setStockToleranceValue] = useState<number>(20.0) // Default: 20mm
+  const [stockLengths, setStockLengths] = useState<{id: number, value: number}[]>([
+    {id: 1, value: 6000},
+    {id: 2, value: 12000}
+  ]) // Stock bar lengths with stable IDs
+  const [nextStockId, setNextStockId] = useState<number>(3) // Counter for next stock ID
+  const [showSavingsModal, setShowSavingsModal] = useState<boolean>(false) // Savings modal visibility
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false) // Settings modal visibility
 
   // Get available profiles from report
   const availableProfiles = report?.profiles || []
-
-  // Default stock lengths: 6000mm and 12000mm
-  const stockLengths = '6000,12000'
+  
+  // Load settings from localStorage on mount
+  useEffect(() => {
+    const savedSettings = localStorage.getItem('cutwise_nesting_settings')
+    if (savedSettings) {
+      try {
+        const settings = JSON.parse(savedSettings)
+        if (settings.kerf !== undefined) setKerfValue(settings.kerf)
+        if (settings.trim !== undefined) setTrimValue(settings.trim)
+        if (settings.toleranceEnabled !== undefined) setStockToleranceEnabled(settings.toleranceEnabled)
+        if (settings.tolerance !== undefined) setStockToleranceValue(settings.tolerance)
+        if (settings.stockLengths && Array.isArray(settings.stockLengths)) {
+          // Convert old format (number[]) to new format ({id, value}[])
+          if (typeof settings.stockLengths[0] === 'number') {
+            setStockLengths(settings.stockLengths.map((val: number, idx: number) => ({id: idx + 1, value: val})))
+            setNextStockId(settings.stockLengths.length + 1)
+          } else {
+            setStockLengths(settings.stockLengths)
+            const maxId = Math.max(...settings.stockLengths.map((s: any) => s.id))
+            setNextStockId(maxId + 1)
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load settings:', e)
+      }
+    }
+  }, [])
+  
+  // Save settings to localStorage
+  const saveSettings = () => {
+    const settings = {
+      kerf: kerfValue,
+      trim: trimValue,
+      toleranceEnabled: stockToleranceEnabled,
+      tolerance: stockToleranceValue,
+      stockLengths: stockLengths
+    }
+    localStorage.setItem('cutwise_nesting_settings', JSON.stringify(settings))
+    setShowSettingsModal(false)
+  }
   
   const getDisplayPartName = (part: any): string => {
     const partData = part?.part || {}
@@ -198,7 +242,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
     try {
       const encodedFilename = encodeURIComponent(filename)
       const params = new URLSearchParams({
-        stock_lengths: stockLengths,
+        stock_lengths: stockLengths.map(s => s.value).join(','),  // Convert array to comma-separated string
         profiles: Array.from(selectedProfiles).join(','),  // Pass selected profiles
         kerf: kerfValue.toString(),  // Pass kerf value
         trim: trimValue.toString(),  // Pass trim value
@@ -380,87 +424,27 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                     })}
                   </div>
 
-                  {/* Cutting Configuration */}
-                  <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <h4 className="font-semibold text-gray-900 mb-3">Cutting Configuration</h4>
-                    
-                    {/* Kerf Setting */}
-                    <div className="flex items-center gap-4 mb-4">
-                      <label className="flex items-center gap-2">
-                        <span className="text-sm text-gray-700 font-medium">Kerf (cutting width):</span>
-                        <input
-                          type="number"
-                          min="0"
-                          max="10"
-                          step="0.1"
-                          value={kerfValue}
-                          onChange={(e) => setKerfValue(parseFloat(e.target.value) || 0)}
-                          className="w-20 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-600">mm</span>
-                      </label>
-                      <p className="text-xs text-gray-500">
-                        Distance between parts to account for cutting blade width (typically 3mm for steel)
-                      </p>
-                    </div>
-                    
-                    {/* Trim Setting */}
-                    <div className="flex items-center gap-4">
-                      <label className="flex items-center gap-2">
-                        <span className="text-sm text-gray-700 font-medium">Trim (end cut):</span>
-                        <input
-                          type="number"
-                          min="0"
-                          max="50"
-                          step="1"
-                          value={trimValue}
-                          onChange={(e) => setTrimValue(Math.min(50, parseFloat(e.target.value) || 0))}
-                          className="w-20 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-600">mm</span>
-                      </label>
-                      <p className="text-xs text-gray-500">
-                        Material removed from stock bar ends for clean cuts (reduces usable length by trim amount)
-                      </p>
-                    </div>
-                    
-                    {/* Stock Tolerance Setting */}
-                    <div className="border-t pt-4">
-                      <div className="flex items-center gap-3 mb-2">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={stockToleranceEnabled}
-                            onChange={(e) => setStockToleranceEnabled(e.target.checked)}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                          />
-                          <span className="text-sm text-gray-700 font-medium">Enable Stock Tolerance</span>
-                        </label>
-                        {stockToleranceEnabled && (
-                          <label className="flex items-center gap-2">
-                            <span className="text-sm text-gray-700">Value:</span>
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="1"
-                              value={stockToleranceValue}
-                              onChange={(e) => setStockToleranceValue(Math.min(100, parseFloat(e.target.value) || 0))}
-                              className="w-20 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                            <span className="text-sm text-gray-600">mm</span>
-                          </label>
-                        )}
+                  {/* Current Settings Display */}
+                  <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-semibold text-gray-900 mb-2">Current Settings</h4>
+                        <div className="text-sm text-gray-700 space-y-1">
+                          <div>Kerf: <span className="font-medium">{kerfValue}mm</span></div>
+                          <div>Trim: <span className="font-medium">{trimValue}mm</span></div>
+                          <div>Tolerance: <span className="font-medium">{stockToleranceEnabled ? `${stockToleranceValue}mm` : 'Disabled'}</span></div>
+                          <div>Stock Lengths: <span className="font-medium">{stockLengths.map(s => s.value).sort((a, b) => a - b).map(l => `${l/1000}m`).join(', ')}</span></div>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-500">
-                        {stockToleranceEnabled 
-                          ? `Stock bars have 10-50mm excess beyond nominal length. We add ${stockToleranceValue}mm to account for this tolerance in calculations.`
-                          : 'Stock bars are treated as exact nominal length (e.g., 6000mm = 6000mm usable after trim).'
-                        }
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Example: With tolerance enabled ({stockToleranceValue}mm), a 6000mm stock bar becomes {6000 - trimValue + stockToleranceValue}mm usable (6000 - {trimValue} trim + {stockToleranceValue} tolerance).
-                      </p>
+                      <button
+                        onClick={() => {
+                          console.log('Settings button clicked')
+                          setShowSettingsModal(true)
+                        }}
+                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium flex items-center gap-2"
+                      >
+                        ⚙️ Settings
+                      </button>
                     </div>
                   </div>
 
@@ -489,8 +473,14 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
 
         {currentStep === 'results' && nestingReport && (
           <>
-            {/* Export to PDF Button */}
-            <div className="mb-4 flex justify-end">
+            {/* Export to PDF and View Savings Buttons */}
+            <div className="mb-4 flex justify-end gap-3">
+              <button
+                onClick={() => setShowSavingsModal(true)}
+                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition-colors"
+              >
+                View Savings
+              </button>
               <button
                 onClick={handleExportToPDF}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold shadow-md transition-colors"
@@ -516,9 +506,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                         <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Number of Cuts</th>
                         <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Total Waste Tonnage</th>
                         <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Total Waste in M</th>
-                        <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Cutwise Waste %</th>
-                        <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Without Cutwise %</th>
-                        <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Savings</th>
+                        <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Waste %</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -574,6 +562,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                           
                           // Get waste percentage for this stock length
                           // Average waste percentage across patterns using this stock length
+                          // NOTE: Waste % is the same whether calculated by length or tonnage
+                          // because weight per meter is constant for a profile
                           const wasteForThisStock = patternsForThisStock.length > 0
                             ? patternsForThisStock.reduce((sum, p) => sum + p.waste_percentage, 0) / patternsForThisStock.length
                             : profile.total_waste_percentage
@@ -608,24 +598,6 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 <span className={wasteForThisStock > 5 ? 'text-red-600 font-semibold' : 'text-green-600'}>
                                   {wasteForThisStock.toFixed(2)}%
                                 </span>
-                              </td>
-                              <td className="border border-gray-300 px-4 py-3 text-right">
-                                {profile.alternative_waste_percentage != null ? (
-                                  <span className="text-gray-600">
-                                    {profile.alternative_waste_percentage.toFixed(2)}%
-                                  </span>
-                                ) : (
-                                  <span className="text-gray-400">N/A</span>
-                                )}
-                              </td>
-                              <td className="border border-gray-300 px-4 py-3 text-right">
-                                {profile.alternative_waste_percentage != null ? (
-                                  <span className="text-green-600 font-semibold">
-                                    {(profile.alternative_waste_percentage - wasteForThisStock).toFixed(2)}%
-                                  </span>
-                                ) : (
-                                  <span className="text-gray-400">N/A</span>
-                                )}
                               </td>
                             </tr>
                           )
@@ -686,29 +658,6 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                           <span className={nestingReport.summary.avg_waste_percentage > 5 ? 'text-red-600' : 'text-green-600'}>
                             {nestingReport.summary.avg_waste_percentage.toFixed(2)}%
                           </span>
-                        </td>
-                        <td className="border border-gray-300 px-4 py-3 text-right">
-                          {(() => {
-                            const avgAlt = nestingReport.profiles.reduce((sum, p) => 
-                              sum + (p.alternative_waste_percentage || 0), 0) / nestingReport.profiles.length
-                            return avgAlt > 0 ? (
-                              <span className="text-gray-600">{avgAlt.toFixed(2)}%</span>
-                            ) : (
-                              <span className="text-gray-400">N/A</span>
-                            )
-                          })()}
-                        </td>
-                        <td className="border border-gray-300 px-4 py-3 text-right">
-                          {(() => {
-                            const avgAlt = nestingReport.profiles.reduce((sum, p) => 
-                              sum + (p.alternative_waste_percentage || 0), 0) / nestingReport.profiles.length
-                            const savings = avgAlt - nestingReport.summary.avg_waste_percentage
-                            return avgAlt > 0 ? (
-                              <span className="text-green-600 font-semibold">{savings.toFixed(2)}%</span>
-                            ) : (
-                              <span className="text-gray-400">N/A</span>
-                            )
-                          })()}
                         </td>
                       </tr>
                     </tfoot>
@@ -3236,7 +3185,381 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               })}
             </div>
             </div> {/* End of nesting-report-content */}
+
+            {/* Savings Modal */}
+            {showSavingsModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowSavingsModal(false)}>
+                <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                  <div className="p-6">
+                    {/* Modal Header */}
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-2xl font-bold text-gray-800">Cutwise Savings Analysis</h2>
+                      <button
+                        onClick={() => setShowSavingsModal(false)}
+                        className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    {/* Chart */}
+                    <div className="mb-6">
+                      <div className="bg-gray-50 rounded-lg p-6">
+                        {/* Y-axis label */}
+                        <div className="flex">
+                          <div className="flex items-center justify-center" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+                            <span className="text-sm font-semibold text-gray-600">Waste Percentage (%)</span>
+                          </div>
+                          
+                          {/* Chart area */}
+                          <div className="flex-1 ml-4">
+                            <div className="relative" style={{ height: '400px' }}>
+                              {/* Y-axis grid lines and labels */}
+                              <div className="absolute inset-0 flex flex-col justify-between">
+                                {[30, 25, 20, 15, 10, 5, 0].map((value) => (
+                                  <div key={value} className="flex items-center">
+                                    <span className="text-xs text-gray-500 w-8 text-right mr-2">{value}</span>
+                                    <div className="flex-1 border-t border-gray-300"></div>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Data points */}
+                              <div className="absolute inset-0 flex items-end justify-around px-10 pb-8">
+                                {nestingReport.profiles.map((profile, idx) => {
+                                  const cutwiseWaste = profile.total_waste_percentage
+                                  const alternativeWaste = profile.alternative_waste_percentage || 0
+                                  const maxY = 30 // Max percentage for Y-axis
+                                  
+                                  // Calculate positions (bottom = 0%, top = 30%)
+                                  const cutwiseY = (cutwiseWaste / maxY) * 100
+                                  const alternativeY = (alternativeWaste / maxY) * 100
+                                  
+                                  return (
+                                    <div key={idx} className="flex flex-col items-center" style={{ width: `${100 / nestingReport.profiles.length}%` }}>
+                                      <div className="relative w-full flex justify-center items-end" style={{ height: '350px' }}>
+                                        {/* Alternative waste point (red) */}
+                                        {alternativeWaste > 0 && (
+                                          <div
+                                            className="absolute flex flex-col items-center"
+                                            style={{ bottom: `${alternativeY}%` }}
+                                          >
+                                            <div className="bg-red-500 rounded-full w-3 h-3 border-2 border-red-700"></div>
+                                            <span className="text-xs font-semibold text-red-700 mt-1">
+                                              {alternativeWaste.toFixed(1)}%
+                                            </span>
+                                          </div>
+                                        )}
+                                        
+                                        {/* Cutwise waste point (green) */}
+                                        <div
+                                          className="absolute flex flex-col items-center"
+                                          style={{ bottom: `${cutwiseY}%` }}
+                                        >
+                                          <div className="bg-green-500 rounded-full w-3 h-3 border-2 border-green-700"></div>
+                                          <span className="text-xs font-semibold text-green-700 mt-1">
+                                            {cutwiseWaste.toFixed(1)}%
+                                          </span>
+                                        </div>
+
+                                        {/* Connecting line */}
+                                        {alternativeWaste > 0 && (
+                                          <div
+                                            className="absolute w-0.5 bg-gray-400"
+                                            style={{
+                                              bottom: `${Math.min(cutwiseY, alternativeY)}%`,
+                                              height: `${Math.abs(alternativeY - cutwiseY)}%`
+                                            }}
+                                          ></div>
+                                        )}
+                                      </div>
+                                      
+                                      {/* Profile name (X-axis label) */}
+                                      <div className="mt-2 text-xs font-medium text-gray-700 text-center break-words">
+                                        {profile.profile_name}
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex justify-center gap-6 mb-6">
+                      <div className="flex items-center gap-2">
+                        <div className="bg-green-500 rounded-full w-4 h-4 border-2 border-green-700"></div>
+                        <span className="text-sm font-medium text-gray-700">With Cutwise</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="bg-red-500 rounded-full w-4 h-4 border-2 border-red-700"></div>
+                        <span className="text-sm font-medium text-gray-700">Without Cutwise</span>
+                      </div>
+                    </div>
+
+                    {/* Summary Table */}
+                    <div className="bg-white rounded-lg border overflow-hidden">
+                      <table className="min-w-full">
+                        <thead>
+                          <tr className="bg-gray-800 text-white">
+                            <th className="px-4 py-3 text-left font-semibold">Profile</th>
+                            <th className="px-4 py-3 text-right font-semibold">With Cutwise</th>
+                            <th className="px-4 py-3 text-right font-semibold">Without Cutwise</th>
+                            <th className="px-4 py-3 text-right font-semibold">Savings</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {nestingReport.profiles.map((profile, idx) => {
+                            const cutwiseWaste = profile.total_waste_percentage
+                            const alternativeWaste = profile.alternative_waste_percentage || 0
+                            const savings = alternativeWaste - cutwiseWaste
+                            
+                            return (
+                              <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                <td className="px-4 py-3 font-medium">{profile.profile_name}</td>
+                                <td className="px-4 py-3 text-right text-green-600 font-semibold">
+                                  {cutwiseWaste.toFixed(2)}%
+                                </td>
+                                <td className="px-4 py-3 text-right text-red-600">
+                                  {alternativeWaste > 0 ? `${alternativeWaste.toFixed(2)}%` : 'N/A'}
+                                </td>
+                                <td className="px-4 py-3 text-right font-semibold text-green-600">
+                                  {alternativeWaste > 0 ? `${savings.toFixed(2)}%` : 'N/A'}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                        <tfoot className="bg-gray-100 font-semibold">
+                          <tr>
+                            <td className="px-4 py-3">Average</td>
+                            <td className="px-4 py-3 text-right text-green-600">
+                              {nestingReport.summary.avg_waste_percentage.toFixed(2)}%
+                            </td>
+                            <td className="px-4 py-3 text-right text-red-600">
+                              {(() => {
+                                const avgAlt = nestingReport.profiles.reduce((sum, p) => 
+                                  sum + (p.alternative_waste_percentage || 0), 0) / nestingReport.profiles.length
+                                return avgAlt > 0 ? `${avgAlt.toFixed(2)}%` : 'N/A'
+                              })()}
+                            </td>
+                            <td className="px-4 py-3 text-right text-green-600">
+                              {(() => {
+                                const avgAlt = nestingReport.profiles.reduce((sum, p) => 
+                                  sum + (p.alternative_waste_percentage || 0), 0) / nestingReport.profiles.length
+                                const savings = avgAlt - nestingReport.summary.avg_waste_percentage
+                                return avgAlt > 0 ? `${savings.toFixed(2)}%` : 'N/A'
+                              })()}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+
+                    {/* Close button */}
+                    <div className="mt-6 flex justify-end">
+                      <button
+                        onClick={() => setShowSavingsModal(false)}
+                        className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-semibold shadow-md transition-colors"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
+        )}
+
+        {/* Settings Modal - Outside step conditionals so it's accessible from any step */}
+        {showSettingsModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowSettingsModal(false)}>
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="p-6">
+                {/* Modal Header */}
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-800">Nesting Settings</h2>
+                  <button
+                    onClick={() => setShowSettingsModal(false)}
+                    className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {/* Settings Form */}
+                <div className="space-y-6">
+                  {/* Kerf Setting */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      Kerf (Cutting Width)
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        min="0"
+                        max="10"
+                        step="0.1"
+                        value={kerfValue}
+                        onChange={(e) => setKerfValue(parseFloat(e.target.value) || 0)}
+                        className="w-32 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-600">mm</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Distance between parts to account for cutting blade width (typically 3mm for steel)
+                    </p>
+                  </div>
+
+                  {/* Trim Setting */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      Trim (End Cut)
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        min="0"
+                        max="50"
+                        step="1"
+                        value={trimValue}
+                        onChange={(e) => setTrimValue(Math.min(50, parseFloat(e.target.value) || 0))}
+                        className="w-32 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-600">mm</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Material removed from stock bar ends for clean cuts
+                    </p>
+                  </div>
+
+                  {/* Stock Tolerance Setting */}
+                  <div className="border-t pt-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={stockToleranceEnabled}
+                          onChange={(e) => setStockToleranceEnabled(e.target.checked)}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                        />
+                        <span className="text-sm font-semibold text-gray-900">Enable Stock Tolerance</span>
+                      </label>
+                    </div>
+                    {stockToleranceEnabled && (
+                      <div className="flex items-center gap-3 ml-6">
+                        <label className="text-sm text-gray-700">Value:</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value={stockToleranceValue}
+                          onChange={(e) => setStockToleranceValue(Math.min(100, parseFloat(e.target.value) || 0))}
+                          className="w-32 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-600">mm</span>
+                      </div>
+                    )}
+                    <p className="text-xs text-gray-500 mt-2">
+                      {stockToleranceEnabled 
+                        ? `Stock bars have 10-50mm excess beyond nominal length. We add ${stockToleranceValue}mm to account for this.`
+                        : 'Stock bars treated as exact nominal length.'
+                      }
+                    </p>
+                  </div>
+
+                  {/* Stock Lengths Setting */}
+                  <div className="border-t pt-4">
+                    <label className="block text-sm font-semibold text-gray-900 mb-3">
+                      Stock Bar Lengths (up to 5)
+                    </label>
+                    <div className="space-y-2">
+                      {stockLengths.map((stock, idx) => (
+                        <div key={stock.id} className="flex items-center gap-3">
+                          <span className="text-sm text-gray-600 font-medium w-8">{idx + 1}.</span>
+                          <input
+                            type="number"
+                            min="1000"
+                            max="20000"
+                            step="100"
+                            value={stock.value}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              const parsedVal = val === '' ? 0 : parseFloat(val)
+                              setStockLengths(stockLengths.map(s => 
+                                s.id === stock.id ? {...s, value: parsedVal} : s
+                              ))
+                            }}
+                            className="w-32 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-600">mm</span>
+                          <span className="text-sm text-gray-500">({(stock.value / 1000).toFixed(1)}m)</span>
+                          {stockLengths.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setStockLengths(stockLengths.filter(s => s.id !== stock.id))
+                              }}
+                              className="px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {stockLengths.length < 5 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setStockLengths([...stockLengths, {id: nextStockId, value: 6000}])
+                          setNextStockId(nextStockId + 1)
+                        }}
+                        className="mt-3 px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded font-medium"
+                      >
+                        + Add Stock Length
+                      </button>
+                    )}
+                    <p className="text-xs text-gray-500 mt-2">
+                      Common lengths: 6000mm (6m), 12000mm (12m)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="mt-8 flex justify-end gap-3 border-t pt-4">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowSettingsModal(false)
+                    }}
+                    className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      saveSettings()
+                    }}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold shadow-md transition-colors"
+                  >
+                    Save Settings
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -86,6 +86,7 @@ export interface ProfileNesting {
   total_waste: number  // in mm
   total_waste_percentage: number
   rejected_parts?: RejectedPart[]  // Parts that cannot be nested (exceed stock length)
+  alternative_waste_percentage?: number  // Waste percentage without optimization
 }
 
 export interface NestingReport {
