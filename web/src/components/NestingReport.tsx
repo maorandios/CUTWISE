@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { NestingReport as NestingReportType, SteelReport } from '../types'
 import { pdf } from '@react-pdf/renderer'
 import { NestingReportPDF } from './NestingReportPDF'
+import IFCViewerWebIFC from './IFCViewerWebIFC'
 
 interface NestingReportProps {
   filename: string
@@ -344,78 +345,68 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-hidden flex flex-col">
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 mx-4 mt-4 rounded">
             Error: {error}
           </div>
         )}
 
-        {/* Step 1: Profile Selection */}
+        {/* Step 1: Profile Selection with Split Screen */}
         {currentStep === 'select' && (
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-white rounded-lg shadow-sm border p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-2xl font-bold mb-2">Select Profiles for Nesting</h3>
-                  <p className="text-gray-600">Choose which profiles you want to optimize for cutting</p>
+          <div className="flex-1 flex overflow-hidden">
+            {/* Left Panel - Profile List (max 30% width) */}
+            <div className="w-full max-w-[30%] border-r bg-white flex flex-col">
+              {/* Header */}
+              <div className="p-4 border-b bg-gray-50">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-bold">Select Profiles</h3>
+                  <button
+                    onClick={() => setShowSettingsModal(true)}
+                    className="px-3 py-1.5 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm font-medium"
+                  >
+                    ⚙️ Settings
+                  </button>
                 </div>
                 <button
                   onClick={handleSelectAll}
-                  className="px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded"
+                  className="w-full px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-sm font-medium"
                 >
                   {selectedProfiles.size === availableProfiles.length ? 'Deselect All' : 'Select All'}
                 </button>
               </div>
 
-              {availableProfiles.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  <p className="text-lg mb-2">No profiles found</p>
-                  <p className="text-sm">Upload an IFC file with beams, columns, or members to see profiles here</p>
-                </div>
-              ) : (
-                <>
-                  <div className="mb-4 p-3 bg-blue-50 rounded border border-blue-200">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-blue-900">
-                        {selectedProfiles.size} of {availableProfiles.length} profiles selected
-                      </span>
-                      {selectedProfiles.size > 0 && (
-                        <span className="text-sm text-blue-700">
-                          Total parts: {availableProfiles
-                            .filter(p => selectedProfiles.has(p.profile_name))
-                            .reduce((sum, p) => sum + p.piece_count, 0)}
-                        </span>
-                      )}
-                    </div>
+              {/* Profile List */}
+              <div className="flex-1 overflow-y-auto p-4">
+                {availableProfiles.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <p className="text-sm">No profiles found</p>
                   </div>
-
-                  <div className="space-y-2 max-h-96 overflow-y-auto border rounded p-2">
+                ) : (
+                  <div className="space-y-2">
                     {availableProfiles.map((profile, idx) => {
                       const isSelected = selectedProfiles.has(profile.profile_name)
                       return (
                         <label
                           key={idx}
-                          className={`flex items-center p-4 border rounded cursor-pointer transition-colors ${
+                          className={`block p-3 border rounded cursor-pointer transition-colors ${
                             isSelected
                               ? 'bg-blue-50 border-blue-300'
                               : 'bg-white border-gray-200 hover:bg-gray-50'
                           }`}
                         >
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => handleProfileToggle(profile.profile_name)}
-                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                          />
-                          <div className="ml-4 flex-1">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <span className="font-semibold text-lg">{profile.profile_name}</span>
-                              </div>
-                              <div className="text-right">
-                                <div className="font-medium">{profile.piece_count} parts</div>
-                                <div className="text-sm text-gray-500">{(profile.total_weight / 1000).toFixed(2)} tonnes</div>
+                          <div className="flex items-start gap-3">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleProfileToggle(profile.profile_name)}
+                              className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-sm truncate">{profile.profile_name}</div>
+                              <div className="text-xs text-gray-600 mt-1">
+                                <div>{profile.piece_count} parts</div>
+                                <div>{(profile.total_weight / 1000).toFixed(2)} tonnes</div>
                               </div>
                             </div>
                           </div>
@@ -423,42 +414,39 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                       )
                     })}
                   </div>
+                )}
+              </div>
 
-                  {/* Current Settings Display */}
-                  <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-semibold text-gray-900 mb-2">Current Settings</h4>
-                        <div className="text-sm text-gray-700 space-y-1">
-                          <div>Kerf: <span className="font-medium">{kerfValue}mm</span></div>
-                          <div>Trim: <span className="font-medium">{trimValue}mm</span></div>
-                          <div>Tolerance: <span className="font-medium">{stockToleranceEnabled ? `${stockToleranceValue}mm` : 'Disabled'}</span></div>
-                          <div>Stock Lengths: <span className="font-medium">{stockLengths.map(s => s.value).sort((a, b) => a - b).map(l => `${l/1000}m`).join(', ')}</span></div>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          console.log('Settings button clicked')
-                          setShowSettingsModal(true)
-                        }}
-                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium flex items-center gap-2"
-                      >
-                        ⚙️ Settings
-                      </button>
+              {/* Summary and Generate Button */}
+              <div className="p-4 border-t bg-gray-50">
+                <div className="mb-3 text-sm">
+                  <div className="font-medium text-gray-900">
+                    {selectedProfiles.size} of {availableProfiles.length} profiles selected
+                  </div>
+                  {selectedProfiles.size > 0 && (
+                    <div className="text-gray-600 mt-1">
+                      Total: {availableProfiles
+                        .filter(p => selectedProfiles.has(p.profile_name))
+                        .reduce((sum, p) => sum + p.piece_count, 0)} parts
                     </div>
-                  </div>
+                  )}
+                </div>
+                <button
+                  onClick={generateNesting}
+                  disabled={selectedProfiles.size === 0 || loading}
+                  className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold transition-colors"
+                >
+                  {loading ? 'Generating...' : 'Generate Report'}
+                </button>
+              </div>
+            </div>
 
-                  <div className="mt-6 flex justify-end gap-3">
-                    <button
-                      onClick={handleNext}
-                      disabled={loading || selectedProfiles.size === 0}
-                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded font-medium"
-                    >
-                      {loading ? '⏳ Generating...' : 'Generate Nesting →'}
-                    </button>
-                  </div>
-                </>
-              )}
+            {/* Right Panel - IFC Viewer (70% width) */}
+            <div className="flex-1 bg-gray-100">
+              <IFCViewerWebIFC 
+                filename={filename}
+                isVisible={true}
+              />
             </div>
           </div>
         )}
@@ -472,7 +460,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         )}
 
         {currentStep === 'results' && nestingReport && (
-          <>
+          <div className="flex-1 overflow-y-auto p-4">
             {/* Export to PDF and View Savings Buttons */}
             <div className="mb-4 flex justify-end gap-3">
               <button
@@ -3372,7 +3360,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 </div>
               </div>
             )}
-          </>
+          </div>
         )}
 
         {/* Settings Modal - Outside step conditionals so it's accessible from any step */}

@@ -135,268 +135,146 @@ function App() {
 
         {currentFile && (
           <>
-            {/* Tab Navigation */}
-            <div className="border-b">
-              <div className="flex">
-                <button
-                  onClick={() => setActiveTab('dashboard')}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'dashboard'
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Dashboard
-                </button>
-                {/* GLTF Model tab - DISABLED (code preserved for future use) */}
-                {false && (
+            {/* Tab Navigation - HIDDEN */}
+            {false && (
+              <div className="border-b">
+                <div className="flex">
                   <button
-                    onClick={() => setActiveTab('model')}
+                    onClick={() => setActiveTab('dashboard')}
                     className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                      activeTab === 'model'
+                      activeTab === 'dashboard'
                         ? 'border-blue-600 text-blue-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    Model (GLTF)
+                    Dashboard
                   </button>
-                )}
-                <button
-                  onClick={() => setActiveTab('ifcm')}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'ifcm'
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Model
-                </button>
-                <button
-                  onClick={() => setActiveTab('profiles')}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'profiles'
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Profiles
-                </button>
-                <button
-                  onClick={() => setActiveTab('plates')}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'plates'
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Plates
-                </button>
-                <button
-                  onClick={() => setActiveTab('assemblies')}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'assemblies'
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Assemblies
-                </button>
-                <button
-                  onClick={() => setActiveTab('bolts')}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'bolts'
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Bolts
-                </button>
-                <button
-                  onClick={() => setActiveTab('fasteners')}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'fasteners'
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Fasteners
-                </button>
-                <button
-                  onClick={() => setActiveTab('plate-nesting')}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'plate-nesting'
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Plate Nesting
-                </button>
-                <button
-                  onClick={() => setActiveTab('nesting')}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'nesting'
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Nesting
-                </button>
-                <button
-                  onClick={() => setActiveTab('shipment')}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'shipment'
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Shipment
-                </button>
-                <button
-                  onClick={() => setActiveTab('management')}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'management'
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Management
-                </button>
+                  {/* GLTF Model tab - DISABLED (code preserved for future use) */}
+                  {false && (
+                    <button
+                      onClick={() => setActiveTab('model')}
+                      className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                        activeTab === 'model'
+                          ? 'border-blue-600 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      Model (GLTF)
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setActiveTab('ifcm')}
+                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === 'ifcm'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Model
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('profiles')}
+                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === 'profiles'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Profiles
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('plates')}
+                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === 'plates'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Plates
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('assemblies')}
+                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === 'assemblies'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Assemblies
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('bolts')}
+                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === 'bolts'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Bolts
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('fasteners')}
+                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === 'fasteners'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Fasteners
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('plate-nesting')}
+                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === 'plate-nesting'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Plate Nesting
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('nesting')}
+                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === 'nesting'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Nesting
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('shipment')}
+                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === 'shipment'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Shipment
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('management')}
+                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === 'management'
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Management
+                  </button>
+                </div>
               </div>
+            )}
+
+            {/* Main Content - Nesting View Only */}
+            <div className="flex-1 overflow-hidden">
+              <NestingReport 
+                filename={currentFile} 
+                nestingReport={nestingReport}
+                onNestingReportChange={handleNestingReportChange}
+                report={report}
+              />
             </div>
-
-            {/* Tab Content */}
-            {activeTab === 'dashboard' && (
-              <div className="flex-1 overflow-y-auto">
-                <Dashboard 
-                  filename={currentFile}
-                  report={report}
-                />
-              </div>
-            )}
-
-            {/* Model tab - keep mounted but hidden to preserve 3D scene state */}
-            <div className={`flex-1 flex overflow-hidden ${activeTab === 'model' ? '' : 'hidden'}`}>
-              <div className="flex-1 border-r">
-                <IFCViewer 
-                  filename={currentFile} 
-                  gltfPath={gltfPath} 
-                  gltfAvailable={gltfAvailable}
-                  enableMeasurement={true}
-                  enableClipping={true}
-                  filters={filters}
-                  report={report}
-                  isVisible={activeTab === 'model'}
-                />
-              </div>
-              <div className="w-96 overflow-y-auto">
-                <SteelReports 
-                  report={report} 
-                  filename={currentFile}
-                  filters={filters}
-                  setFilters={setFilters}
-                />
-              </div>
-            </div>
-
-            {/* IFCM tab - Fast web-ifc viewer */}
-            {activeTab === 'ifcm' && (
-              <div className="flex-1 overflow-hidden">
-                <IFCViewerWebIFC 
-                  filename={currentFile}
-                  isVisible={true}
-                />
-              </div>
-            )}
-
-            {activeTab === 'profiles' && (
-              <div className="flex-1 overflow-y-auto">
-                <ProfilesTab 
-                  filename={currentFile}
-                  report={report}
-                  cachedData={tabDataCache.profiles}
-                />
-              </div>
-            )}
-
-            {activeTab === 'plates' && (
-              <div className="flex-1 overflow-y-auto">
-                <PlatesTab 
-                  filename={currentFile}
-                  report={report}
-                  cachedData={tabDataCache.plates}
-                />
-              </div>
-            )}
-
-            {activeTab === 'assemblies' && (
-              <div className="flex-1 overflow-y-auto">
-                <AssembliesTab 
-                  filename={currentFile}
-                  report={report}
-                  cachedData={tabDataCache.assemblies}
-                />
-              </div>
-            )}
-
-            {activeTab === 'bolts' && (
-              <div className="flex-1 overflow-y-auto">
-                <BoltsTab 
-                  filename={currentFile}
-                  report={report}
-                  cachedData={tabDataCache.bolts}
-                />
-              </div>
-            )}
-
-            {activeTab === 'fasteners' && (
-              <div className="flex-1 overflow-y-auto">
-                <FastenersTab 
-                  filename={currentFile}
-                  report={report}
-                  cachedData={tabDataCache.fasteners}
-                />
-              </div>
-            )}
-
-            {activeTab === 'plate-nesting' && (
-              <div className="flex-1 overflow-y-auto">
-                <PlateNestingTab 
-                  filename={currentFile}
-                  report={report}
-                />
-              </div>
-            )}
-
-            {activeTab === 'nesting' && (
-              <div className="flex-1 overflow-hidden">
-                <NestingReport 
-                  filename={currentFile} 
-                  nestingReport={nestingReport}
-                  onNestingReportChange={handleNestingReportChange}
-                  report={report}
-                />
-              </div>
-            )}
-
-            {activeTab === 'shipment' && (
-              <div className="flex-1 overflow-y-auto">
-                <Shipment 
-                  filename={currentFile}
-                  report={report}
-                  cachedData={tabDataCache.shipment}
-                />
-              </div>
-            )}
-
-            {activeTab === 'management' && (
-              <div className="flex-1 overflow-y-auto">
-                <Management 
-                  filename={currentFile}
-                  report={report}
-                  cachedData={tabDataCache.management}
-                />
-              </div>
-            )}
           </>
         )}
 
