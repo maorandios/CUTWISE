@@ -967,15 +967,21 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 // Calculate px per mm to fit all parts in available space
                                 const partsPxPerMm = totalPartsLengthMm > 0 ? availableForPartsPx / totalPartsLengthMm : pxPerMm
                                 
-                                // Position parts with strict 2px gap between them to represent kerf
+                                // Position parts with kerf gap - smaller for sloped parts to look proportional
                                 const kerfGapPx = 2
+                                const kerfGapSlopedPx = 0.5 // Smaller gap for sloped parts to compensate for visual amplification
                                 let cumulativeX = 0
                                 const partPositions = sortedParts.map((part, partIdx) => {
                                   const lengthMm = part.length || 0
                                   const xStart = cumulativeX
                                   const xEnd = cumulativeX + (lengthMm * partsPxPerMm)
-                                  // Add strict 2px gap after each part (except the last one)
-                                  cumulativeX = xEnd + kerfGapPx
+                                  
+                                  // Check if next part has slopes (use smaller gap)
+                                  const nextPart = sortedParts[partIdx + 1]
+                                  const hasSlopes = part?.part?.end_slope?.has_slope || nextPart?.part?.start_slope?.has_slope
+                                  const gapToUse = hasSlopes ? kerfGapSlopedPx : kerfGapPx
+                                  
+                                  cumulativeX = xEnd + gapToUse
                                   return { part, xStart, xEnd, lengthMm }
                                 })
                                 
@@ -2286,34 +2292,35 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                               bottomRightX = clampX(actualRightX)
                                             }
                                             
-                                            // If this boundary is shared and THIS SIDE has a miter, use the shared line coordinates
-                                            // ONLY apply shared coordinates for MITER edges, never for straight edges
-                                            // This prevents mitered parts from being forced straight when next to straight-cut parts
+                                            // Shared boundary lookup for complementary miters with small offset for visual gap
+                                            // Add 1px offset to create a visual kerf gap between complementary parts
+                                            const kerfOffsetPx = 1
+                                            
                                             if (startIsShared && startType === 'miter' && partIdx > 0) {
                                               const boundaryX = Math.floor(partPositions[partIdx - 1].xEnd)
                                               const sharedLine = sharedMiterBoundaryMap.get(boundaryX)
                                               if (sharedLine) {
                                                 console.log(`[MITER-LOOKUP-START] Part ${partIdx} (${partName}): boundaryX=${boundaryX}, found sharedLine xTop=${sharedLine.xTop.toFixed(2)} xBottom=${sharedLine.xBottom.toFixed(2)}`)
-                                                topLeftX = clampX(sharedLine.xTop)
-                                                bottomLeftX = clampX(sharedLine.xBottom)
+                                                // Add small offset to create visual gap
+                                                topLeftX = clampX(sharedLine.xTop + kerfOffsetPx)
+                                                bottomLeftX = clampX(sharedLine.xBottom + kerfOffsetPx)
                                               } else {
                                                 console.log(`[MITER-LOOKUP-START] Part ${partIdx} (${partName}): boundaryX=${boundaryX}, NO sharedLine found`)
                                               }
                                             }
-                                            // REMOVED: straight edge shared boundary lookup - it was forcing mitered parts to be straight
                                             
                                             if (endIsShared && endType === 'miter' && partIdx < numParts - 1) {
                                               const boundaryX = Math.floor(partPositions[partIdx].xEnd)
                                               const sharedLine = sharedMiterBoundaryMap.get(boundaryX)
                                               if (sharedLine) {
                                                 console.log(`[MITER-LOOKUP-END] Part ${partIdx} (${partName}): boundaryX=${boundaryX}, found sharedLine xTop=${sharedLine.xTop.toFixed(2)} xBottom=${sharedLine.xBottom.toFixed(2)}`)
-                                                topRightX = clampX(sharedLine.xTop)
-                                                bottomRightX = clampX(sharedLine.xBottom)
+                                                // Subtract small offset to create visual gap (move left edge left)
+                                                topRightX = clampX(sharedLine.xTop - kerfOffsetPx)
+                                                bottomRightX = clampX(sharedLine.xBottom - kerfOffsetPx)
                                               } else {
                                                 console.log(`[MITER-LOOKUP-END] Part ${partIdx} (${partName}): boundaryX=${boundaryX}, NO sharedLine found`)
                                               }
                                             }
-                                            // REMOVED: straight edge shared boundary lookup - it was forcing mitered parts to be straight
                                             
                                             // Debug logging for polygon calculation
                                             if (partIdx === 0 || partIdx === 1) {
@@ -2883,15 +2890,21 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 const availableForPartsPx = 1000 * (1 - wasteMm / pattern.stock_length)
                                 const partsPxPerMm = totalPartsLengthMm > 0 ? availableForPartsPx / totalPartsLengthMm : pxPerMm
                                 
-                                // Position parts with strict 2px gap between them to represent kerf
+                                // Position parts with kerf gap - smaller for sloped parts to look proportional
                                 const kerfGapPx = 2
+                                const kerfGapSlopedPx = 0.5 // Smaller gap for sloped parts to compensate for visual amplification
                                 let cumulativeX = 0
                                 const partPositions = sortedParts.map((part, partIdx) => {
                                   const lengthMm = part.length || 0
                                   const xStart = cumulativeX
                                   const xEnd = cumulativeX + (lengthMm * partsPxPerMm)
-                                  // Add strict 2px gap after each part (except the last one)
-                                  cumulativeX = xEnd + kerfGapPx
+                                  
+                                  // Check if next part has slopes (use smaller gap)
+                                  const nextPart = sortedParts[partIdx + 1]
+                                  const hasSlopes = part?.part?.end_slope?.has_slope || nextPart?.part?.start_slope?.has_slope
+                                  const gapToUse = hasSlopes ? kerfGapSlopedPx : kerfGapPx
+                                  
+                                  cumulativeX = xEnd + gapToUse
                                   return { part, xStart, xEnd, lengthMm }
                                 })
                                 
