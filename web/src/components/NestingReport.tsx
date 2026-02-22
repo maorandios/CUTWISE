@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { NestingReport as NestingReportType, SteelReport } from '../types'
 import { pdf } from '@react-pdf/renderer'
 import { NestingReportPDF } from './NestingReportPDF'
@@ -30,6 +30,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
     {id: 2, value: 12000}
   ]) // Stock bar lengths with stable IDs
   const [nextStockId, setNextStockId] = useState<number>(3) // Counter for next stock ID
+  const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1200)
   const [showSavingsModal, setShowSavingsModal] = useState<boolean>(false) // Savings modal visibility
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false) // Settings modal visibility
 
@@ -61,6 +62,15 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         console.error('Failed to load settings:', e)
       }
     }
+  }, [])
+  
+  // Track window width for responsive display
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
   }, [])
   
   // Save settings to localStorage
@@ -461,6 +471,14 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
 
         {currentStep === 'results' && nestingReport && (
           <div className="flex-1 overflow-y-auto p-4">
+            {/* Minimum width warning */}
+            {windowWidth < 900 && (
+              <div className="mb-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded">
+                <p className="font-semibold">Screen Width Too Small</p>
+                <p className="text-sm">Minimum screen width of 900px required for optimal visualization. Current width: {windowWidth}px</p>
+              </div>
+            )}
+            
             {/* Export to PDF and View Savings Buttons */}
             <div className="mb-4 flex justify-end gap-3">
               <button
@@ -873,14 +891,11 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                   // Use 20% of bar height instead of full height for better visual proportions
                                   const visualHeight = (barHeight - 1) * 0.2
                                   const raw = Math.tan(degToRad(devDeg)) * visualHeight
-                                  // Minimum visual offset of 8px to ensure even small slopes are visible
-                                  // But scale it down for very narrow parts to avoid overflow
-                                  const minVisualOffset = Math.min(8, partWidthPx * 0.15)
-                                  // Clamp to reasonable values: max 20% of part width
-                                  const maxAllowed = Math.min(partWidthPx * 0.2, visualHeight)
-                                  // Ensure at least minVisualOffset, but don't exceed maxAllowed
-                                  const withMinimum = Math.max(raw, minVisualOffset)
-                                  return clamp(withMinimum, 0, maxAllowed)
+                                  // Use pure trigonometric calculation without artificial minimum
+                                  // This ensures pixel-perfect proportional scaling at all screen sizes
+                                  // Clamp to reasonable values: max 25% of part width to prevent overflow
+                                  const maxAllowed = Math.min(partWidthPx * 0.25, visualHeight)
+                                  return clamp(raw, 0, maxAllowed)
                                 }
                                 
                                 // A) Helper: Parse angle robustly
@@ -978,7 +993,9 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                   
                                   // Check if next part has slopes (use smaller gap)
                                   const nextPart = sortedParts[partIdx + 1]
-                                  const hasSlopes = part?.part?.end_slope?.has_slope || nextPart?.part?.start_slope?.has_slope
+                                  const currentSlopeInfo = (part as any)?.slope_info || {}
+                                  const nextSlopeInfo = (nextPart as any)?.slope_info || {}
+                                  const hasSlopes = currentSlopeInfo.end_has_slope === true || nextSlopeInfo.start_has_slope === true
                                   const gapToUse = hasSlopes ? kerfGapSlopedPx : kerfGapPx
                                   
                                   cumulativeX = xEnd + gapToUse
@@ -2350,12 +2367,15 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                                 {/* The polygon coordinates are already constrained to not extend into waste */}
                                                 <polygon
                                                   points={points}
-                                                  fill="none"
+                                                  fill="rgba(156, 163, 175, 0.1)"
                                                   stroke="#9ca3af"
                                                   strokeWidth="1"
                                                   strokeLinejoin="miter"
                                                   shapeRendering="crispEdges"
-                                                />
+                                                  style={{ cursor: 'pointer' }}
+                                                >
+                                                  <title>{`Profile: ${Array.from(selectedProfiles)[0] || 'N/A'} | Part: ${partName} | Length: ${(part?.length || 0).toFixed(0)}mm | Start: ${partEndInfo?.startCut?.type === 'miter' && partEndInfo.startCut.rawAngle !== null ? (partEndInfo.startCut.rawAngle.toFixed(2) + '°') : '0°'} | End: ${partEndInfo?.endCut?.type === 'miter' && partEndInfo.endCut.rawAngle !== null ? (partEndInfo.endCut.rawAngle.toFixed(2) + '°') : '0°'}`}</title>
+                                                </polygon>
                                                 
                                                 {/* Per-part end markers - vertical lines at the boundary positions */}
                                                 {/* Only show markers for non-shared boundaries */}
@@ -2901,7 +2921,9 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                   
                                   // Check if next part has slopes (use smaller gap)
                                   const nextPart = sortedParts[partIdx + 1]
-                                  const hasSlopes = part?.part?.end_slope?.has_slope || nextPart?.part?.start_slope?.has_slope
+                                  const currentSlopeInfo = (part as any)?.slope_info || {}
+                                  const nextSlopeInfo = (nextPart as any)?.slope_info || {}
+                                  const hasSlopes = currentSlopeInfo.end_has_slope === true || nextSlopeInfo.start_has_slope === true
                                   const gapToUse = hasSlopes ? kerfGapSlopedPx : kerfGapPx
                                   
                                   cumulativeX = xEnd + gapToUse
