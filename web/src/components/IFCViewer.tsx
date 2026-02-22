@@ -1,6 +1,6 @@
-﻿import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { IFCViewerProps, ClipPlaneKey, SelectionMode, MarkupTool, MarkupColor, ElementState, ContextMenuState, ElementData, MeasurementData, MarkupElement, TextElement, ModelBounds } from './IFCViewer/types'
 import { LoadingState, ContextMenu, ControlPanel, MarkupCanvas, SelectedElementBanner } from './IFCViewer/components'
 import { setupClickSelection } from './IFCViewer/managers'
