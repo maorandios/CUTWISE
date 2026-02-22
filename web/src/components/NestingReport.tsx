@@ -34,6 +34,9 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1200)
   const [showSavingsModal, setShowSavingsModal] = useState<boolean>(false) // Savings modal visibility
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false) // Settings modal visibility
+  const [showBOMModal, setShowBOMModal] = useState<boolean>(false) // BOM export modal visibility
+  const [bomProjectName, setBomProjectName] = useState<string>('')
+  const [bomSelectedProfiles, setBomSelectedProfiles] = useState<Set<string>>(new Set())
 
   // Get available profiles from report
   const availableProfiles = report?.profiles || []
@@ -246,11 +249,22 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   }
 
   const handleExportBOMToPDF = async () => {
-    if (!nestingReport) return
+    if (!nestingReport || !report || bomSelectedProfiles.size === 0) {
+      alert('Please select at least one profile to export.')
+      return
+    }
 
     try {
+      // Filter nesting report to only include selected profiles
+      const filteredNestingReport = {
+        ...nestingReport,
+        profiles: nestingReport.profiles.filter(p => bomSelectedProfiles.has(p.profile_name))
+      }
+      
       const doc = <BOMPDF 
-        nestingReport={nestingReport}
+        nestingReport={filteredNestingReport}
+        report={report}
+        projectName={bomProjectName}
         companyName="Your Company Name"
       />
       
@@ -258,12 +272,18 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       const blob = await asPdf.toBlob()
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
+      const downloadName = bomProjectName 
+        ? `${bomProjectName}_BOM.pdf` 
+        : `${filename.replace('.ifc', '')}_BOM.pdf`
       link.href = url
-      link.download = `${filename.replace('.ifc', '')}_BOM.pdf`
+      link.download = downloadName
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
+      
+      // Close modal after successful export
+      setShowBOMModal(false)
     } catch (error) {
       console.error('Error exporting BOM to PDF:', error)
       alert('Failed to export BOM PDF. Please try again.')
@@ -514,7 +534,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 View Savings
               </button>
               <button
-                onClick={handleExportBOMToPDF}
+                onClick={() => setShowBOMModal(true)}
                 className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold shadow-md transition-colors"
               >
                 Export BOM
@@ -845,7 +865,11 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                     <div key={patternIdx} className="mb-4 p-3 bg-white rounded">
                       <div className="flex justify-between items-center mb-2">
                         <span className="font-medium">
-                          Bar {patternIdx + 1}: {formatLength(pattern.stock_length)} stock
+                          {(() => {
+                            const nominalLength = pattern.stock_length
+                            const toleranceText = stockToleranceEnabled ? ` | ${stockToleranceValue.toFixed(0)}mm tolerance` : ''
+                            return `Stockbar ${patternIdx + 1}: ${nominalLength.toLocaleString('en-US')}mm${toleranceText} | ${trimValue.toFixed(0)}mm trim | ${kerfValue.toFixed(0)}mm kerf`
+                          })()}
                           {(pattern as any).exceeds_stock && (
                             <span className="ml-2 text-red-600 font-semibold text-xs">
                               ⚠️ Part exceeds stock length!
@@ -854,7 +878,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                         </span>
                         <div className="flex items-center gap-3">
                         <span className={`text-sm ${pattern.waste_percentage > 5 ? 'text-red-600 font-semibold' : 'text-gray-600'}`}>
-                          Waste: {formatLength(pattern.waste)} ({pattern.waste_percentage.toFixed(2)}%)
+                          Waste: {pattern.waste.toFixed(0)}mm ({pattern.waste_percentage.toFixed(2)}%)
                         </span>
                         </div>
                       </div>
@@ -3602,6 +3626,127 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                     className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold shadow-md transition-colors"
                   >
                     Save Settings
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* BOM Export Modal */}
+        {showBOMModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowBOMModal(false)}>
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="p-6">
+                {/* Modal Header */}
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-800">Export BOM to PDF</h2>
+                  <button
+                    onClick={() => setShowBOMModal(false)}
+                    className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {/* BOM Export Form */}
+                <div className="space-y-6">
+                  {/* Project Name Input */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                      Project Name
+                    </label>
+                    <input
+                      type="text"
+                      value={bomProjectName}
+                      onChange={(e) => setBomProjectName(e.target.value)}
+                      placeholder="Enter project name (optional)"
+                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Project name will appear in the PDF header
+                    </p>
+                  </div>
+
+                  {/* Profile Selection */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 mb-3">
+                      Select Profiles to Include
+                    </label>
+                    <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded p-3">
+                      {nestingReport && nestingReport.profiles.map((profile) => {
+                        // Get weight from report data
+                        const profileData = report?.profiles.find(p => p.profile_name === profile.profile_name)
+                        const tonnage = profileData ? (profileData.total_weight / 1000).toFixed(3) : '0.000'
+                        
+                        return (
+                          <label key={profile.profile_name} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={bomSelectedProfiles.has(profile.profile_name)}
+                              onChange={(e) => {
+                                const newSet = new Set(bomSelectedProfiles)
+                                if (e.target.checked) {
+                                  newSet.add(profile.profile_name)
+                                } else {
+                                  newSet.delete(profile.profile_name)
+                                }
+                                setBomSelectedProfiles(newSet)
+                              }}
+                              className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
+                            />
+                            <span className="text-sm text-gray-700">{profile.profile_name}</span>
+                            <span className="text-xs text-gray-500 ml-auto">
+                              {tonnage} tonnes
+                            </span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Select which profiles to include in the BOM PDF
+                    </p>
+                  </div>
+
+                  {/* Select/Deselect All */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        if (nestingReport) {
+                          setBomSelectedProfiles(new Set(nestingReport.profiles.map(p => p.profile_name)))
+                        }
+                      }}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm font-medium"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      onClick={() => setBomSelectedProfiles(new Set())}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm font-medium"
+                    >
+                      Deselect All
+                    </button>
+                  </div>
+                </div>
+
+                {/* Modal Actions */}
+                <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+                  <button
+                    onClick={() => setShowBOMModal(false)}
+                    className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleExportBOMToPDF}
+                    disabled={bomSelectedProfiles.size === 0}
+                    className={`px-6 py-2 rounded-lg font-semibold shadow-md transition-colors ${
+                      bomSelectedProfiles.size === 0
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-purple-600 text-white hover:bg-purple-700'
+                    }`}
+                  >
+                    Generate BOM PDF
                   </button>
                 </div>
               </div>

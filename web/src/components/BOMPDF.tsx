@@ -1,8 +1,10 @@
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
-import { NestingReport } from '../types'
+import { NestingReport, SteelReport } from '../types'
 
 interface BOMPDFProps {
   nestingReport: NestingReport
+  report: SteelReport
+  projectName?: string
   companyName?: string
 }
 
@@ -96,9 +98,9 @@ const styles = StyleSheet.create({
   },
 })
 
-export function BOMPDF({ nestingReport, companyName = 'Your Company Name' }: BOMPDFProps) {
+export function BOMPDF({ nestingReport, report, projectName = '', companyName = 'Your Company Name' }: BOMPDFProps) {
   // Calculate total tonnage
-  const totalTonnage = Object.values(nestingReport.profiles).reduce((sum, profile) => {
+  const totalTonnage = nestingReport.profiles.reduce((sum, profile) => {
     return sum + profile.total_weight
   }, 0)
 
@@ -117,27 +119,33 @@ export function BOMPDF({ nestingReport, companyName = 'Your Company Name' }: BOM
     weight: number
   }> = []
 
-  Object.entries(nestingReport.profiles).forEach(([profileName, profileData]) => {
-    // Group by stock length
-    const stockLengthMap = new Map<number, { count: number; weight: number }>()
+  nestingReport.profiles.forEach((profile) => {
+    // Get profile data from report to calculate weight per meter
+    const profileData = report.profiles.find(p => p.profile_name === profile.profile_name)
     
-    profileData.patterns.forEach((pattern) => {
-      const stockLength = pattern.stock_length
-      const existing = stockLengthMap.get(stockLength) || { count: 0, weight: 0 }
-      stockLengthMap.set(stockLength, {
-        count: existing.count + 1,
-        weight: existing.weight + pattern.weight,
-      })
-    })
-
-    // Add to BOM data
-    stockLengthMap.forEach((data, stockLength) => {
-      bomData.push({
-        profileType: profileName,
-        stockLength: stockLength,
-        amount: data.count,
-        weight: data.weight,
-      })
+    // Calculate weight per meter (kg/m) from report data
+    let weightPerMeter = 0
+    if (profileData && profile.total_length > 0) {
+      const totalLengthM = profile.total_length / 1000.0  // Convert mm to meters
+      weightPerMeter = profileData.total_weight / totalLengthM  // kg per meter
+    }
+    
+    // Use stock_lengths_used which contains the actual bar counts per stock length
+    Object.entries(profile.stock_lengths_used).forEach(([stockLengthStr, barCount]) => {
+      if (barCount > 0) {
+        const stockLength = parseFloat(stockLengthStr)
+        const stockLengthM = stockLength / 1000.0  // Convert to meters
+        
+        // Calculate tonnage: (weight_per_meter_kg) * (stock_length_m) * (number_of_bars) / 1000
+        const tonnage = (weightPerMeter * stockLengthM * barCount) / 1000.0  // tonnes
+        
+        bomData.push({
+          profileType: profile.profile_name,
+          stockLength: stockLength,
+          amount: barCount,
+          weight: tonnage,
+        })
+      }
     })
   })
 
@@ -155,6 +163,15 @@ export function BOMPDF({ nestingReport, companyName = 'Your Company Name' }: BOM
         {/* Header Section */}
         <View style={styles.header}>
           <Text style={styles.title}>Bill of Materials (BOM)</Text>
+          
+          {projectName && (
+            <View style={styles.headerRow}>
+              <View>
+                <Text style={styles.headerLabel}>Project:</Text>
+                <Text style={styles.headerValue}>{projectName}</Text>
+              </View>
+            </View>
+          )}
           
           <View style={styles.headerRow}>
             <View>
