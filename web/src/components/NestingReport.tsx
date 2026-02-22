@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { NestingReport as NestingReportType, SteelReport } from '../types'
 import { pdf } from '@react-pdf/renderer'
 import { NestingReportPDF } from './NestingReportPDF'
+import { BOMPDF } from './BOMPDF'
 import IFCViewerWebIFC from './IFCViewerWebIFC'
 
 interface NestingReportProps {
@@ -241,6 +242,31 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
     } catch (error) {
       console.error('Error exporting to PDF:', error)
       alert('Failed to export PDF. Please try again.')
+    }
+  }
+
+  const handleExportBOMToPDF = async () => {
+    if (!nestingReport) return
+
+    try {
+      const doc = <BOMPDF 
+        nestingReport={nestingReport}
+        companyName="Your Company Name"
+      />
+      
+      const asPdf = pdf(doc)
+      const blob = await asPdf.toBlob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${filename.replace('.ifc', '')}_BOM.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Error exporting BOM to PDF:', error)
+      alert('Failed to export BOM PDF. Please try again.')
     }
   }
 
@@ -488,10 +514,16 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 View Savings
               </button>
               <button
+                onClick={handleExportBOMToPDF}
+                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold shadow-md transition-colors"
+              >
+                Export BOM
+              </button>
+              <button
                 onClick={handleExportToPDF}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold shadow-md transition-colors"
               >
-                Export to PDF
+                Export Full Report
               </button>
             </div>
 
