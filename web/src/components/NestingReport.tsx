@@ -967,13 +967,15 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 // Calculate px per mm to fit all parts in available space
                                 const partsPxPerMm = totalPartsLengthMm > 0 ? availableForPartsPx / totalPartsLengthMm : pxPerMm
                                 
-                                // Parts are flush (no gaps) - gaps will be added visually later based on boundary sharing
+                                // Position parts with strict 2px gap between them to represent kerf
+                                const kerfGapPx = 2
                                 let cumulativeX = 0
                                 const partPositions = sortedParts.map((part, partIdx) => {
                                   const lengthMm = part.length || 0
                                   const xStart = cumulativeX
                                   const xEnd = cumulativeX + (lengthMm * partsPxPerMm)
-                                  cumulativeX = xEnd
+                                  // Add strict 2px gap after each part (except the last one)
+                                  cumulativeX = xEnd + kerfGapPx
                                   return { part, xStart, xEnd, lengthMm }
                                 })
                                 
@@ -2211,16 +2213,22 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                               }
                                             }
                                             
-                                            // Show slope at start ONLY if:
+                                            // Show slope at start if:
                                             // 1. It's a complementary boundary with the left part, OR
-                                            // 2. It's the first part with two significant miters (both ends sloped)
+                                            // 2. It's the first part and has a miter cut, OR
+                                            // 3. It has a miter cut and is NOT complementary (show the actual geometry)
                                             const bothSignificantMiters = startType === 'miter' && endType === 'miter' && startDev >= 1.0 && endDev >= 1.0
-                                            hasSlopedStart = leftIsComplementary || (partIdx === 0 && bothSignificantMiters)
+                                            hasSlopedStart = leftIsComplementary || 
+                                                            (partIdx === 0 && startType === 'miter' && startDev >= 1.0) ||
+                                                            (!leftIsComplementary && startType === 'miter' && startDev >= 1.0)
                                             
-                                            // Show slope at end ONLY if:
+                                            // Show slope at end if:
                                             // 1. It's a complementary boundary with the right part, OR
-                                            // 2. It's the last part with waste and has a miter
-                                            hasSlopedEnd = rightIsComplementary || (partIdx === lastPartIdx && pattern.waste > 0 && endType === 'miter' && endDev > 0)
+                                            // 2. It's the last part with waste and has a miter, OR
+                                            // 3. It has a miter cut and is NOT complementary (show the actual geometry)
+                                            hasSlopedEnd = rightIsComplementary || 
+                                                          (partIdx === lastPartIdx && pattern.waste > 0 && endType === 'miter' && endDev > 0) ||
+                                                          (!rightIsComplementary && endType === 'miter' && endDev >= 1.0)
                                             
                                             // Debug logging for parts 1 and 2
                                             if (partIdx === 1 || partIdx === 2) {
@@ -2279,7 +2287,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                             }
                                             
                                             // If this boundary is shared and THIS SIDE has a miter, use the shared line coordinates
-                                            // For straight edges at shared boundaries, keep them straight but align to the boundary
+                                            // ONLY apply shared coordinates for MITER edges, never for straight edges
+                                            // This prevents mitered parts from being forced straight when next to straight-cut parts
                                             if (startIsShared && startType === 'miter' && partIdx > 0) {
                                               const boundaryX = Math.floor(partPositions[partIdx - 1].xEnd)
                                               const sharedLine = sharedMiterBoundaryMap.get(boundaryX)
@@ -2290,18 +2299,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                               } else {
                                                 console.log(`[MITER-LOOKUP-START] Part ${partIdx} (${partName}): boundaryX=${boundaryX}, NO sharedLine found`)
                                               }
-                                            } else if (startIsShared && startType === 'straight' && partIdx > 0) {
-                                              // For straight edges at shared boundaries, align to the boundary coordinate
-                                              const boundaryX = Math.floor(partPositions[partIdx - 1].xEnd)
-                                              const sharedLine = sharedMiterBoundaryMap.get(boundaryX)
-                                              if (sharedLine) {
-                                                // Use the average of the shared line coordinates to keep it straight
-                                                const straightX = clampX((sharedLine.xTop + sharedLine.xBottom) / 2)
-                                                console.log(`[STRAIGHT-LOOKUP-START] Part ${partIdx} (${partName}): boundaryX=${boundaryX}, using straightX=${straightX.toFixed(2)}`)
-                                                topLeftX = straightX
-                                                bottomLeftX = straightX
-                                              }
                                             }
+                                            // REMOVED: straight edge shared boundary lookup - it was forcing mitered parts to be straight
                                             
                                             if (endIsShared && endType === 'miter' && partIdx < numParts - 1) {
                                               const boundaryX = Math.floor(partPositions[partIdx].xEnd)
@@ -2313,18 +2312,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                               } else {
                                                 console.log(`[MITER-LOOKUP-END] Part ${partIdx} (${partName}): boundaryX=${boundaryX}, NO sharedLine found`)
                                               }
-                                            } else if (endIsShared && endType === 'straight' && partIdx < numParts - 1) {
-                                              // For straight edges at shared boundaries, align to the boundary coordinate
-                                              const boundaryX = Math.floor(partPositions[partIdx].xEnd)
-                                              const sharedLine = sharedMiterBoundaryMap.get(boundaryX)
-                                              if (sharedLine) {
-                                                // Use the average of the shared line coordinates to keep it straight
-                                                const straightX = clampX((sharedLine.xTop + sharedLine.xBottom) / 2)
-                                                console.log(`[STRAIGHT-LOOKUP-END] Part ${partIdx} (${partName}): boundaryX=${boundaryX}, using straightX=${straightX.toFixed(2)}`)
-                                                topRightX = straightX
-                                                bottomRightX = straightX
-                                              }
                                             }
+                                            // REMOVED: straight edge shared boundary lookup - it was forcing mitered parts to be straight
                                             
                                             // Debug logging for polygon calculation
                                             if (partIdx === 0 || partIdx === 1) {
@@ -2894,12 +2883,15 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 const availableForPartsPx = 1000 * (1 - wasteMm / pattern.stock_length)
                                 const partsPxPerMm = totalPartsLengthMm > 0 ? availableForPartsPx / totalPartsLengthMm : pxPerMm
                                 
+                                // Position parts with strict 2px gap between them to represent kerf
+                                const kerfGapPx = 2
                                 let cumulativeX = 0
                                 const partPositions = sortedParts.map((part, partIdx) => {
                                   const lengthMm = part.length || 0
                                   const xStart = cumulativeX
                                   const xEnd = cumulativeX + (lengthMm * partsPxPerMm)
-                                  cumulativeX = xEnd
+                                  // Add strict 2px gap after each part (except the last one)
+                                  cumulativeX = xEnd + kerfGapPx
                                   return { part, xStart, xEnd, lengthMm }
                                 })
                                 

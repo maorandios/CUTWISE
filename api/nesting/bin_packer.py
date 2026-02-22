@@ -5,9 +5,12 @@ This module implements the core nesting algorithm that packs parts
 into stock bars while minimizing waste.
 """
 
+import logging
 from typing import List, Tuple, Optional
 from .models import Part, CuttingPattern, RejectedPart
 from .pair_detector import ComplementaryPair
+
+logger = logging.getLogger(__name__)
 
 
 def calculate_combined_length_with_kerf(
@@ -163,10 +166,12 @@ def optimize_part_order_in_patterns(
     Optimize the order of parts within each pattern to minimize waste.
     
     Strategy:
-    1. Place straight-cut parts at the START and END of the bar (minimize waste)
-    2. Place sloped-cut parts in the MIDDLE (where they can share cuts)
+    1. Group identical parts together (same part name)
+    2. Place straight-cut parts at the START of the bar
+    3. Place sloped-cut parts in the MIDDLE (where they can share cuts)
+    4. Place final sloped edge toward the WASTE at the end
     
-    This reduces waste at the bar ends where we can't share cuts.
+    This reduces waste at the bar ends and groups identical parts for easier cutting.
     
     Args:
         patterns: List of CuttingPattern objects
@@ -177,57 +182,121 @@ def optimize_part_order_in_patterns(
     """
     optimized_patterns = []
     
-    for pattern in patterns:
+    for pattern_idx, pattern in enumerate(patterns):
         if len(pattern.parts) <= 1:
             # No need to reorder single part
             optimized_patterns.append(pattern)
             continue
         
-        # Categorize parts by cut type
-        straight_both = []
-        straight_start = []
-        straight_end = []
-        sloped_both = []
+        print(f"\n[PART_ORDER] Pattern {pattern_idx + 1}: Optimizing {len(pattern.parts)} parts")
         
+        # Group parts by reference (part name) to keep identical parts together
+        from collections import defaultdict
+        parts_by_name = defaultdict(list)
         for part in pattern.parts:
-            if not part.start_slope.has_slope and not part.end_slope.has_slope:
-                straight_both.append(part)
-            elif not part.start_slope.has_slope and part.end_slope.has_slope:
-                straight_start.append(part)
-            elif part.start_slope.has_slope and not part.end_slope.has_slope:
-                straight_end.append(part)
+            parts_by_name[part.reference].append(part)
+        
+        # Categorize each group by cut type
+        straight_both_groups = []
+        straight_start_groups = []  # Straight at start, sloped at end (move to end, miter to waste)
+        straight_end_groups = []    # Sloped at start, straight at end (good for start position)
+        sloped_both_groups = []
+        unpaired_miter_groups = []  # Parts with miters NOT in complementary pairs (move to end)
+        
+        for part_name, parts_group in parts_by_name.items():
+            # Use the first part to determine the group's cut type
+            sample_part = parts_group[0]
+            
+            start_has_slope = sample_part.start_slope.has_slope
+            end_has_slope = sample_part.end_slope.has_slope
+            is_paired = sample_part.complementary_pair
+            
+            print(f"[PART_ORDER]   Part '{part_name}' (qty={len(parts_group)}): start_slope={start_has_slope}, end_slope={end_has_slope}, paired={is_paired}")
+            
+            if not start_has_slope and not end_has_slope:
+                straight_both_groups.append(parts_group)
+                print(f"[PART_ORDER]     -> Category: straight_both")
+            elif not start_has_slope and end_has_slope:
+                # Straight at start, miter at end
+                if is_paired:
+                    # Paired parts stay in middle
+                    sloped_both_groups.append(parts_group)
+                    print(f"[PART_ORDER]     -> Category: straight_start (paired, keep in middle)")
+                else:
+                    # Unpaired miter - move to end so miter faces waste
+                    unpaired_miter_groups.append(parts_group)
+                    print(f"[PART_ORDER]     -> Category: straight_start (UNPAIRED, move to end)")
+            elif start_has_slope and not end_has_slope:
+                # Miter at start, straight at end
+                if is_paired:
+                    # Paired parts stay in middle
+                    sloped_both_groups.append(parts_group)
+                    print(f"[PART_ORDER]     -> Category: straight_end (paired, keep in middle)")
+                else:
+                    # Unpaired miter at start - can go at beginning
+                    straight_end_groups.append(parts_group)
+                    print(f"[PART_ORDER]     -> Category: straight_end (UNPAIRED, ok at start)")
             else:
-                sloped_both.append(part)
+                # Both ends have miters
+                sloped_both_groups.append(parts_group)
+                print(f"[PART_ORDER]     -> Category: sloped_both")
         
-        # Sort each category by length (longest first) for easier reading and cutting
-        straight_both.sort(key=lambda p: p.length, reverse=True)
-        straight_start.sort(key=lambda p: p.length, reverse=True)
-        straight_end.sort(key=lambda p: p.length, reverse=True)
-        sloped_both.sort(key=lambda p: p.length, reverse=True)
+        # Sort groups by individual part length (not total group length)
+        # This helps with cutting efficiency - similar sized parts together
+        straight_both_groups.sort(key=lambda g: g[0].length, reverse=True)
+        straight_end_groups.sort(key=lambda g: g[0].length, reverse=True)
+        sloped_both_groups.sort(key=lambda g: g[0].length, reverse=True)
+        unpaired_miter_groups.sort(key=lambda g: g[0].length, reverse=True)
         
-        # Optimal ordering strategy:
-        # 1. Start with straight-end parts (straight cut at bar start)
-        # 2. Then sloped-both parts (in the middle)
-        # 3. Then straight-start parts (straight cut at bar end)
-        # 4. Finally straight-both parts (can go anywhere, prefer ends)
-        # Within each group: longest to shortest for convenience
+        # CRITICAL ORDERING RULE: Parts with ANY mitered/sloped edges must go to the END
+        # This minimizes waste by ensuring mitered cuts face the waste area, not the middle
+        #
+        # Strategy:
+        # 1. Place ALL straight parts first (no miters at all)
+        # 2. Place paired/complementary mitered parts in middle (can share cuts)
+        # 3. Place ANY remaining mitered parts at the END (miter faces waste)
         
         reordered_parts = []
+        parts_with_miters = []  # Any part with a miter (paired or unpaired)
         
-        # Start: Prefer straight-end (straight cut at beginning)
-        if straight_end:
-            reordered_parts.extend(straight_end)
-        elif straight_both:
-            reordered_parts.append(straight_both.pop(0))
+        print(f"[PART_ORDER] Reordering sequence:")
         
-        # Middle: Place sloped-both parts (longest first)
-        reordered_parts.extend(sloped_both)
+        # First pass: Add ONLY fully straight parts (no miters at all)
+        for group in straight_both_groups:
+            print(f"[PART_ORDER]   Adding {len(group)}x {group[0].reference} (straight - no miters)")
+            reordered_parts.extend(group)
         
-        # Add remaining straight-start parts (longest first)
-        reordered_parts.extend(straight_start)
+        # Collect all parts with miters (paired or unpaired) to place at end
+        for group in straight_end_groups:
+            print(f"[PART_ORDER]   Deferring {len(group)}x {group[0].reference} (has miter at start)")
+            parts_with_miters.extend(group)
         
-        # End: Add remaining straight-both parts (longest first)
-        reordered_parts.extend(straight_both)
+        for group in sloped_both_groups:
+            print(f"[PART_ORDER]   Deferring {len(group)}x {group[0].reference} (paired miters)")
+            parts_with_miters.extend(group)
+        
+        for group in unpaired_miter_groups:
+            print(f"[PART_ORDER]   Deferring {len(group)}x {group[0].reference} (unpaired miter)")
+            parts_with_miters.extend(group)
+        
+        # Now add all mitered parts at the END
+        # Sort mitered parts: paired first (can share cuts), then unpaired (to waste)
+        if parts_with_miters:
+            # Separate paired from unpaired miters
+            paired_miters = [p for p in parts_with_miters if p.complementary_pair]
+            unpaired_miters = [p for p in parts_with_miters if not p.complementary_pair]
+            
+            # Add paired miters first (they can share cuts with each other)
+            for part in paired_miters:
+                print(f"[PART_ORDER]   Adding {part.reference} (paired miter - can share)")
+                reordered_parts.append(part)
+            
+            # Add unpaired miters last (miter faces waste)
+            for part in unpaired_miters:
+                print(f"[PART_ORDER]   Adding {part.reference} (unpaired miter - TO WASTE)")
+                reordered_parts.append(part)
+        
+        print(f"[PART_ORDER] Final sequence: {' - '.join([p.reference for p in reordered_parts])}")
         
         # Update pattern with reordered parts
         pattern.parts = reordered_parts
