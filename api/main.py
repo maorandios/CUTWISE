@@ -666,6 +666,37 @@ def is_fastener_like(product) -> bool:
     return False
 
 
+def is_plate_like(product) -> bool:
+    """Return True if this element is actually a plate/base plate/gusset (not a structural profile).
+    
+    Filters out elements that are misclassified as IfcBeam/IfcColumn/IfcMember but are actually
+    plates, base plates, gussets, stiffeners, etc.
+    """
+    try:
+        name = (getattr(product, 'Name', None) or '').lower()
+        desc = (getattr(product, 'Description', None) or '').lower()
+        tag = (getattr(product, 'Tag', None) or '').lower()
+        
+        # Check for plate keywords in name/description/tag
+        plate_keywords = ['plate', 'base plate', 'gusset', 'stiffener', 'shim', 'washer', 'baseplate', 'base-plate']
+        text_content = name + ' ' + desc + ' ' + tag
+        
+        if any(kw in text_content for kw in plate_keywords):
+            return True
+            
+        # Check if profile name looks like a plate designation
+        profile_name = get_profile_name(product)
+        if profile_name:
+            profile_upper = profile_name.upper().strip()
+            # Common plate designations
+            if profile_upper in ['PLATE', 'PL', 'BP', 'BASEPLATE']:
+                return True
+    except:
+        pass
+    
+    return False
+
+
 def analyze_ifc(file_path: Path) -> Dict[str, Any]:
     """Analyze IFC file and extract steel information."""
     print(f"[ANALYZE] ===== STARTING ANALYSIS FOR {file_path.name} =====")
@@ -717,6 +748,10 @@ def analyze_ifc(file_path: Path) -> Dict[str, Any]:
             # Profile grouping (for beams, columns, members)
             # Merge all parts with same profile name regardless of type (beam/column/member)
             if element_type in {"IfcBeam", "IfcColumn", "IfcMember"}:
+                # Skip fasteners and plates that are misclassified as beams/columns/members
+                if is_fastener_like(element) or is_plate_like(element):
+                    continue
+                    
                 profile_name = get_profile_name(element)
                 # Normalize profile name (strip whitespace, handle case) to ensure consistent merging
                 if profile_name:
@@ -934,6 +969,10 @@ async def upload_ifc(file: UploadFile = File(...)):
                         }
                         
                         if element_type in {"IfcBeam", "IfcColumn", "IfcMember"}:
+                            # Skip fasteners and plates that are misclassified
+                            if is_fastener_like(product) or is_plate_like(product):
+                                continue
+                                
                             profile_name = get_profile_name(product)
                             mapping_entry["profile_name"] = profile_name
                         
@@ -1958,6 +1997,10 @@ async def get_assembly_mapping(filename: str):
                 
                 # Add profile_name for beams, columns, members
                 if element_type in {"IfcBeam", "IfcColumn", "IfcMember"}:
+                    # Skip fasteners and plates that are misclassified
+                    if is_fastener_like(product) or is_plate_like(product):
+                        continue
+                        
                     profile_name = get_profile_name(product)
                     mapping_entry["profile_name"] = profile_name
                 
@@ -3847,6 +3890,10 @@ async def get_shipment_assemblies(filename: str):
             
             # Process profiles (beams, columns, members)
             if element_type in ["IfcBeam", "IfcColumn", "IfcMember"]:
+                # Skip fasteners and plates that are misclassified
+                if is_fastener_like(element) or is_plate_like(element):
+                    continue
+                    
                 profile_name = get_profile_name(element)
                 
                 assemblies_by_id[assembly_id]["parts"].append({
@@ -4068,6 +4115,10 @@ async def get_management_assemblies(filename: str):
                 }
             
             if element_type in ["IfcBeam", "IfcColumn", "IfcMember"]:
+                # Skip fasteners and plates that are misclassified
+                if is_fastener_like(element) or is_plate_like(element):
+                    continue
+                    
                 profile_name = get_profile_name(element)
                 
                 assemblies_by_id[assembly_id]["parts"].append({

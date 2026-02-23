@@ -8,9 +8,10 @@ import { ContextMenuState, ElementData, SelectionMode } from './IFCViewer/types'
 interface IFCViewerWebIFCProps {
   filename: string | null
   isVisible?: boolean
+  selectedProfiles?: Set<string>
 }
 
-const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = true }: IFCViewerWebIFCProps) {
+const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = true, selectedProfiles = new Set() }: IFCViewerWebIFCProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
@@ -28,6 +29,8 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
   const downPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const DRAG_THRESHOLD_PX = 4
   const selectionModeRef = useRef<SelectionMode>('parts')
+  const previousSelectedProfilesRef = useRef<Set<string>>(new Set())
+  const xrayMaterialRef = useRef<THREE.MeshLambertMaterial | null>(null)
   
   const [isLoading, setIsLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -47,6 +50,69 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
     error: null
   })
   const [selectedElement, setSelectedElement] = useState<THREE.Mesh | null>(null)
+
+  // Helper function to apply x-ray effect based on selected profiles (optimized)
+  const applyXRayEffect = (modelGroup: THREE.Group, selectedProfiles: Set<string>, previousProfiles: Set<string>, forceAll: boolean = false) => {
+    // Create shared x-ray material once (reuse for all unselected meshes)
+    if (!xrayMaterialRef.current) {
+      xrayMaterialRef.current = new THREE.MeshLambertMaterial({
+        color: 0xF5F5F5, // Even lighter gray
+        transparent: true,
+        opacity: 0.12, // Very subtle
+        side: THREE.DoubleSide,
+        flatShading: false
+      })
+    }
+    const xrayMaterial = xrayMaterialRef.current
+
+    // Find which profiles changed
+    const added = new Set([...selectedProfiles].filter(p => !previousProfiles.has(p)))
+    const removed = new Set([...previousProfiles].filter(p => !selectedProfiles.has(p)))
+    
+    // If nothing changed and not forcing, skip entirely
+    if (!forceAll && added.size === 0 && removed.size === 0) {
+      return
+    }
+
+    console.log('[XRAY] Changed profiles - Added:', Array.from(added), 'Removed:', Array.from(removed), 'ForceAll:', forceAll)
+
+    let updatedCount = 0
+
+    // Traverse and update meshes
+    modelGroup.traverse((child) => {
+      if (child instanceof THREE.Mesh && !child.userData.isEdge) {
+        const profileName = child.userData.profile_name
+        
+        // Update if this profile changed OR if we're forcing all
+        if (forceAll || added.has(profileName) || removed.has(profileName)) {
+          const isSelected = selectedProfiles.has(profileName)
+          
+          if (isSelected) {
+            // Restore original material for selected profiles
+            if (child.userData.originalMaterial) {
+              child.material = child.userData.originalMaterial
+            }
+            // Hide x-ray edges
+            if (child.userData.edgeLine) {
+              child.userData.edgeLine.visible = false
+            }
+          } else {
+            // Apply x-ray effect for unselected profiles (shared material)
+            child.material = xrayMaterial
+            // Show edges
+            if (child.userData.edgeLine) {
+              child.userData.edgeLine.visible = true
+              child.userData.edgeLine.material.color.setHex(0xE0E0E0)
+              child.userData.edgeLine.material.opacity = 0.25
+            }
+          }
+          updatedCount++
+        }
+      }
+    })
+    
+    console.log('[XRAY] Updated', updatedCount, 'meshes')
+  }
 
   // Initialize Three.js scene
   useEffect(() => {
@@ -77,18 +143,22 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
     camera.position.set(50, 50, 50)
     cameraRef.current = camera
 
-    // Renderer - Balanced performance and quality
+    // Renderer - Optimized for performance
     const renderer = new THREE.WebGLRenderer({ 
       antialias: true, // Enable for smooth edges
       alpha: true,
       powerPreference: 'high-performance',
       stencil: false,
-      depth: true
+      depth: true,
+      logarithmicDepthBuffer: false
     })
     renderer.setSize(width, height)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)) // Up to 2x for quality
     renderer.shadowMap.enabled = false
     renderer.sortObjects = false
+    
+    // Enable frustum culling for better performance when zoomed out
+    renderer.info.autoReset = false
     renderer.domElement.style.display = 'block'
     renderer.domElement.style.width = '100%'
     renderer.domElement.style.height = '100%'
@@ -108,6 +178,41 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
     controls.maxDistance = 10000 // Allow zooming very far
     controls.enablePan = true
     controls.screenSpacePanning = true // Better panning behavior
+    
+    // Adaptive LOD based on zoom - throttled for performance
+    let modelCenter: THREE.Vector3 | null = null
+    let lastEdgeUpdateTime = 0
+    let edgesHidden = false
+    
+    controls.addEventListener('change', () => {
+      const now = Date.now()
+      // Throttle edge visibility updates to every 200ms
+      if (now - lastEdgeUpdateTime < 200) return
+      lastEdgeUpdateTime = now
+      
+      if (modelRef.current && cameraRef.current) {
+        // Calculate model center once
+        if (!modelCenter) {
+          const box = new THREE.Box3().setFromObject(modelRef.current)
+          modelCenter = box.getCenter(new THREE.Vector3())
+        }
+        
+        const distance = cameraRef.current.position.distanceTo(modelCenter)
+        const shouldHideEdges = distance > 300 // Hide edges when zoomed out
+        
+        // Only update if state changed
+        if (shouldHideEdges !== edgesHidden) {
+          edgesHidden = shouldHideEdges
+          
+          modelRef.current.traverse((child) => {
+            if (child.userData.isEdgeLine) {
+              child.visible = !shouldHideEdges
+            }
+          })
+        }
+      }
+    })
+    
     controlsRef.current = controls
 
     // Lights - Minimal setup for maximum performance
@@ -130,7 +235,7 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
     }
     window.addEventListener('resize', handleResize)
 
-    // Animation loop - simple and efficient
+    // Animation loop - simple and fast
     const animate = () => {
       const frameId = requestAnimationFrame(animate)
       animationFrameRef.current = frameId
@@ -322,17 +427,19 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
     }
     
     // Add event listeners
-    renderer.domElement.addEventListener('pointerdown', onPointerDown)
-    renderer.domElement.addEventListener('pointermove', onPointerMove)
-    renderer.domElement.addEventListener('pointerup', onPointerUp)
-    renderer.domElement.addEventListener('contextmenu', handleContextMenu)
+    // DISABLED: Element selection and right-click info (hidden for now)
+    // renderer.domElement.addEventListener('pointerdown', onPointerDown)
+    // renderer.domElement.addEventListener('pointermove', onPointerMove)
+    // renderer.domElement.addEventListener('pointerup', onPointerUp)
+    // renderer.domElement.addEventListener('contextmenu', handleContextMenu)
 
     return () => {
       window.removeEventListener('resize', handleResize)
-      renderer.domElement.removeEventListener('pointerdown', onPointerDown)
-      renderer.domElement.removeEventListener('pointermove', onPointerMove)
-      renderer.domElement.removeEventListener('pointerup', onPointerUp)
-      renderer.domElement.removeEventListener('contextmenu', handleContextMenu)
+      // DISABLED: Element selection and right-click info (hidden for now)
+      // renderer.domElement.removeEventListener('pointerdown', onPointerDown)
+      // renderer.domElement.removeEventListener('pointermove', onPointerMove)
+      // renderer.domElement.removeEventListener('pointerup', onPointerUp)
+      // renderer.domElement.removeEventListener('contextmenu', handleContextMenu)
       if (animationFrameRef.current !== null) {
         cancelAnimationFrame(animationFrameRef.current)
         animationFrameRef.current = null
@@ -493,14 +600,20 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
               transparent: ifcColor && ifcColor.w !== undefined && ifcColor.w < 1.0
             })
 
-            // Create mesh
+            // Create mesh with optimizations
             const mesh = new THREE.Mesh(bufferGeometry, material)
-            mesh.castShadow = false // Disable shadows for cleaner look
+            mesh.castShadow = false
             mesh.receiveShadow = false
+            mesh.frustumCulled = true // Enable frustum culling for performance
+            mesh.matrixAutoUpdate = false // Static geometry, no need to update matrix
+            mesh.updateMatrix() // Update once
             mesh.userData = {
               product_id: expressID,
               type: elementType,
-              geometry_id: geometryID
+              geometry_id: geometryID,
+              originalMaterial: material.clone(),
+              originalColor: color
+              // profile_name will be set by loadAssemblyMapping
             }
 
             modelGroup.add(mesh)
@@ -523,6 +636,9 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
               })
               
               const edgeLine = new THREE.LineSegments(edges, lineMaterial)
+              edgeLine.frustumCulled = true // Enable frustum culling
+              edgeLine.matrixAutoUpdate = false // Static geometry
+              edgeLine.updateMatrix() // Update once
               edgeLine.userData = {
                 isEdgeLine: true,
                 parentMesh: mesh
@@ -558,6 +674,9 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
 
         // Load assembly mapping from backend
         await loadAssemblyMapping(modelGroup, filename)
+
+        // Apply initial x-ray effect to all elements (force all on initial load)
+        applyXRayEffect(modelGroup, selectedProfiles, new Set(), true)
 
         // Fit camera to model
         const box = new THREE.Box3().setFromObject(modelGroup)
@@ -618,6 +737,22 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
       }
     }
   }, [filename])
+
+  // Update visualization when selectedProfiles changes (optimized)
+  useEffect(() => {
+    if (!modelRef.current) return
+    
+    // Pass previous state to only update changed profiles
+    applyXRayEffect(modelRef.current, selectedProfiles, previousSelectedProfilesRef.current)
+    
+    // Update previous state
+    previousSelectedProfilesRef.current = new Set(selectedProfiles)
+    
+    // Force a render to show the changes
+    if (rendererRef.current && sceneRef.current && cameraRef.current) {
+      rendererRef.current.render(sceneRef.current, cameraRef.current)
+    }
+  }, [selectedProfiles])
 
   // Helper function to clear selection
   const clearSelection = () => {
@@ -875,6 +1010,12 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
               child.userData.assembly_id = mappingEntry.assembly_id
               child.userData.assembly_mark = mappingEntry.assembly_mark
               child.userData.type = mappingEntry.element_type || child.userData.type
+              
+              // Store profile_name from mapping (for beams, columns, members)
+              if (mappingEntry.profile_name) {
+                child.userData.profile_name = mappingEntry.profile_name
+              }
+              
               appliedCount++
               
               // Log first few applications for debugging
@@ -882,7 +1023,8 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
                 console.log('[IFCM] Applied mapping to mesh:', {
                   productId,
                   assembly_id: mappingEntry.assembly_id,
-                  assembly_mark: mappingEntry.assembly_mark
+                  assembly_mark: mappingEntry.assembly_mark,
+                  profile_name: mappingEntry.profile_name
                 })
               }
             } else {
@@ -953,9 +1095,9 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
       />
 
       {/* Control Panel - Selection Mode Toggle */}
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20">
+      {/* DISABLED: Parts and Assemblies mode buttons (hidden for now) */}
+      {/* <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20">
         <div className="bg-white rounded-lg shadow-lg border border-gray-300 p-3 flex gap-2">
-          {/* Parts and Assemblies mode buttons */}
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -995,7 +1137,7 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
             Assemblies
           </button>
         </div>
-      </div>
+      </div> */}
 
       {/* Info Badge */}
       <div className="absolute bottom-4 right-4 bg-white bg-opacity-90 px-4 py-2 rounded-lg shadow-lg text-xs text-gray-600 z-10">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, memo } from 'react'
+import { useState, useEffect, useRef, memo, useCallback } from 'react'
 import { NestingReport as NestingReportType, SteelReport } from '../types'
 import { pdf } from '@react-pdf/renderer'
 import { NestingReportPDF } from './NestingReportPDF'
@@ -18,10 +18,14 @@ type Step = 'select' | 'results'
 interface ProfileItemProps {
   profile: { profile_name: string; piece_count: number; total_weight: number }
   isSelected: boolean
-  onToggle: () => void
+  onToggle: (profileName: string) => void
 }
 
 const ProfileItem = memo(({ profile, isSelected, onToggle }: ProfileItemProps) => {
+  const handleChange = useCallback(() => {
+    onToggle(profile.profile_name)
+  }, [onToggle, profile.profile_name])
+
   return (
     <label
       className={`block p-3 border rounded cursor-pointer transition-colors ${
@@ -34,14 +38,14 @@ const ProfileItem = memo(({ profile, isSelected, onToggle }: ProfileItemProps) =
         <input
           type="checkbox"
           checked={isSelected}
-          onChange={onToggle}
+          onChange={handleChange}
           className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
         />
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm truncate">{profile.profile_name}</div>
           <div className="text-xs text-gray-600 mt-1">
             <div>{profile.piece_count} parts</div>
-            <div>{(profile.total_weight / 1000).toFixed(2)} tonnes</div>
+            <div>{profile.total_weight.toLocaleString('en-US')} kg</div>
           </div>
         </div>
       </div>
@@ -73,8 +77,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   const [bomProjectName, setBomProjectName] = useState<string>('')
   const [bomSelectedProfiles, setBomSelectedProfiles] = useState<Set<string>>(new Set())
 
-  // Get available profiles from report
-  const availableProfiles = report?.profiles || []
+  // Get available profiles from report and sort by tonnage (highest first)
+  const availableProfiles = (report?.profiles || []).sort((a, b) => b.total_weight - a.total_weight)
   
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -216,15 +220,17 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   // Don't load nesting data from localStorage - always start fresh
   // This ensures clean state when uploading new file or refreshing page
 
-  const handleProfileToggle = (profileName: string) => {
-    const newSelected = new Set(selectedProfiles)
-    if (newSelected.has(profileName)) {
-      newSelected.delete(profileName)
-    } else {
-      newSelected.add(profileName)
-    }
-    setSelectedProfiles(newSelected)
-  }
+  const handleProfileToggle = useCallback((profileName: string) => {
+    setSelectedProfiles(prev => {
+      const newSelected = new Set(prev)
+      if (newSelected.has(profileName)) {
+        newSelected.delete(profileName)
+      } else {
+        newSelected.add(profileName)
+      }
+      return newSelected
+    })
+  }, [])
 
   const handleSelectAll = () => {
     if (selectedProfiles.size === availableProfiles.length) {
@@ -487,7 +493,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                         key={profile.profile_name}
                         profile={profile}
                         isSelected={selectedProfiles.has(profile.profile_name)}
-                        onToggle={() => handleProfileToggle(profile.profile_name)}
+                        onToggle={handleProfileToggle}
                       />
                     ))}
                   </div>
@@ -523,6 +529,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               <IFCViewerWebIFC 
                 filename={filename}
                 isVisible={true}
+                selectedProfiles={selectedProfiles}
               />
             </div>
           </div>
