@@ -99,9 +99,10 @@ const styles = StyleSheet.create({
 })
 
 export function BOMPDF({ nestingReport, report, projectName = '', companyName = 'Your Company Name' }: BOMPDFProps) {
-  // Calculate total tonnage
+  // Calculate total tonnage from report data
   const totalTonnage = nestingReport.profiles.reduce((sum, profile) => {
-    return sum + profile.total_weight
+    const profileData = report.profiles.find(p => p.profile_name === profile.profile_name)
+    return sum + (profileData ? profileData.total_weight / 1000 : 0) // Convert kg to tonnes
   }, 0)
 
   // Get current date
