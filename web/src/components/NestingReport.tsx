@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, memo } from 'react'
 import { NestingReport as NestingReportType, SteelReport } from '../types'
 import { pdf } from '@react-pdf/renderer'
 import { NestingReportPDF } from './NestingReportPDF'
@@ -13,6 +13,41 @@ interface NestingReportProps {
 }
 
 type Step = 'select' | 'results'
+
+// Memoized ProfileItem component to prevent unnecessary re-renders
+interface ProfileItemProps {
+  profile: { profile_name: string; piece_count: number; total_weight: number }
+  isSelected: boolean
+  onToggle: () => void
+}
+
+const ProfileItem = memo(({ profile, isSelected, onToggle }: ProfileItemProps) => {
+  return (
+    <label
+      className={`block p-3 border rounded cursor-pointer transition-colors ${
+        isSelected
+          ? 'bg-blue-50 border-blue-300'
+          : 'bg-white border-gray-200 hover:bg-gray-50'
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={onToggle}
+          className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+        />
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-sm truncate">{profile.profile_name}</div>
+          <div className="text-xs text-gray-600 mt-1">
+            <div>{profile.piece_count} parts</div>
+            <div>{(profile.total_weight / 1000).toFixed(2)} tonnes</div>
+          </div>
+        </div>
+      </div>
+    </label>
+  )
+})
 
 export default function NestingReport({ filename, nestingReport: propNestingReport, onNestingReportChange, report }: NestingReportProps) {
   // Use prop as source of truth, but maintain local state for updates
@@ -68,13 +103,20 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
     }
   }, [])
   
-  // Track window width for responsive display
+  // Track window width for responsive display with throttling
   useEffect(() => {
+    let timeoutId: number
     const handleResize = () => {
-      setWindowWidth(window.innerWidth)
+      clearTimeout(timeoutId)
+      timeoutId = window.setTimeout(() => {
+        setWindowWidth(window.innerWidth)
+      }, 150) // Throttle to 150ms
     }
     window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+    return () => {
+      clearTimeout(timeoutId)
+      window.removeEventListener('resize', handleResize)
+    }
   }, [])
   
   // Save settings to localStorage
@@ -440,35 +482,14 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {availableProfiles.map((profile, idx) => {
-                      const isSelected = selectedProfiles.has(profile.profile_name)
-                      return (
-                        <label
-                          key={idx}
-                          className={`block p-3 border rounded cursor-pointer transition-colors ${
-                            isSelected
-                              ? 'bg-blue-50 border-blue-300'
-                              : 'bg-white border-gray-200 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex items-start gap-3">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => handleProfileToggle(profile.profile_name)}
-                              className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-sm truncate">{profile.profile_name}</div>
-                              <div className="text-xs text-gray-600 mt-1">
-                                <div>{profile.piece_count} parts</div>
-                                <div>{(profile.total_weight / 1000).toFixed(2)} tonnes</div>
-                              </div>
-                            </div>
-                          </div>
-                        </label>
-                      )
-                    })}
+                    {availableProfiles.map((profile, idx) => (
+                      <ProfileItem
+                        key={profile.profile_name}
+                        profile={profile}
+                        isSelected={selectedProfiles.has(profile.profile_name)}
+                        onToggle={() => handleProfileToggle(profile.profile_name)}
+                      />
+                    ))}
                   </div>
                 )}
               </div>
@@ -498,7 +519,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
             </div>
 
             {/* Right Panel - IFC Viewer (70% width) */}
-            <div className="flex-1 bg-gray-100">
+            <div className="flex-1 bg-gray-100" style={{ willChange: 'transform', contain: 'layout style paint' }}>
               <IFCViewerWebIFC 
                 filename={filename}
                 isVisible={true}

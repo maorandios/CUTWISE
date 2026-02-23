@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, memo } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import * as WebIFC from 'web-ifc'
@@ -10,7 +10,7 @@ interface IFCViewerWebIFCProps {
   isVisible?: boolean
 }
 
-export default function IFCViewerWebIFC({ filename, isVisible = true }: IFCViewerWebIFCProps) {
+const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = true }: IFCViewerWebIFCProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
@@ -77,15 +77,18 @@ export default function IFCViewerWebIFC({ filename, isVisible = true }: IFCViewe
     camera.position.set(50, 50, 50)
     cameraRef.current = camera
 
-    // Renderer - Optimized for performance
+    // Renderer - Balanced performance and quality
     const renderer = new THREE.WebGLRenderer({ 
-      antialias: true,
+      antialias: true, // Enable for smooth edges
       alpha: true,
-      powerPreference: 'high-performance' // Use high-performance GPU
+      powerPreference: 'high-performance',
+      stencil: false,
+      depth: true
     })
     renderer.setSize(width, height)
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)) // Cap at 2x for performance
-    renderer.shadowMap.enabled = false // Disable shadows for performance
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)) // Up to 2x for quality
+    renderer.shadowMap.enabled = false
+    renderer.sortObjects = false
     renderer.domElement.style.display = 'block'
     renderer.domElement.style.width = '100%'
     renderer.domElement.style.height = '100%'
@@ -95,29 +98,26 @@ export default function IFCViewerWebIFC({ filename, isVisible = true }: IFCViewe
     containerRef.current.appendChild(renderer.domElement)
     rendererRef.current = renderer
 
-    // Controls - Optimized for sharp, responsive movement and close-up viewing
+    // Controls - Optimized for instant, responsive movement
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = false // Disable damping for instant response
-    controls.rotateSpeed = 1.0
-    controls.zoomSpeed = 1.5 // Faster zoom
-    controls.panSpeed = 1.5 // Faster panning
-    controls.minDistance = 0.01 // Allow zooming very close (was default ~0)
+    controls.rotateSpeed = 1.5 // Faster rotation for more responsive feel
+    controls.zoomSpeed = 2.0 // Faster zoom
+    controls.panSpeed = 2.0 // Faster panning
+    controls.minDistance = 0.01 // Allow zooming very close
     controls.maxDistance = 10000 // Allow zooming very far
-    controls.enablePan = true // Ensure panning is enabled
+    controls.enablePan = true
+    controls.screenSpacePanning = true // Better panning behavior
     controlsRef.current = controls
 
-    // Lights - Optimized for performance while maintaining good visuals
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6) // Higher ambient = less directional light needed
+    // Lights - Minimal setup for maximum performance
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8) // High ambient for less computation
     scene.add(ambientLight)
 
-    // Single main directional light (reduced from 4 lights to 1 for performance)
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8)
+    // Single directional light
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5)
     directionalLight.position.set(100, 150, 100)
     scene.add(directionalLight)
-
-    // Hemisphere light for subtle fill (very cheap performance-wise)
-    const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x888888, 0.3)
-    scene.add(hemisphereLight)
 
     // No grid for cleaner appearance
 
@@ -130,7 +130,7 @@ export default function IFCViewerWebIFC({ filename, isVisible = true }: IFCViewe
     }
     window.addEventListener('resize', handleResize)
 
-    // Animation loop - Optimized for performance
+    // Animation loop - simple and efficient
     const animate = () => {
       const frameId = requestAnimationFrame(animate)
       animationFrameRef.current = frameId
@@ -457,6 +457,10 @@ export default function IFCViewerWebIFC({ filename, isVisible = true }: IFCViewe
             bufferGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
             bufferGeometry.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1))
             bufferGeometry.computeVertexNormals()
+            
+            // Optimize geometry for faster rendering
+            bufferGeometry.computeBoundingSphere()
+            bufferGeometry.computeBoundingBox()
 
             // Apply transformation matrix from IFC
             const flatTransform = geometry.flatTransformation
@@ -480,17 +484,13 @@ export default function IFCViewerWebIFC({ filename, isVisible = true }: IFCViewe
               color = colorMap[elementType] || 0x999999
             }
 
-            // Create material with real IFC color - optimized for performance
-            const material = new THREE.MeshPhongMaterial({
+            // Create material with real IFC color - using Lambert with smooth shading
+            const material = new THREE.MeshLambertMaterial({
               color: color,
               side: THREE.DoubleSide,
-              flatShading: false,
+              flatShading: false, // Smooth shading for better visuals
               opacity: ifcColor && ifcColor.w !== undefined ? ifcColor.w : 1.0,
-              transparent: ifcColor && ifcColor.w !== undefined && ifcColor.w < 1.0,
-              shininess: 40, // Moderate shininess
-              specular: 0x333333, // Subtle specular
-              emissive: color, // Slight emissive to maintain color visibility
-              emissiveIntensity: 0.05 // Minimal emissive for performance
+              transparent: ifcColor && ifcColor.w !== undefined && ifcColor.w < 1.0
             })
 
             // Create mesh
@@ -915,7 +915,7 @@ export default function IFCViewerWebIFC({ filename, isVisible = true }: IFCViewe
   return (
     <div className="relative w-full h-full">
       {/* 3D Viewer Container */}
-      <div ref={containerRef} className="w-full h-full" />
+      <div ref={containerRef} className="w-full h-full" style={{ willChange: 'transform' }} />
 
       {/* Loading Overlay */}
       {isLoading && (
@@ -1004,4 +1004,6 @@ export default function IFCViewerWebIFC({ filename, isVisible = true }: IFCViewe
       </div>
     </div>
   )
-}
+})
+
+export default IFCViewerWebIFC
