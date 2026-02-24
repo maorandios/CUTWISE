@@ -29,8 +29,9 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
   const downPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const DRAG_THRESHOLD_PX = 4
   const selectionModeRef = useRef<SelectionMode>('parts')
-  const previousSelectedProfilesRef = useRef<Set<string>>(new Set())
-  const xrayMaterialRef = useRef<THREE.MeshLambertMaterial | null>(null)
+  const meshLookupRef = useRef<Map<string, THREE.Mesh[]>>(new Map()) // Cache: profileName -> meshes
+  const previousSelectedProfilesRef = useRef<Set<string>>(new Set()) // Track what was selected before
+  const renderRequestedRef = useRef<boolean>(false) // Throttle renders
   
   const [isLoading, setIsLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -50,68 +51,133 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
     error: null
   })
   const [selectedElement, setSelectedElement] = useState<THREE.Mesh | null>(null)
+  const [hideNonProfiles, setHideNonProfiles] = useState(false)
 
-  // Helper function to apply x-ray effect based on selected profiles (optimized)
-  const applyXRayEffect = (modelGroup: THREE.Group, selectedProfiles: Set<string>, previousProfiles: Set<string>, forceAll: boolean = false) => {
-    // Create shared x-ray material once (reuse for all unselected meshes)
-    if (!xrayMaterialRef.current) {
-      xrayMaterialRef.current = new THREE.MeshLambertMaterial({
-        color: 0xF5F5F5, // Even lighter gray
-        transparent: true,
-        opacity: 0.12, // Very subtle
-        side: THREE.DoubleSide,
-        flatShading: false
-      })
-    }
-    const xrayMaterial = xrayMaterialRef.current
-
-    // Find which profiles changed
-    const added = new Set([...selectedProfiles].filter(p => !previousProfiles.has(p)))
-    const removed = new Set([...previousProfiles].filter(p => !selectedProfiles.has(p)))
+  // Helper function to build mesh lookup cache (called once after model loads)
+  const buildMeshLookup = (modelGroup: THREE.Group) => {
+    const lookup = new Map<string, THREE.Mesh[]>()
     
-    // If nothing changed and not forcing, skip entirely
-    if (!forceAll && added.size === 0 && removed.size === 0) {
-      return
-    }
-
-    console.log('[XRAY] Changed profiles - Added:', Array.from(added), 'Removed:', Array.from(removed), 'ForceAll:', forceAll)
-
-    let updatedCount = 0
-
-    // Traverse and update meshes
     modelGroup.traverse((child) => {
       if (child instanceof THREE.Mesh && !child.userData.isEdge) {
         const profileName = child.userData.profile_name
-        
-        // Update if this profile changed OR if we're forcing all
-        if (forceAll || added.has(profileName) || removed.has(profileName)) {
-          const isSelected = selectedProfiles.has(profileName)
-          
-          if (isSelected) {
-            // Restore original material for selected profiles
-            if (child.userData.originalMaterial) {
-              child.material = child.userData.originalMaterial
-            }
-            // Hide x-ray edges
-            if (child.userData.edgeLine) {
-              child.userData.edgeLine.visible = false
-            }
-          } else {
-            // Apply x-ray effect for unselected profiles (shared material)
-            child.material = xrayMaterial
-            // Show edges
-            if (child.userData.edgeLine) {
-              child.userData.edgeLine.visible = true
-              child.userData.edgeLine.material.color.setHex(0xE0E0E0)
-              child.userData.edgeLine.material.opacity = 0.25
-            }
+        if (profileName) {
+          if (!lookup.has(profileName)) {
+            lookup.set(profileName, [])
           }
-          updatedCount++
+          lookup.get(profileName)!.push(child)
         }
       }
     })
     
-    console.log('[XRAY] Updated', updatedCount, 'meshes')
+    console.log(`[CACHE] Built mesh lookup: ${lookup.size} profiles, ${Array.from(lookup.values()).reduce((sum, arr) => sum + arr.length, 0)} meshes`)
+    return lookup
+  }
+
+  // Helper function to update materials - ONLY updates changed profiles (ultra-fast)
+  const updateProfileMaterials = (selectedProfiles: Set<string>, previousProfiles: Set<string>) => {
+    const meshLookup = meshLookupRef.current
+    if (meshLookup.size === 0) return // No cache yet
+    
+    // Find profiles that changed
+    const added = new Set([...selectedProfiles].filter(p => !previousProfiles.has(p)))
+    const removed = new Set([...previousProfiles].filter(p => !selectedProfiles.has(p)))
+    
+    let updatedMeshes = 0
+    
+    // Update newly selected profiles (gray opaque -> original color)
+    added.forEach(profileName => {
+      const meshes = meshLookup.get(profileName)
+      if (meshes) {
+        meshes.forEach(mesh => {
+          if (mesh.userData.originalMaterial) {
+            mesh.material = mesh.userData.originalMaterial
+            updatedMeshes++
+          }
+        })
+      }
+    })
+    
+    // Update newly deselected profiles (original color -> gray opaque)
+    removed.forEach(profileName => {
+      const meshes = meshLookup.get(profileName)
+      if (meshes) {
+        meshes.forEach(mesh => {
+          if (mesh.userData.grayMaterial) {
+            mesh.material = mesh.userData.grayMaterial
+            updatedMeshes++
+          }
+        })
+      }
+    })
+    
+    if (updatedMeshes > 0) {
+      console.log(`[MATERIALS] Updated ${updatedMeshes} meshes (${added.size} added, ${removed.size} removed)`)
+    }
+  }
+  
+  // Helper function to apply initial materials (all meshes gray opaque on first load)
+  const applyInitialMaterials = (selectedProfiles: Set<string>) => {
+    const meshLookup = meshLookupRef.current
+    if (meshLookup.size === 0) return
+    
+    let updatedMeshes = 0
+    
+    // Set selected profiles to original color, all others stay gray opaque (already set on load)
+    selectedProfiles.forEach(profileName => {
+      const meshes = meshLookup.get(profileName)
+      if (meshes) {
+        meshes.forEach(mesh => {
+          if (mesh.userData.originalMaterial) {
+            mesh.material = mesh.userData.originalMaterial
+            updatedMeshes++
+          }
+        })
+      }
+    })
+    
+    console.log(`[MATERIALS] Initial: ${updatedMeshes} meshes set to color, rest are gray opaque`)
+  }
+
+  // Helper function to toggle visibility of non-profile elements
+  const toggleNonProfileVisibility = (hide: boolean) => {
+    if (!modelRef.current) return
+    
+    const meshLookup = meshLookupRef.current
+    const profileNames = new Set(meshLookup.keys())
+    
+    let hiddenCount = 0
+    let shownCount = 0
+    
+    modelRef.current.traverse((child) => {
+      if (child instanceof THREE.Mesh && !child.userData.isEdge) {
+        const profileName = child.userData.profile_name
+        
+        // If this mesh doesn't belong to any profile in the list, hide/show it
+        if (!profileName || !profileNames.has(profileName)) {
+          child.visible = !hide
+          if (hide) {
+            hiddenCount++
+          } else {
+            shownCount++
+          }
+        }
+      }
+    })
+    
+    console.log(`[VISIBILITY] ${hide ? 'Hidden' : 'Shown'} ${hide ? hiddenCount : shownCount} non-profile elements`)
+    
+    // Trigger render
+    if (rendererRef.current && sceneRef.current && cameraRef.current) {
+      if (!renderRequestedRef.current) {
+        renderRequestedRef.current = true
+        requestAnimationFrame(() => {
+          if (rendererRef.current && sceneRef.current && cameraRef.current) {
+            rendererRef.current.render(sceneRef.current, cameraRef.current)
+          }
+          renderRequestedRef.current = false
+        })
+      }
+    }
   }
 
   // Initialize Three.js scene
@@ -145,7 +211,7 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
 
     // Renderer - Optimized for performance
     const renderer = new THREE.WebGLRenderer({ 
-      antialias: true, // Enable for smooth edges
+      antialias: true, // Enable for smooth edges (no transparency issues)
       alpha: true,
       powerPreference: 'high-performance',
       stencil: false,
@@ -153,9 +219,9 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
       logarithmicDepthBuffer: false
     })
     renderer.setSize(width, height)
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)) // Up to 2x for quality
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)) // Full quality
     renderer.shadowMap.enabled = false
-    renderer.sortObjects = false
+    renderer.sortObjects = false // No need to sort opaque objects
     
     // Enable frustum culling for better performance when zoomed out
     renderer.info.autoReset = false
@@ -179,39 +245,8 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
     controls.enablePan = true
     controls.screenSpacePanning = true // Better panning behavior
     
-    // Adaptive LOD based on zoom - throttled for performance
-    let modelCenter: THREE.Vector3 | null = null
-    let lastEdgeUpdateTime = 0
-    let edgesHidden = false
-    
-    controls.addEventListener('change', () => {
-      const now = Date.now()
-      // Throttle edge visibility updates to every 200ms
-      if (now - lastEdgeUpdateTime < 200) return
-      lastEdgeUpdateTime = now
-      
-      if (modelRef.current && cameraRef.current) {
-        // Calculate model center once
-        if (!modelCenter) {
-          const box = new THREE.Box3().setFromObject(modelRef.current)
-          modelCenter = box.getCenter(new THREE.Vector3())
-        }
-        
-        const distance = cameraRef.current.position.distanceTo(modelCenter)
-        const shouldHideEdges = distance > 300 // Hide edges when zoomed out
-        
-        // Only update if state changed
-        if (shouldHideEdges !== edgesHidden) {
-          edgesHidden = shouldHideEdges
-          
-          modelRef.current.traverse((child) => {
-            if (child.userData.isEdgeLine) {
-              child.visible = !shouldHideEdges
-            }
-          })
-        }
-      }
-    })
+    // All edges are hidden by default for maximum performance
+    // No adaptive LOD needed since edges are not rendered
     
     controlsRef.current = controls
 
@@ -235,13 +270,29 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
     }
     window.addEventListener('resize', handleResize)
 
-    // Animation loop - simple and fast
-    const animate = () => {
-      const frameId = requestAnimationFrame(animate)
-      animationFrameRef.current = frameId
-      renderer.render(scene, camera)
+    // Throttled render function - prevents multiple renders in same frame
+    const requestRender = () => {
+      if (!renderRequestedRef.current) {
+        renderRequestedRef.current = true
+        requestAnimationFrame(() => {
+          if (rendererRef.current && sceneRef.current && cameraRef.current) {
+            const startTime = performance.now()
+            rendererRef.current.render(sceneRef.current, cameraRef.current)
+            const renderTime = performance.now() - startTime
+            if (renderTime > 16) { // Log if slower than 60fps
+              console.log(`[RENDER] Slow render: ${renderTime.toFixed(1)}ms`)
+            }
+          }
+          renderRequestedRef.current = false
+        })
+      }
     }
-    animate()
+    
+    // Trigger render when controls change (camera moves) - throttled via requestAnimationFrame
+    controls.addEventListener('change', requestRender)
+    
+    // Initial render
+    requestRender()
 
     // Pointer event handlers for selection
     const onPointerDown = (event: PointerEvent) => {
@@ -440,10 +491,10 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
       // renderer.domElement.removeEventListener('pointermove', onPointerMove)
       // renderer.domElement.removeEventListener('pointerup', onPointerUp)
       // renderer.domElement.removeEventListener('contextmenu', handleContextMenu)
-      if (animationFrameRef.current !== null) {
-        cancelAnimationFrame(animationFrameRef.current)
-        animationFrameRef.current = null
-      }
+      
+      // Remove controls change listener
+      controls.removeEventListener('change', requestRender)
+      
       renderer.dispose()
       controls.dispose()
     }
@@ -591,27 +642,37 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
               color = colorMap[elementType] || 0x999999
             }
 
-            // Create material with real IFC color - using Lambert with smooth shading
-            const material = new THREE.MeshLambertMaterial({
+            // Create original material with real IFC color
+            const originalMaterial = new THREE.MeshLambertMaterial({
               color: color,
               side: THREE.DoubleSide,
-              flatShading: false, // Smooth shading for better visuals
-              opacity: ifcColor && ifcColor.w !== undefined ? ifcColor.w : 1.0,
-              transparent: ifcColor && ifcColor.w !== undefined && ifcColor.w < 1.0
+              flatShading: false,
+              opacity: 1.0,
+              transparent: false
+            })
+            
+            // Create gray opaque material for unselected elements (fast, no transparency)
+            const grayMaterial = new THREE.MeshLambertMaterial({
+              color: 0xE8E8E8, // Very light gray
+              side: THREE.DoubleSide,
+              flatShading: false,
+              transparent: false, // Opaque for maximum performance
+              opacity: 1.0
             })
 
-            // Create mesh with optimizations
-            const mesh = new THREE.Mesh(bufferGeometry, material)
+            // Create mesh with gray transparent material by default
+            const mesh = new THREE.Mesh(bufferGeometry, grayMaterial)
             mesh.castShadow = false
             mesh.receiveShadow = false
-            mesh.frustumCulled = true // Enable frustum culling for performance
-            mesh.matrixAutoUpdate = false // Static geometry, no need to update matrix
-            mesh.updateMatrix() // Update once
+            mesh.frustumCulled = true
+            mesh.matrixAutoUpdate = false
+            mesh.updateMatrix()
             mesh.userData = {
               product_id: expressID,
               type: elementType,
               geometry_id: geometryID,
-              originalMaterial: material.clone(),
+              originalMaterial: originalMaterial, // Store original for selection
+              grayMaterial: grayMaterial, // Store gray for deselection
               originalColor: color
               // profile_name will be set by loadAssemblyMapping
             }
@@ -639,15 +700,18 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
               edgeLine.frustumCulled = true // Enable frustum culling
               edgeLine.matrixAutoUpdate = false // Static geometry
               edgeLine.updateMatrix() // Update once
+              edgeLine.visible = false // Hide all edges by default for performance
               edgeLine.userData = {
                 isEdgeLine: true,
                 parentMesh: mesh
               }
               edgeLine.name = `${mesh.name}_edges`
-              
+              // Match parent mesh layer for consistent visibility
+              edgeLine.layers.set(0) // Start on default layer
+
               // Store reference to edge line in mesh userData
               mesh.userData.edgeLine = edgeLine
-              
+
               modelGroup.add(edgeLine)
             } catch (e) {
               // Ignore edge creation errors for complex geometries
@@ -675,8 +739,17 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
         // Load assembly mapping from backend
         await loadAssemblyMapping(modelGroup, filename)
 
-        // Apply initial x-ray effect to all elements (force all on initial load)
-        applyXRayEffect(modelGroup, selectedProfiles, new Set(), true)
+        // Build mesh lookup cache for fast profile-based updates
+        meshLookupRef.current = buildMeshLookup(modelGroup)
+        
+        // Apply initial selection (all meshes already have gray opaque material, only color selected ones)
+        applyInitialMaterials(selectedProfiles)
+        previousSelectedProfilesRef.current = new Set(selectedProfiles)
+        
+        // Render after applying selection
+        if (rendererRef.current && sceneRef.current && cameraRef.current) {
+          rendererRef.current.render(sceneRef.current, cameraRef.current)
+        }
 
         // Fit camera to model
         const box = new THREE.Box3().setFromObject(modelGroup)
@@ -735,24 +808,41 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
         })
         modelRef.current = null
       }
+      // Clear mesh lookup cache
+      meshLookupRef.current.clear()
+      previousSelectedProfilesRef.current.clear()
     }
   }, [filename])
 
-  // Update visualization when selectedProfiles changes (optimized)
+  // Update visualization when selectedProfiles changes (ultra-fast - only updates changed profiles)
   useEffect(() => {
-    if (!modelRef.current) return
+    if (!modelRef.current || meshLookupRef.current.size === 0) return
     
-    // Pass previous state to only update changed profiles
-    applyXRayEffect(modelRef.current, selectedProfiles, previousSelectedProfilesRef.current)
+    // Only update meshes for profiles that changed (added or removed)
+    updateProfileMaterials(selectedProfiles, previousSelectedProfilesRef.current)
     
     // Update previous state
     previousSelectedProfilesRef.current = new Set(selectedProfiles)
     
-    // Force a render to show the changes
+    // Trigger a throttled render to show the changes
     if (rendererRef.current && sceneRef.current && cameraRef.current) {
-      rendererRef.current.render(sceneRef.current, cameraRef.current)
+      if (!renderRequestedRef.current) {
+        renderRequestedRef.current = true
+        requestAnimationFrame(() => {
+          if (rendererRef.current && sceneRef.current && cameraRef.current) {
+            rendererRef.current.render(sceneRef.current, cameraRef.current)
+          }
+          renderRequestedRef.current = false
+        })
+      }
     }
   }, [selectedProfiles])
+
+  // Handle hide/show non-profile elements
+  useEffect(() => {
+    if (!modelRef.current) return
+    toggleNonProfileVisibility(hideNonProfiles)
+  }, [hideNonProfiles])
 
   // Helper function to clear selection
   const clearSelection = () => {
@@ -1138,6 +1228,25 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
           </button>
         </div>
       </div> */}
+
+      {/* Hide Non-Profiles Button */}
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20">
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            setHideNonProfiles(!hideNonProfiles)
+          }}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-lg ${
+            hideNonProfiles
+              ? 'bg-blue-600 text-white hover:bg-blue-700'
+              : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+          }`}
+          title={hideNonProfiles ? 'Show all elements' : 'Hide non-profile elements (plates, anchors, etc.)'}
+        >
+          {hideNonProfiles ? 'Show All' : 'Hide Non-Profiles'}
+        </button>
+      </div>
 
       {/* Info Badge */}
       <div className="absolute bottom-4 right-4 bg-white bg-opacity-90 px-4 py-2 rounded-lg shadow-lg text-xs text-gray-600 z-10">

@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react'
+import Login from './components/Login'
+import Signup from './components/Signup'
+import ProjectsDashboard from './components/ProjectsDashboard'
 import FileUpload from './components/FileUpload'
 import IFCViewer from './components/IFCViewer'
 import IFCViewerWebIFC from './components/IFCViewerWebIFC'
@@ -14,8 +17,19 @@ import BoltsTab from './components/BoltsTab'
 import FastenersTab from './components/FastenersTab'
 import PlateNestingTab from './components/PlateNestingTab'
 import { SteelReport, FilterState, NestingReport as NestingReportType } from './types'
+import * as ProjectStorage from './utils/projectStorage'
+import type { ProjectData } from './utils/projectStorage'
 
 function App() {
+  // Auth state
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [authView, setAuthView] = useState<'login' | 'signup'>('login')
+  const [userName, setUserName] = useState('User')
+  
+  // View state
+  const [currentView, setCurrentView] = useState<'dashboard' | 'upload' | 'project'>('dashboard')
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
+  
   // Load from localStorage on mount (but NOT currentFile or nesting data - always start fresh)
   const loadFromStorage = () => {
     try {
@@ -71,6 +85,16 @@ function App() {
     dashboardDetails?: any
   }>({})
 
+  // Check for existing user session on mount
+  useEffect(() => {
+    const user = ProjectStorage.getCurrentUser()
+    if (user) {
+      setUserName(user.userName)
+      setIsAuthenticated(true)
+      console.log('[App] Restored user session:', user.userName)
+    }
+  }, [])
+
   // Save to localStorage whenever state changes (but only save filters and activeTab, not file data)
   useEffect(() => {
     try {
@@ -108,31 +132,206 @@ function App() {
     
     // Clear tab data cache when new file is uploaded
     setTabDataCache({})
+    
+    // Save project with full data using new storage system
+    const project = ProjectStorage.createProject(filename, reportData)
+    setCurrentProjectId(project.id)
+    
+    // Switch to project view
+    setCurrentView('project')
   }
 
   const handleNestingReportChange = (report: NestingReportType | null) => {
     setNestingReport(report)
+    
+    // Update project with nesting data
+    if (report && currentProjectId) {
+      ProjectStorage.updateProjectNesting(currentProjectId, report)
+    }
+  }
+
+  // Auth handlers
+  const handleLogin = (username: string, password: string) => {
+    // TODO: Implement actual authentication with backend
+    console.log('Login:', username, password)
+    
+    // For now, just set user in localStorage
+    const userId = `user_${Date.now()}`
+    ProjectStorage.setCurrentUser(userId, username)
+    
+    setUserName(username)
+    setIsAuthenticated(true)
+    setCurrentView('dashboard')
+  }
+
+  const handleSignup = (fullName: string, email: string, password: string) => {
+    // TODO: Implement actual signup with backend
+    console.log('Signup:', fullName, email, password)
+    
+    // For now, just set user in localStorage
+    const userId = `user_${Date.now()}`
+    ProjectStorage.setCurrentUser(userId, fullName)
+    
+    setUserName(fullName)
+    setIsAuthenticated(true)
+    setCurrentView('dashboard')
+  }
+  
+  const handleLogout = () => {
+    ProjectStorage.clearCurrentUser()
+    setIsAuthenticated(false)
+    setCurrentView('dashboard')
+    setCurrentFile(null)
+    setReport(null)
+    setNestingReport(null)
+  }
+  
+  const handleSelectProject = (projectData: ProjectData) => {
+    // Load complete project data from storage
+    const fullProject = ProjectStorage.getProject(projectData.id)
+    
+    if (fullProject) {
+      setCurrentFile(fullProject.filename)
+      setReport(fullProject.steelReport)
+      setNestingReport(fullProject.nestingReport)
+      setCurrentProjectId(fullProject.id)
+      setCurrentView('project')
+      
+      console.log('[App] Loaded project:', fullProject.name, {
+        hasReport: !!fullProject.steelReport,
+        hasNesting: !!fullProject.nestingReport,
+        status: fullProject.status
+      })
+    } else {
+      console.error('[App] Project not found:', projectData.id)
+    }
+  }
+  
+  const handleUploadNew = () => {
+    setCurrentView('upload')
+  }
+  
+  const handleBackToDashboard = () => {
+    setCurrentView('dashboard')
+    setCurrentFile(null)
+    setReport(null)
+    setNestingReport(null)
   }
 
   // REMOVED: Tab preloading (was causing 23s delay)
   // Data is now loaded on-demand when each tab is opened
   // This saves ~23 seconds on file upload and only loads what's needed
 
+  // Show auth screens if not authenticated
+  if (!isAuthenticated) {
+    if (authView === 'login') {
+      return <Login onLogin={handleLogin} onSwitchToSignup={() => setAuthView('signup')} />
+    } else {
+      return <Signup onSignup={handleSignup} onSwitchToLogin={() => setAuthView('login')} />
+    }
+  }
+
+  // Show dashboard view
+  if (currentView === 'dashboard') {
+    return (
+      <ProjectsDashboard
+        onSelectProject={handleSelectProject}
+        onUploadNew={handleUploadNew}
+        onLogout={handleLogout}
+        userName={userName}
+      />
+    )
+  }
+
+  // Show upload view
+  if (currentView === 'upload') {
+    return (
+      <div className="h-screen flex flex-col">
+        <header className="bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleBackToDashboard}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Back to dashboard"
+              >
+                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <img 
+                src="/Icons/cutwise - logo.svg" 
+                alt="Cutwise" 
+                className="h-8"
+              />
+              <h1 className="text-xl font-bold text-gray-900">Upload New Project</h1>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+            >
+              Log Out
+            </button>
+          </div>
+        </header>
+        
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="p-4 border-b">
+            <FileUpload 
+              onUpload={handleFileUploaded}
+              loading={loading}
+              setLoading={setLoading}
+            />
+          </div>
+
+          <div className="flex-1 flex items-center justify-center text-gray-500">
+            <p>Upload an IFC file to get started</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show project view (nesting report)
   return (
     <div className="h-screen flex flex-col">
-      <header className="bg-gray-800 text-white p-4">
-        <h1 className="text-2xl font-bold">IFC Steel Viewer</h1>
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleBackToDashboard}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Back to dashboard"
+            >
+              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <img 
+              src="/Icons/cutwise - logo.svg" 
+              alt="Cutwise" 
+              className="h-8"
+            />
+            <h1 className="text-xl font-bold text-gray-900">{currentFile?.replace('.ifc', '') || 'Project'}</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleUploadNew}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+            >
+              Upload New
+            </button>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+            >
+              Log Out
+            </button>
+          </div>
+        </div>
       </header>
       
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-4 border-b">
-          <FileUpload 
-            onUpload={handleFileUploaded}
-            loading={loading}
-            setLoading={setLoading}
-          />
-        </div>
-
         {currentFile && (
           <>
             {/* Tab Navigation - HIDDEN */}
@@ -266,25 +465,25 @@ function App() {
               </div>
             )}
 
-            {/* Main Content - Nesting View Only */}
-            <div className="flex-1 overflow-hidden">
-              <NestingReport 
-                filename={currentFile} 
-                nestingReport={nestingReport}
-                onNestingReportChange={handleNestingReportChange}
-                report={report}
-              />
-            </div>
-          </>
-        )}
-
-        {!currentFile && (
-          <div className="flex-1 flex items-center justify-center text-gray-500">
-            <p>Upload an IFC file to get started</p>
+          {/* Main Content - Nesting View Only */}
+          <div className="flex-1 overflow-hidden">
+            <NestingReport 
+              filename={currentFile} 
+              nestingReport={nestingReport}
+              onNestingReportChange={handleNestingReportChange}
+              report={report}
+            />
           </div>
-        )}
-      </div>
+        </>
+      )}
+
+      {!currentFile && (
+        <div className="flex-1 flex items-center justify-center text-gray-500">
+          <p>Loading project...</p>
+        </div>
+      )}
     </div>
+  </div>
   )
 }
 
