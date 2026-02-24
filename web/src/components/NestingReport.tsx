@@ -274,22 +274,35 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
     if (!nestingReport || !report) return
 
     try {
-      const doc = <NestingReportPDF 
-        nestingReport={nestingReport} 
-        report={report} 
-        filename={filename}
-      />
+      // Use html2pdf to capture the exact screen rendering
+      const html2pdf = (await import('html2pdf.js')).default
       
-      const asPdf = pdf(doc)
-      const blob = await asPdf.toBlob()
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `${filename.replace('.ifc', '')}_nesting_report.pdf`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
+      const element = document.getElementById('nesting-report-pdf-content')
+      if (!element) {
+        alert('Report content not found. Please try again.')
+        return
+      }
+      
+      const opt = {
+        margin: [10, 10, 10, 10] as [number, number, number, number],
+        filename: `${filename.replace('.ifc', '')}_nesting_report.pdf`,
+        image: { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas: { 
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          windowWidth: 1440
+        },
+        jsPDF: { 
+          unit: 'mm', 
+          format: 'a4', 
+          orientation: 'landscape' as const
+        },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      }
+      
+      await html2pdf().set(opt).from(element).save()
     } catch (error) {
       console.error('Error exporting to PDF:', error)
       alert('Failed to export PDF. Please try again.')
@@ -546,6 +559,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
 
         {currentStep === 'results' && nestingReport && (
           <div className="flex-1 overflow-y-auto p-4">
+            <div className="max-w-[1440px] mx-auto">
             {/* Minimum width warning */}
             {windowWidth < 900 && (
               <div className="mb-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded">
@@ -576,7 +590,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               </button>
             </div>
 
-            <div id="nesting-report-content">
+            <div id="nesting-report-pdf-content">
             {/* Section 1: BOM Summary */}
             <div className="mb-8 page-break-after">
               <h2 className="text-2xl font-bold mb-4">Section 1: BOM Summary</h2>
@@ -3210,29 +3224,35 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 <th className="border border-gray-300 px-3 py-2 text-left font-semibold">Part Name</th>
                                 <th className="border border-gray-300 px-3 py-2 text-left font-semibold">Cut Length (mm)</th>
                                 <th className="border border-gray-300 px-3 py-2 text-left font-semibold">Quantity</th>
+                                <th className="border border-gray-300 px-3 py-2 text-left font-semibold">Start Angle</th>
+                                <th className="border border-gray-300 px-3 py-2 text-left font-semibold">End Angle</th>
                               </tr>
                             </thead>
                             <tbody>
                               {(() => {
                                 try {
                                   // Group parts by reference/name and count occurrences
-                                  const partGroups = new Map<string, { name: string, length: number, count: number }>()
+                                  const partGroups = new Map<string, { name: string, length: number, count: number, startAngle: any, endAngle: any }>()
                                   
                                   pattern.parts.forEach((part) => {
                                     try {
                                       const partData = part?.part || {}
                                       const partName = partData.reference || partData.element_name || 'Unknown'
                                       const partLength = part?.length || 0
+                                      const startAngle = partData.start_angle
+                                      const endAngle = partData.end_angle
                                       
                                       if (partGroups.has(partName)) {
                                         const existing = partGroups.get(partName)!
                                         existing.count += 1
-                                        // Use the length from the first occurrence (they should all be the same)
+                                        // Use the length and angles from the first occurrence (they should all be the same)
                                       } else {
                                         partGroups.set(partName, {
                                           name: partName,
                                           length: partLength,
-                                          count: 1
+                                          count: 1,
+                                          startAngle: startAngle,
+                                          endAngle: endAngle
                                         })
                                       }
                                     } catch (e) {
@@ -3250,6 +3270,25 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                     // Always display length in mm
                                     const lengthMm = Math.round(group.length)
                                     const profileName = profile.profile_name || 'Unknown'
+                                    
+                                    // Format angles for display
+                                    const formatAngle = (angle: any) => {
+                                      if (angle === null || angle === undefined) return '90.0°'
+                                      
+                                      let numericAngle: number
+                                      if (typeof angle === 'number') {
+                                        numericAngle = angle
+                                      } else if (typeof angle === 'string') {
+                                        // Extract number from string
+                                        const match = angle.match(/-?\d+(\.\d+)?/)
+                                        numericAngle = match ? parseFloat(match[0]) : 90
+                                      } else {
+                                        return '90.0°'
+                                      }
+                                      
+                                      // Format to 1 decimal place
+                                      return `${numericAngle.toFixed(1)}°`
+                                    }
                             
                             return (
                                       <tr key={idx} className="hover:bg-gray-50">
@@ -3258,6 +3297,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                         <td className="border border-gray-300 px-3 py-2">{group.name}</td>
                                         <td className="border border-gray-300 px-3 py-2">{lengthMm}</td>
                                         <td className="border border-gray-300 px-3 py-2">{group.count}</td>
+                                        <td className="border border-gray-300 px-3 py-2">{formatAngle(group.startAngle)}</td>
+                                        <td className="border border-gray-300 px-3 py-2">{formatAngle(group.endAngle)}</td>
                                       </tr>
                                     )
                                   })
@@ -3265,7 +3306,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                   console.error('[NestingReport] Error generating cutting list:', error)
                                   return (
                                     <tr>
-                                      <td colSpan={5} className="border border-gray-300 px-3 py-2 text-red-500 text-center">
+                                      <td colSpan={7} className="border border-gray-300 px-3 py-2 text-red-500 text-center">
                                         Error generating cutting list
                                       </td>
                                     </tr>
@@ -3284,7 +3325,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 )
               })}
             </div>
-            </div> {/* End of nesting-report-content */}
+            </div> {/* End of max-w-[1440px] container */}
+          </div> {/* End of nesting-report-pdf-content */}
 
             {/* Savings Modal */}
             {showSavingsModal && (

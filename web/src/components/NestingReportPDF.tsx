@@ -151,21 +151,30 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
   // Waste in mm (at the end of the bar)
   const wasteMm = pattern.waste || 0
   
-  // Available horizontal pixels for parts (1000px minus the waste fraction)
-  const availableForPartsPx =
-    appWidth * (stockLength > 0 ? 1 - wasteMm / stockLength : 1)
+  // Calculate the available space for parts in pixels
+  // Reserve space for waste at the end (same as screen)
+  const availableForPartsPx = appWidth * (1 - wasteMm / stockLength)
   
-  // Use the same partsPxPerMm scaling as the app so boundaries line up exactly
-  const partsPxPerMm =
-    totalPartsLengthMm > 0 ? availableForPartsPx / totalPartsLengthMm : pxPerMm
+  // Calculate px per mm to fit all parts in available space (same as screen)
+  const partsPxPerMm = totalPartsLengthMm > 0 ? availableForPartsPx / totalPartsLengthMm : pxPerMm
   
-  // Calculate part positions using the app's coordinate system and scaling
+  // Position parts with kerf gap - smaller for sloped parts to look proportional (same as screen)
+  const kerfGapPx = 2
+  const kerfGapSlopedPx = 0.5 // Smaller gap for sloped parts to compensate for visual amplification
   let cumulativeX = 0
-  const partPositions = sortedParts.map((part) => {
+  const partPositions = sortedParts.map((part, partIdx) => {
     const lengthMm = part.length || 0
     const xStart = cumulativeX
-    const xEnd = cumulativeX + lengthMm * partsPxPerMm
-    cumulativeX = xEnd
+    const xEnd = cumulativeX + (lengthMm * partsPxPerMm)
+    
+    // Check if next part has slopes (use smaller gap) - same as screen
+    const nextPart = sortedParts[partIdx + 1]
+    const currentSlopeInfo = (part as any)?.slope_info || {}
+    const nextSlopeInfo = (nextPart as any)?.slope_info || {}
+    const hasSlopes = currentSlopeInfo.end_has_slope === true || nextSlopeInfo.start_has_slope === true
+    const gapToUse = hasSlopes ? kerfGapSlopedPx : kerfGapPx
+    
+    cumulativeX = xEnd + gapToUse
     return { part, xStart, xEnd, lengthMm }
   })
   
@@ -1588,20 +1597,24 @@ export const NestingReportPDF: React.FC<NestingReportPDFProps> = ({
               {/* Cutting List Table */}
               <View style={styles.table}>
                 <View style={[styles.tableRow, styles.tableHeader]}>
-                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '10%' }]}>Number</Text>
-                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '25%' }]}>Profile Name</Text>
-                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '25%' }]}>Part Name</Text>
-                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '20%' }]}>Cut Length (mm)</Text>
-                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '20%' }]}>Quantity</Text>
+                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '8%' }]}>Number</Text>
+                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '20%' }]}>Profile Name</Text>
+                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '20%' }]}>Part Name</Text>
+                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '15%' }]}>Cut Length (mm)</Text>
+                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '10%' }]}>Quantity</Text>
+                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '13%' }]}>Start Angle</Text>
+                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '14%' }]}>End Angle</Text>
                 </View>
                 {(() => {
                   // Group parts by name and length
-                  const partGroups = new Map<string, { name: string, length: number, count: number }>()
+                  const partGroups = new Map<string, { name: string, length: number, count: number, startAngle: any, endAngle: any }>()
                   
                   pattern.parts.forEach((part) => {
                     const partData = part?.part || {}
                     const partName = partData.reference || partData.element_name || 'Unknown'
                     const partLength = part?.length || 0
+                    const startAngle = partData.start_angle
+                    const endAngle = partData.end_angle
                     const key = `${partName}|${partLength.toFixed(2)}`
                     
                     if (partGroups.has(key)) {
@@ -1610,7 +1623,9 @@ export const NestingReportPDF: React.FC<NestingReportPDFProps> = ({
                       partGroups.set(key, {
                         name: partName,
                         length: partLength,
-                        count: 1
+                        count: 1,
+                        startAngle: startAngle,
+                        endAngle: endAngle
                       })
                     }
                   })
@@ -1618,22 +1633,45 @@ export const NestingReportPDF: React.FC<NestingReportPDFProps> = ({
                   // Sort by length (descending)
                   const sortedGroups = Array.from(partGroups.values()).sort((a, b) => b.length - a.length)
                   
+                  // Format angles for display
+                  const formatAngle = (angle: any) => {
+                    if (angle === null || angle === undefined) return '90.0°'
+                    
+                    let numericAngle: number
+                    if (typeof angle === 'number') {
+                      numericAngle = angle
+                    } else if (typeof angle === 'string') {
+                      const match = angle.match(/-?\d+(\.\d+)?/)
+                      numericAngle = match ? parseFloat(match[0]) : 90
+                    } else {
+                      return '90.0°'
+                    }
+                    
+                    return `${numericAngle.toFixed(1)}°`
+                  }
+                  
                   return sortedGroups.map((group, idx) => (
                     <View key={idx} style={styles.tableRow}>
-                      <Text style={[styles.tableCell, styles.textRight, { width: '10%' }]}>
+                      <Text style={[styles.tableCell, styles.textRight, { width: '8%' }]}>
                         {idx + 1}
                       </Text>
-                      <Text style={[styles.tableCell, { width: '25%' }]}>
+                      <Text style={[styles.tableCell, { width: '20%' }]}>
                         {profile.profile_name}
                       </Text>
-                      <Text style={[styles.tableCell, { width: '25%' }]}>
+                      <Text style={[styles.tableCell, { width: '20%' }]}>
                         {group.name}
                       </Text>
-                      <Text style={[styles.tableCell, styles.textRight, { width: '20%' }]}>
+                      <Text style={[styles.tableCell, styles.textRight, { width: '15%' }]}>
                         {Math.round(group.length)}
                       </Text>
-                      <Text style={[styles.tableCell, styles.textRight, { width: '20%' }]}>
+                      <Text style={[styles.tableCell, styles.textRight, { width: '10%' }]}>
                         {group.count}
+                      </Text>
+                      <Text style={[styles.tableCell, styles.textRight, { width: '13%' }]}>
+                        {formatAngle(group.startAngle)}
+                      </Text>
+                      <Text style={[styles.tableCell, styles.textRight, { width: '14%' }]}>
+                        {formatAngle(group.endAngle)}
                       </Text>
                     </View>
                   ))
