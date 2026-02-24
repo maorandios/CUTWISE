@@ -314,6 +314,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         report={report}
         projectName={bomProjectName}
         companyName="Your Company Name"
+        contactName=""
       />
       
       const asPdf = pdf(doc)
