@@ -4,6 +4,7 @@ import { pdf } from '@react-pdf/renderer'
 import { NestingReportPDF } from './NestingReportPDF'
 import { BOMPDF } from './BOMPDF'
 import IFCViewerWebIFC from './IFCViewerWebIFC'
+import { apiRequest } from '../utils/api'
 
 interface NestingReportProps {
   filename: string
@@ -370,7 +371,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       })
       const url = `/api/nesting/${encodedFilename}?${params.toString()}`
 
-      const response = await fetch(url)
+      const response = await apiRequest(url)
       if (!response.ok) {
         const errorText = await response.text()
         console.error('Backend error response:', errorText)
