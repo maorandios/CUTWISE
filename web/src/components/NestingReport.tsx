@@ -10,6 +10,7 @@ interface NestingReportProps {
   nestingReport: NestingReportType | null
   onNestingReportChange: (report: NestingReportType | null) => void
   report: SteelReport | null  // Report data to get available profiles
+  initialView?: 'select' | 'results' // Control which view to show initially
 }
 
 type Step = 'select' | 'results'
@@ -53,10 +54,10 @@ const ProfileItem = memo(({ profile, isSelected, onToggle }: ProfileItemProps) =
   )
 })
 
-export default function NestingReport({ filename, nestingReport: propNestingReport, onNestingReportChange, report }: NestingReportProps) {
+export default function NestingReport({ filename, nestingReport: propNestingReport, onNestingReportChange, report, initialView }: NestingReportProps) {
   // Use prop as source of truth, but maintain local state for updates
   const nestingReport = propNestingReport
-  const [currentStep, setCurrentStep] = useState<Step>('select')
+  const [currentStep, setCurrentStep] = useState<Step>(initialView || 'select')
   const [selectedProfiles, setSelectedProfiles] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

@@ -31,6 +31,16 @@ export interface ProjectData {
 // Storage keys
 const PROJECTS_KEY = 'cutwise_projects'
 const CURRENT_USER_KEY = 'cutwise_current_user'
+const COMPANY_DETAILS_KEY = 'cutwise_company_details'
+
+// Company details interface
+export interface CompanyDetails {
+  companyName: string
+  address: string
+  country: string
+  phoneNumber: string
+  companySize: '1' | '1-10' | '10-50' | '50-300' | '300+' | ''
+}
 
 /**
  * Migrate old project format to new format
@@ -264,4 +274,24 @@ export const getCurrentUser = (): { userId: string; userName: string } | null =>
 
 export const clearCurrentUser = (): void => {
   localStorage.removeItem(CURRENT_USER_KEY)
+}
+
+// Company details management
+export const saveCompanyDetails = (details: CompanyDetails): void => {
+  localStorage.setItem(COMPANY_DETAILS_KEY, JSON.stringify(details))
+  console.log('[CompanyStorage] Saved company details')
+}
+
+export const getCompanyDetails = (): CompanyDetails | null => {
+  try {
+    const data = localStorage.getItem(COMPANY_DETAILS_KEY)
+    return data ? JSON.parse(data) : null
+  } catch {
+    return null
+  }
+}
+
+export const hasCompletedOnboarding = (): boolean => {
+  const details = getCompanyDetails()
+  return !!details && !!details.companyName
 }

@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
 import Login from './components/Login'
 import Signup from './components/Signup'
+import Onboarding from './components/Onboarding'
 import ProjectsDashboard from './components/ProjectsDashboard'
+
+import UploadProjectModal from './components/UploadProjectModal'
 import FileUpload from './components/FileUpload'
 import IFCViewer from './components/IFCViewer'
 import IFCViewerWebIFC from './components/IFCViewerWebIFC'
@@ -18,6 +21,7 @@ import FastenersTab from './components/FastenersTab'
 import PlateNestingTab from './components/PlateNestingTab'
 import { SteelReport, FilterState, NestingReport as NestingReportType } from './types'
 import * as ProjectStorage from './utils/projectStorage'
+import type { CompanyDetails } from './utils/projectStorage'
 import type { ProjectData } from './utils/projectStorage'
 
 function App() {
@@ -25,10 +29,13 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [authView, setAuthView] = useState<'login' | 'signup'>('login')
   const [userName, setUserName] = useState('User')
+  const [needsOnboarding, setNeedsOnboarding] = useState(false)
   
   // View state
-  const [currentView, setCurrentView] = useState<'dashboard' | 'upload' | 'project'>('dashboard')
+  const [currentView, setCurrentView] = useState<'dashboard' | 'split' | 'report'>('dashboard')
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
+  const [dashboardRefresh, setDashboardRefresh] = useState(0)
+  const [showUploadModal, setShowUploadModal] = useState(false)
   
   // Load from localStorage on mount (but NOT currentFile or nesting data - always start fresh)
   const loadFromStorage = () => {
@@ -92,6 +99,13 @@ function App() {
       setUserName(user.userName)
       setIsAuthenticated(true)
       console.log('[App] Restored user session:', user.userName)
+      
+      // Check if onboarding is needed
+      const hasOnboarded = ProjectStorage.hasCompletedOnboarding()
+      if (!hasOnboarded) {
+        setNeedsOnboarding(true)
+        console.log('[App] User needs onboarding')
+      }
     }
   }, [])
 
@@ -137,16 +151,79 @@ function App() {
     const project = ProjectStorage.createProject(filename, reportData)
     setCurrentProjectId(project.id)
     
-    // Switch to project view
-    setCurrentView('project')
+    // Close modal and switch to split screen view
+    setShowUploadModal(false)
+    setCurrentView('split')
+  }
+  
+  const handleUploadWithName = async (projectName: string, file: File) => {
+    setLoading(true)
+    
+    try {
+      // Upload file to backend
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('http://localhost:8000/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.status} ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      
+      // Create project with custom name
+      setNestingReport(null)
+      setCurrentFile(data.filename)
+      setReport(data.report)
+      setGltfPath(data.gltf_path)
+      setGltfAvailable(data.gltf_available || false)
+      setFilters({
+        profileTypes: new Set(),
+        plateThicknesses: new Set(),
+        assemblyMarks: new Set()
+      })
+      setActiveTab('ifcm')
+      setTabDataCache({})
+      
+      // Create project with custom name
+      const project = ProjectStorage.createProject(data.filename, data.report)
+      // Update project name to custom name
+      ProjectStorage.updateProject(project.id, { name: projectName })
+      setCurrentProjectId(project.id)
+      
+      // Close modal and go to split screen
+      setShowUploadModal(false)
+      setCurrentView('split')
+      
+    } catch (error) {
+      console.error('Upload error:', error)
+      alert('Failed to upload file. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleNestingReportChange = (report: NestingReportType | null) => {
+    console.log('[App] handleNestingReportChange called:', {
+      hasReport: !!report,
+      currentProjectId: currentProjectId,
+      profilesCount: report?.profiles?.length || 0
+    })
+    
     setNestingReport(report)
     
-    // Update project with nesting data
+    // Update project with nesting data and switch to report view
     if (report && currentProjectId) {
-      ProjectStorage.updateProjectNesting(currentProjectId, report)
+      const updatedProject = ProjectStorage.updateProjectNesting(currentProjectId, report)
+      console.log('[App] Updated project in storage:', {
+        success: !!updatedProject,
+        hasNesting: !!updatedProject?.nestingReport
+      })
+      setCurrentView('report') // Navigate to report view after generation
     }
   }
 
@@ -174,7 +251,21 @@ function App() {
     
     setUserName(fullName)
     setIsAuthenticated(true)
+    
+    // Check if user needs onboarding (first time signup)
+    const hasOnboarded = ProjectStorage.hasCompletedOnboarding()
+    if (!hasOnboarded) {
+      setNeedsOnboarding(true)
+    } else {
+      setCurrentView('dashboard')
+    }
+  }
+  
+  const handleOnboardingComplete = (details: CompanyDetails) => {
+    ProjectStorage.saveCompanyDetails(details)
+    setNeedsOnboarding(false)
     setCurrentView('dashboard')
+    console.log('[App] Onboarding completed')
   }
   
   const handleLogout = () => {
@@ -187,28 +278,51 @@ function App() {
   }
   
   const handleSelectProject = (projectData: ProjectData) => {
+    console.log('[App] handleSelectProject called with:', {
+      id: projectData.id,
+      name: projectData.name,
+      hasNestingInParam: !!projectData.nestingReport
+    })
+    
     // Load complete project data from storage
     const fullProject = ProjectStorage.getProject(projectData.id)
     
     if (fullProject) {
+      console.log('[App] Loaded project from storage:', {
+        name: fullProject.name,
+        hasReport: !!fullProject.steelReport,
+        hasNesting: !!fullProject.nestingReport,
+        nestingProfiles: fullProject.nestingReport?.profiles?.length || 0
+      })
+      
       setCurrentFile(fullProject.filename)
       setReport(fullProject.steelReport)
       setNestingReport(fullProject.nestingReport)
       setCurrentProjectId(fullProject.id)
-      setCurrentView('project')
       
-      console.log('[App] Loaded project:', fullProject.name, {
-        hasReport: !!fullProject.steelReport,
-        hasNesting: !!fullProject.nestingReport,
-        status: fullProject.status
+      // Navigate based on whether nesting report exists
+      console.log('[App] About to check navigation:', {
+        hasNestingReport: !!fullProject.nestingReport,
+        nestingReportType: typeof fullProject.nestingReport,
+        willGoTo: fullProject.nestingReport ? 'REPORT' : 'SPLIT'
       })
+      
+      if (fullProject.nestingReport) {
+        console.log('[App] ✅ Navigating to REPORT view')
+        setCurrentView('report') // Go directly to nesting report
+      } else {
+        console.log('[App] ❌ Navigating to SPLIT view (no nesting)')
+        setCurrentView('split') // Go to split screen to generate nesting
+      }
+      
+      console.log('[App] currentView set to:', fullProject.nestingReport ? 'report' : 'split')
     } else {
       console.error('[App] Project not found:', projectData.id)
     }
   }
   
   const handleUploadNew = () => {
-    setCurrentView('upload')
+    setShowUploadModal(true)
   }
   
   const handleBackToDashboard = () => {
@@ -216,6 +330,13 @@ function App() {
     setCurrentFile(null)
     setReport(null)
     setNestingReport(null)
+    setCurrentProjectId(null)
+    setDashboardRefresh(prev => prev + 1) // Trigger dashboard reload
+  }
+  
+  const handleGenerateNewReport = () => {
+    // Go to split screen to regenerate nesting
+    setCurrentView('split')
   }
 
   // REMOVED: Tab preloading (was causing 23s delay)
@@ -230,21 +351,35 @@ function App() {
       return <Signup onSignup={handleSignup} onSwitchToLogin={() => setAuthView('login')} />
     }
   }
+  
+  // Show onboarding if user just signed up and hasn't completed it
+  if (needsOnboarding) {
+    return <Onboarding onComplete={handleOnboardingComplete} />
+  }
 
   // Show dashboard view
   if (currentView === 'dashboard') {
     return (
-      <ProjectsDashboard
-        onSelectProject={handleSelectProject}
-        onUploadNew={handleUploadNew}
-        onLogout={handleLogout}
-        userName={userName}
-      />
+      <>
+        <ProjectsDashboard
+          onSelectProject={handleSelectProject}
+          onUploadNew={handleUploadNew}
+          onLogout={handleLogout}
+          userName={userName}
+          refreshTrigger={dashboardRefresh}
+        />
+        <UploadProjectModal
+          isOpen={showUploadModal}
+          onClose={() => setShowUploadModal(false)}
+          onUpload={handleUploadWithName}
+          loading={loading}
+        />
+      </>
     )
   }
 
-  // Show upload view
-  if (currentView === 'upload') {
+  // Show split screen view (model + profile list)
+  if (currentView === 'split') {
     return (
       <div className="h-screen flex flex-col">
         <header className="bg-white border-b border-gray-200">
@@ -264,73 +399,110 @@ function App() {
                 alt="Cutwise" 
                 className="h-8"
               />
-              <h1 className="text-xl font-bold text-gray-900">Upload New Project</h1>
+              <h1 className="text-xl font-bold text-gray-900">{currentFile?.replace('.ifc', '') || 'Project'}</h1>
             </div>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-            >
-              Log Out
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+              >
+                Log Out
+              </button>
+            </div>
           </div>
         </header>
         
         <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="p-4 border-b">
-            <FileUpload 
-              onUpload={handleFileUploaded}
-              loading={loading}
-              setLoading={setLoading}
-            />
-          </div>
+          {currentFile && (
+            <div className="flex-1 overflow-hidden">
+              <NestingReport 
+                key={`split-${currentFile}`}
+                filename={currentFile} 
+                nestingReport={nestingReport}
+                onNestingReportChange={handleNestingReportChange}
+                report={report}
+                initialView="select"
+              />
+            </div>
+          )}
 
-          <div className="flex-1 flex items-center justify-center text-gray-500">
-            <p>Upload an IFC file to get started</p>
-          </div>
+          {!currentFile && (
+            <div className="flex-1 flex items-center justify-center text-gray-500">
+              <p>Loading project...</p>
+            </div>
+          )}
         </div>
       </div>
     )
   }
 
-  // Show project view (nesting report)
+  // Show report view (nesting report only)
+  if (currentView === 'report') {
+    return (
+      <div className="h-screen flex flex-col">
+        <header className="bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleBackToDashboard}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Back to dashboard"
+              >
+                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <img 
+                src="/Icons/cutwise - logo.svg" 
+                alt="Cutwise" 
+                className="h-8"
+              />
+              <h1 className="text-xl font-bold text-gray-900">{currentFile?.replace('.ifc', '') || 'Project'}</h1>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleGenerateNewReport}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+              >
+                Generate New Report
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+              >
+                Log Out
+              </button>
+            </div>
+          </div>
+        </header>
+        
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {currentFile && nestingReport && (
+            <div className="flex-1 overflow-hidden">
+              <NestingReport 
+                key={`report-${currentFile}`}
+                filename={currentFile} 
+                nestingReport={nestingReport}
+                onNestingReportChange={handleNestingReportChange}
+                report={report}
+                initialView="results"
+              />
+            </div>
+          )}
+
+          {!currentFile && (
+            <div className="flex-1 flex items-center justify-center text-gray-500">
+              <p>Loading project...</p>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Fallback - should not reach here
   return (
     <div className="h-screen flex flex-col">
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleBackToDashboard}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Back to dashboard"
-            >
-              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <img 
-              src="/Icons/cutwise - logo.svg" 
-              alt="Cutwise" 
-              className="h-8"
-            />
-            <h1 className="text-xl font-bold text-gray-900">{currentFile?.replace('.ifc', '') || 'Project'}</h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleUploadNew}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-            >
-              Upload New
-            </button>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-            >
-              Log Out
-            </button>
-          </div>
-        </div>
-      </header>
-      
       <div className="flex-1 flex flex-col overflow-hidden">
         {currentFile && (
           <>

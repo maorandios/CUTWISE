@@ -1,26 +1,49 @@
 import { useState, useEffect } from 'react'
 import * as ProjectStorage from '../utils/projectStorage'
-import type { ProjectData } from '../utils/projectStorage'
+import type { ProjectData, CompanyDetails } from '../utils/projectStorage'
+import CompanySettingsModal from './CompanySettingsModal'
 
 interface ProjectsDashboardProps {
   onSelectProject: (project: ProjectData) => void
   onUploadNew: () => void
   onLogout: () => void
   userName?: string
+  refreshTrigger?: number
 }
 
-const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 'User' }: ProjectsDashboardProps) => {
+const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 'User', refreshTrigger }: ProjectsDashboardProps) => {
   const [projects, setProjects] = useState<ProjectData[]>([])
+  const [showSettings, setShowSettings] = useState(false)
+  const [companyDetails, setCompanyDetails] = useState<CompanyDetails>({
+    companyName: '',
+    address: '',
+    country: '',
+    phoneNumber: '',
+    companySize: ''
+  })
 
-  // Load projects from storage
+  // Load projects from storage (reload when refreshTrigger changes)
   useEffect(() => {
     loadProjects()
-  }, [])
+    loadCompanyDetails()
+  }, [refreshTrigger])
 
   const loadProjects = () => {
     const allProjects = ProjectStorage.getAllProjects()
     setProjects(allProjects)
     console.log('[Dashboard] Loaded', allProjects.length, 'projects')
+  }
+  
+  const loadCompanyDetails = () => {
+    const details = ProjectStorage.getCompanyDetails()
+    if (details) {
+      setCompanyDetails(details)
+    }
+  }
+  
+  const handleSaveCompanyDetails = (details: CompanyDetails) => {
+    ProjectStorage.saveCompanyDetails(details)
+    setCompanyDetails(details)
   }
 
   const handleDeleteProject = (projectId: string, e: React.MouseEvent) => {
@@ -52,6 +75,16 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
             <h1 className="text-xl font-bold text-gray-900">My Projects</h1>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowSettings(true)}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Company Settings"
+            >
+              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
             <button
               onClick={onUploadNew}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
@@ -161,11 +194,11 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
                     </div>
                   )}
 
-                  {/* View Button */}
+                  {/* Action Button */}
                   <button
                     className="w-full py-2 bg-blue-50 text-blue-600 rounded-lg font-medium hover:bg-blue-100 transition-colors"
                   >
-                    View Report
+                    {project.nestingReport ? 'View Report' : 'Edit Project'}
                   </button>
                 </div>
               </div>
@@ -190,6 +223,14 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
           </div>
         )}
       </main>
+      
+      {/* Company Settings Modal */}
+      <CompanySettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        onSave={handleSaveCompanyDetails}
+        currentDetails={companyDetails}
+      />
     </div>
   )
 }
