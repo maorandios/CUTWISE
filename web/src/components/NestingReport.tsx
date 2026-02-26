@@ -15,7 +15,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import {
   Table,
   TableBody,
@@ -24,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 interface NestingReportProps {
   filename: string
@@ -614,53 +614,53 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
             </div>
 
             <div id="nesting-report-pdf-content">
+            
             {/* Waste Analysis Chart */}
             {nestingReport.profiles && nestingReport.profiles.length > 0 && (
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold mb-4">Waste Analysis by Profile</h2>
-              
-              <Card>
-                <CardContent className="pt-6">
-                  <ResponsiveContainer width="100%" height={400}>
-                    <LineChart
-                      data={nestingReport.profiles.map(profile => ({
-                        name: profile.profile_name,
-                        waste: Number(profile.total_waste_percentage.toFixed(2)),
-                      }))}
-                      margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      
-                      <XAxis
-                        dataKey="name"
-                        angle={-45}
-                        textAnchor="end"
-                        height={100}
-                        tick={{ fill: '#6b7280', fontSize: 12 }}
-                      />
-                      
-                      <YAxis
-                        tick={{ fill: '#6b7280', fontSize: 12 }}
-                        label={{ value: 'Waste (%)', angle: -90, position: 'insideLeft' }}
-                      />
-                      
-                      <Tooltip />
-                      <Legend />
-                      
-                      <Line
-                        type="monotone"
-                        dataKey="waste"
-                        stroke="#084242"
-                        strokeWidth={3}
-                        dot={{ fill: '#084242', r: 6 }}
-                        name="Waste %"
-                        animationDuration={2000}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </div>
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold mb-4">Waste Analysis by Profile</h2>
+                
+                <Card>
+                  <CardContent className="pt-6">
+                    <div style={{ width: '100%', height: 400 }}>
+                      <ResponsiveContainer>
+                        <LineChart
+                          data={nestingReport.profiles.map(profile => ({
+                            name: profile.profile_name,
+                            waste: Number(profile.total_waste_percentage.toFixed(2)),
+                          }))}
+                          margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                          
+                          <XAxis
+                            dataKey="name"
+                            angle={-45}
+                            textAnchor="end"
+                            height={100}
+                            tick={{ fill: '#6b7280', fontSize: 12 }}
+                          />
+                          
+                          <YAxis
+                            tick={{ fill: '#6b7280', fontSize: 12 }}
+                          />
+                          
+                          <Tooltip />
+                          
+                          <Line
+                            type="monotone"
+                            dataKey="waste"
+                            stroke="#084242"
+                            strokeWidth={3}
+                            dot={{ fill: '#084242', r: 6 }}
+                            animationDuration={2000}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
             {/* Section 1: BOM Summary */}
