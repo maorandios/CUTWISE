@@ -5,6 +5,10 @@ import { NestingReportPDF } from './NestingReportPDF'
 import { BOMPDF } from './BOMPDF'
 import IFCViewerWebIFC from './IFCViewerWebIFC'
 import { apiRequest } from '../utils/api'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent } from '@/components/ui/card'
 
 interface NestingReportProps {
   filename: string
@@ -427,11 +431,11 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
           <div>
             <h2 className="text-xl font-bold">Nesting Optimization</h2>
             <div className="flex items-center gap-2 mt-1">
-              <div className={`px-3 py-1 rounded text-sm ${currentStep === 'select' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
+              <div className={`px-3 py-1 rounded text-sm ${currentStep === 'select' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}>
                 Step 1: Select Profiles
               </div>
-              <div className="text-gray-400">→</div>
-              <div className={`px-3 py-1 rounded text-sm ${currentStep === 'results' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
+              <div className="text-muted-foreground">→</div>
+              <div className={`px-3 py-1 rounded text-sm ${currentStep === 'results' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}>
                 Step 2: Results
               </div>
             </div>
@@ -439,27 +443,27 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
           <div className="flex gap-2">
             {currentStep === 'results' && (
               <>
-                <button
+                <Button
+                  variant="outline"
                   onClick={handleBack}
-                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded"
                 >
                   ← Back
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="secondary"
                   onClick={exportToCSV}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded"
                 >
                   📥 Export BOM
-                </button>
+                </Button>
               </>
             )}
-            <button
+            <Button
+              variant="destructive"
               onClick={handleReset}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded"
               title="Reset nesting and start fresh"
             >
               🔄 Reset
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -467,7 +471,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       {/* Content */}
       <div className="flex-1 overflow-hidden flex flex-col">
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 mx-4 mt-4 rounded">
+          <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 mx-4 mt-4 rounded-lg">
             Error: {error}
           </div>
         )}
@@ -478,22 +482,24 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
             {/* Left Panel - Profile List (max 30% width) */}
             <div className="w-full max-w-[30%] border-r bg-white flex flex-col">
               {/* Header */}
-              <div className="p-4 border-b bg-gray-50">
+              <div className="p-4 border-b bg-muted/50">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-bold">Select Profiles</h3>
-                  <button
+                  <Button
+                    size="sm"
+                    variant="secondary"
                     onClick={() => setShowSettingsModal(true)}
-                    className="px-3 py-1.5 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm font-medium"
                   >
                     ⚙️ Settings
-                  </button>
+                  </Button>
                 </div>
-                <button
+                <Button
+                  variant="outline"
+                  className="w-full"
                   onClick={handleSelectAll}
-                  className="w-full px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-sm font-medium"
                 >
                   {selectedProfiles.size === availableProfiles.length ? 'Deselect All' : 'Select All'}
-                </button>
+                </Button>
               </div>
 
               {/* Profile List */}
@@ -517,26 +523,27 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               </div>
 
               {/* Summary and Generate Button */}
-              <div className="p-4 border-t bg-gray-50">
+              <div className="p-4 border-t bg-muted/50">
                 <div className="mb-3 text-sm">
-                  <div className="font-medium text-gray-900">
+                  <div className="font-medium">
                     {selectedProfiles.size} of {availableProfiles.length} profiles selected
                   </div>
                   {selectedProfiles.size > 0 && (
-                    <div className="text-gray-600 mt-1">
+                    <div className="text-muted-foreground mt-1">
                       Total: {availableProfiles
                         .filter(p => selectedProfiles.has(p.profile_name))
                         .reduce((sum, p) => sum + p.piece_count, 0)} parts
                     </div>
                   )}
                 </div>
-                <button
+                <Button
                   onClick={generateNesting}
                   disabled={selectedProfiles.size === 0 || loading}
-                  className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold transition-colors"
+                  className="w-full"
+                  size="lg"
                 >
                   {loading ? 'Generating...' : 'Generate Report'}
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -578,18 +585,17 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               >
                 View Savings
               </button>
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => setShowBOMModal(true)}
-                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold shadow-md transition-colors"
               >
                 Export BOM
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleExportToPDF}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold shadow-md transition-colors"
               >
                 Export Full Report
-              </button>
+              </Button>
             </div>
 
             <div id="nesting-report-pdf-content">
