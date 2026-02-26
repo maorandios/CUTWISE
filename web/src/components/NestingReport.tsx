@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+// import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import {
   Table,
   TableBody,
@@ -614,139 +614,6 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
             </div>
 
             <div id="nesting-report-pdf-content">
-            {/* Waste Analysis Chart */}
-            {nestingReport.profiles && nestingReport.profiles.length > 0 && (
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold mb-4">Waste Analysis by Profile</h2>
-              
-              <Card>
-                <CardContent className="pt-6">
-                  <div style={{ width: '100%', height: 400 }}>
-                  <ResponsiveContainer>
-                    <LineChart
-                      data={nestingReport.profiles.map(profile => ({
-                        name: profile.profile_name,
-                        wastePercentage: Number(profile.total_waste_percentage.toFixed(2)),
-                        wasteMm: Number(profile.total_waste),
-                        wasteM: Number((profile.total_waste / 1000).toFixed(2))
-                      }))}
-                      margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
-                    >
-                      <defs>
-                        <linearGradient id="colorWaste" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#084242" stopOpacity={0.15}/>
-                          <stop offset="95%" stopColor="#084242" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      
-                      <CartesianGrid 
-                        strokeDasharray="3 3" 
-                        stroke="#e5e7eb"
-                        opacity={0.5}
-                      />
-                      
-                      <XAxis
-                        dataKey="name"
-                        angle={-45}
-                        textAnchor="end"
-                        height={100}
-                        tick={{ fill: '#6b7280', fontSize: 12, fontWeight: 500 }}
-                        stroke="#9ca3af"
-                      />
-                      
-                      <YAxis
-                        yAxisId="left"
-                        tick={{ fill: '#6b7280', fontSize: 12 }}
-                        stroke="#9ca3af"
-                        label={{ 
-                          value: 'Waste (%)', 
-                          angle: -90, 
-                          position: 'insideLeft',
-                          style: { fill: '#374151', fontWeight: 600, fontSize: 14 }
-                        }}
-                      />
-                      
-                      <YAxis
-                        yAxisId="right"
-                        orientation="right"
-                        tick={{ fill: '#6b7280', fontSize: 12 }}
-                        stroke="#9ca3af"
-                        label={{ 
-                          value: 'Waste (m)', 
-                          angle: 90, 
-                          position: 'insideRight',
-                          style: { fill: '#374151', fontWeight: 600, fontSize: 14 }
-                        }}
-                      />
-                      
-                      <Tooltip
-                        content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            return (
-                              <div className="bg-white p-4 rounded-lg shadow-lg border-2 border-primary/20">
-                                <p className="font-semibold text-gray-800 mb-2">{payload[0].payload.name}</p>
-                                <p className="text-sm font-medium text-primary">
-                                  Waste: {payload[0].value}%
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  {payload[0].payload.wasteMm.toFixed(0)}mm ({payload[0].payload.wasteM}m)
-                                </p>
-                              </div>
-                            )
-                          }
-                          return null
-                        }}
-                      />
-                      
-                      <Legend 
-                        wrapperStyle={{ paddingTop: '20px' }}
-                        iconType="line"
-                      />
-                      
-                      <Line
-                        yAxisId="left"
-                        type="monotone"
-                        dataKey="wastePercentage"
-                        stroke="#084242"
-                        strokeWidth={3}
-                        fill="url(#colorWaste)"
-                        dot={{ 
-                          fill: '#084242', 
-                          r: 6,
-                          strokeWidth: 2,
-                          stroke: '#fff'
-                        }}
-                        activeDot={{ 
-                          r: 8,
-                          fill: '#084242',
-                          stroke: '#fff',
-                          strokeWidth: 3
-                        }}
-                        name="Waste %"
-                        animationDuration={2000}
-                        animationEasing="ease-in-out"
-                      />
-                      
-                      <Line
-                        yAxisId="right"
-                        type="monotone"
-                        dataKey="wasteM"
-                        stroke="#f97316"
-                        strokeWidth={2}
-                        strokeDasharray="5 5"
-                        dot={false}
-                        name="Waste (m)"
-                        animationDuration={2000}
-                        animationEasing="ease-in-out"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-            )}
-
             {/* Section 1: BOM Summary */}
             <div className="mb-8 page-break-after">
               <h2 className="text-2xl font-bold mb-4">Section 1: BOM Summary</h2>
