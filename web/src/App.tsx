@@ -3,6 +3,7 @@ import Login from './components/Login'
 import Signup from './components/Signup'
 import Onboarding from './components/Onboarding'
 import ProjectsDashboard from './components/ProjectsDashboard'
+import { Button } from '@/components/ui/button'
 
 import UploadProjectModal from './components/UploadProjectModal'
 import FileUpload from './components/FileUpload'
