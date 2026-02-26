@@ -1,4 +1,13 @@
 import { useState, useRef } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface UploadProjectModalProps {
   isOpen: boolean
@@ -12,8 +21,6 @@ const UploadProjectModal = ({ isOpen, onClose, onUpload, loading }: UploadProjec
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  if (!isOpen) return null
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -34,7 +41,6 @@ const UploadProjectModal = ({ isOpen, onClose, onUpload, loading }: UploadProjec
     
     if (ifcFile) {
       setSelectedFile(ifcFile)
-      // Auto-fill project name from filename if empty
       if (!projectName) {
         setProjectName(ifcFile.name.replace('.ifc', ''))
       }
@@ -48,7 +54,6 @@ const UploadProjectModal = ({ isOpen, onClose, onUpload, loading }: UploadProjec
     if (file) {
       if (file.name.toLowerCase().endsWith('.ifc')) {
         setSelectedFile(file)
-        // Auto-fill project name from filename if empty
         if (!projectName) {
           setProjectName(file.name.replace('.ifc', ''))
         }
@@ -58,24 +63,12 @@ const UploadProjectModal = ({ isOpen, onClose, onUpload, loading }: UploadProjec
     }
   }
 
-  const handleBrowseClick = () => {
-    fileInputRef.current?.click()
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!projectName.trim()) {
-      alert('Please enter a project name')
-      return
+  const handleUpload = () => {
+    if (projectName.trim() && selectedFile) {
+      onUpload(projectName.trim(), selectedFile)
+      setProjectName('')
+      setSelectedFile(null)
     }
-    
-    if (!selectedFile) {
-      alert('Please select an IFC file')
-      return
-    }
-
-    onUpload(projectName.trim(), selectedFile)
   }
 
   const handleClose = () => {
@@ -87,59 +80,43 @@ const UploadProjectModal = ({ isOpen, onClose, onUpload, loading }: UploadProjec
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-900">Create New Project</h2>
-          {!loading && (
-            <button
-              onClick={handleClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
-        </div>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>Create New Project</DialogTitle>
+        </DialogHeader>
 
-        {/* Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <div className="space-y-6 py-4">
           {/* Project Name Input */}
-          <div>
-            <label htmlFor="projectName" className="block text-sm font-medium text-gray-700 mb-2">
-              Project Name
-            </label>
-            <input
+          <div className="space-y-2">
+            <Label htmlFor="projectName">
+              Project Name <span className="text-destructive">*</span>
+            </Label>
+            <Input
               id="projectName"
               type="text"
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
               placeholder="Enter project name"
               disabled={loading}
-              required
             />
           </div>
 
           {/* File Upload Area */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              IFC File
-            </label>
+          <div className="space-y-2">
+            <Label>
+              IFC File <span className="text-destructive">*</span>
+            </Label>
             <div
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              onClick={handleBrowseClick}
-              className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
                 isDragging
-                  ? 'border-blue-500 bg-blue-50'
-                  : selectedFile
-                  ? 'border-green-500 bg-green-50'
-                  : 'border-gray-300 hover:border-gray-400 bg-gray-50'
-              } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  ? 'border-primary bg-primary/5'
+                  : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+              } ${loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              onClick={() => !loading && fileInputRef.current?.click()}
             >
               <input
                 ref={fileInputRef}
@@ -149,72 +126,67 @@ const UploadProjectModal = ({ isOpen, onClose, onUpload, loading }: UploadProjec
                 className="hidden"
                 disabled={loading}
               />
-              
+
               {selectedFile ? (
                 <div className="space-y-2">
-                  <svg className="w-12 h-12 text-green-600 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg className="w-12 h-12 mx-auto text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
-                  <p className="text-xs text-gray-500">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                  <p className="font-medium text-foreground">{selectedFile.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                  </p>
                   {!loading && (
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={(e) => {
                         e.stopPropagation()
                         setSelectedFile(null)
                       }}
-                      className="text-xs text-red-600 hover:text-red-700"
                     >
-                      Remove file
-                    </button>
+                      Remove
+                    </Button>
                   )}
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <svg className="w-12 h-12 text-gray-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-12 h-12 mx-auto text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
-                  <p className="text-sm font-medium text-gray-900">
-                    Drag and drop your IFC file here
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    or click to browse
-                  </p>
+                  <div>
+                    <p className="font-medium text-foreground">Drop your IFC file here</p>
+                    <p className="text-sm text-muted-foreground">or click to browse</p>
+                  </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Loading State */}
           {loading && (
-            <div className="text-center py-4">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <p className="text-sm text-gray-600 mt-2">Processing IFC file...</p>
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Uploading project...
             </div>
           )}
+        </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={handleClose}
-              disabled={loading}
-              className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading || !projectName.trim() || !selectedFile}
-              className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Create New Project
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div className="flex justify-end gap-3">
+          <Button variant="outline" onClick={handleClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleUpload}
+            disabled={!projectName.trim() || !selectedFile || loading}
+          >
+            {loading ? 'Creating...' : 'Create Project'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
