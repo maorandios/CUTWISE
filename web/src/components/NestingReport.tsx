@@ -621,13 +621,14 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               
               <Card>
                 <CardContent className="pt-6">
-                  <ResponsiveContainer width="100%" height={400}>
+                  <div style={{ width: '100%', height: 400 }}>
+                  <ResponsiveContainer>
                     <LineChart
                       data={nestingReport.profiles.map(profile => ({
                         name: profile.profile_name,
-                        wastePercentage: parseFloat(profile.total_waste_percentage.toFixed(2)),
-                        wasteMm: profile.total_waste,
-                        wasteM: parseFloat((profile.total_waste / 1000).toFixed(2))
+                        wastePercentage: Number(profile.total_waste_percentage.toFixed(2)),
+                        wasteMm: Number(profile.total_waste),
+                        wasteM: Number((profile.total_waste / 1000).toFixed(2))
                       }))}
                       margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
                     >
@@ -740,6 +741,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                       />
                     </LineChart>
                   </ResponsiveContainer>
+                  </div>
                 </CardContent>
               </Card>
             </div>
