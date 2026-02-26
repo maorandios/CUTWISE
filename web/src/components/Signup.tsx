@@ -1,4 +1,8 @@
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent } from '@/components/ui/card'
 
 interface SignupProps {
   onSignup: (fullName: string, email: string, password: string) => void
@@ -51,87 +55,73 @@ const Signup = ({ onSignup, onSwitchToLogin }: SignupProps) => {
         </div>
 
         {/* Signup Card */}
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Full Name Input */}
-            <div>
-              <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-2">
-                Full Name
-              </label>
-              <input
-                id="fullName"
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-                placeholder="Enter your full name"
-                required
-              />
-            </div>
-
-            {/* Email Input */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-                placeholder="Enter your email"
-                required
-              />
-            </div>
-
-            {/* Password Input */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-                placeholder="Create a password"
-                required
-              />
-            </div>
-
-            {/* Confirm Password Input */}
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                Confirm Password
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-                placeholder="Confirm your password"
-                required
-              />
-            </div>
-
-            {/* Error Message */}
-            {error && (
-              <div className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg p-3">
-                {error}
+        <Card>
+          <CardContent className="pt-8">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Full Name Input */}
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input
+                  id="fullName"
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Enter your full name"
+                  required
+                />
               </div>
-            )}
 
-            {/* Signup Button */}
-            <button
-              type="submit"
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-            >
-              Create Account
-            </button>
-          </form>
+              {/* Email Input */}
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  required
+                />
+              </div>
+
+              {/* Password Input */}
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Create a password"
+                  required
+                />
+              </div>
+
+              {/* Confirm Password Input */}
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm your password"
+                  required
+                />
+              </div>
+
+              {/* Error Message */}
+              {error && (
+                <div className="text-destructive text-sm bg-destructive/10 border border-destructive/20 rounded-lg p-3">
+                  {error}
+                </div>
+              )}
+
+              {/* Signup Button */}
+              <Button type="submit" className="w-full">
+                Create Account
+              </Button>
+            </form>
 
           {/* Divider */}
           <div className="relative my-6">
@@ -144,10 +134,11 @@ const Signup = ({ onSignup, onSwitchToLogin }: SignupProps) => {
           </div>
 
           {/* Google Signup Button */}
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={handleGoogleSignup}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            className="w-full"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
@@ -168,20 +159,22 @@ const Signup = ({ onSignup, onSwitchToLogin }: SignupProps) => {
               />
             </svg>
             Continue with Google
-          </button>
+          </Button>
 
           {/* Login Link */}
-          <div className="mt-6 text-center text-sm text-gray-600">
+          <div className="mt-6 text-center text-sm text-muted-foreground">
             Already have an account?{' '}
-            <button
+            <Button
               type="button"
+              variant="link"
               onClick={onSwitchToLogin}
-              className="text-blue-600 font-medium hover:text-blue-700"
+              className="p-0 h-auto font-medium"
             >
               Log in
-            </button>
+            </Button>
           </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

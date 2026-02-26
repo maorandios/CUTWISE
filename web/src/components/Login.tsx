@@ -1,4 +1,8 @@
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent } from '@/components/ui/card'
 
 interface LoginProps {
   onLogin: (username: string, password: string) => void
@@ -36,48 +40,40 @@ const Login = ({ onLogin, onSwitchToSignup }: LoginProps) => {
         </div>
 
         {/* Login Card */}
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Username Input */}
-            <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-                Username or Email
-              </label>
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-                placeholder="Enter your username"
-                required
-              />
-            </div>
+        <Card>
+          <CardContent className="pt-8">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Username Input */}
+              <div className="space-y-2">
+                <Label htmlFor="username">Username or Email</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter your username"
+                  required
+                />
+              </div>
 
-            {/* Password Input */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-                placeholder="Enter your password"
-                required
-              />
-            </div>
+              {/* Password Input */}
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  required
+                />
+              </div>
 
-            {/* Login Button */}
-            <button
-              type="submit"
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-            >
-              Log In
-            </button>
-          </form>
+              {/* Login Button */}
+              <Button type="submit" className="w-full">
+                Log In
+              </Button>
+            </form>
 
           {/* Divider */}
           <div className="relative my-6">
@@ -90,10 +86,11 @@ const Login = ({ onLogin, onSwitchToSignup }: LoginProps) => {
           </div>
 
           {/* Google Login Button */}
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={handleGoogleLogin}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            className="w-full"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
@@ -114,20 +111,22 @@ const Login = ({ onLogin, onSwitchToSignup }: LoginProps) => {
               />
             </svg>
             Continue with Google
-          </button>
+          </Button>
 
           {/* Signup Link */}
-          <div className="mt-6 text-center text-sm text-gray-600">
+          <div className="mt-6 text-center text-sm text-muted-foreground">
             Don't have an account?{' '}
-            <button
+            <Button
               type="button"
+              variant="link"
               onClick={onSwitchToSignup}
-              className="text-blue-600 font-medium hover:text-blue-700"
+              className="p-0 h-auto font-medium"
             >
               Sign up
-            </button>
+            </Button>
           </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
