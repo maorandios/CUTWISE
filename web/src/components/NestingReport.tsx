@@ -579,12 +579,12 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
             
             {/* Export to PDF and View Savings Buttons */}
             <div className="mb-4 flex justify-end gap-3">
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => setShowSavingsModal(true)}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-md transition-colors"
               >
                 View Savings
-              </button>
+              </Button>
               <Button
                 variant="secondary"
                 onClick={() => setShowBOMModal(true)}
@@ -3526,96 +3526,90 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         )}
 
         {/* Settings Modal - Outside step conditionals so it's accessible from any step */}
-        {showSettingsModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowSettingsModal(false)}>
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              <div className="p-6">
-                {/* Modal Header */}
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800">Nesting Settings</h2>
-                  <button
-                    onClick={() => setShowSettingsModal(false)}
-                    className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
-                  >
-                    ×
-                  </button>
-                </div>
+        <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Nesting Settings</DialogTitle>
+            </DialogHeader>
 
-                {/* Settings Form */}
-                <div className="space-y-6">
+            <div className="space-y-6 py-4">
                   {/* Kerf Setting */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="kerf">
                       Kerf (Cutting Width)
-                    </label>
+                    </Label>
                     <div className="flex items-center gap-3">
-                      <input
+                      <Input
+                        id="kerf"
                         type="number"
                         min="0"
                         max="10"
                         step="0.1"
                         value={kerfValue}
                         onChange={(e) => setKerfValue(parseFloat(e.target.value) || 0)}
-                        className="w-32 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-32"
                       />
-                      <span className="text-sm text-gray-600">mm</span>
+                      <span className="text-sm text-muted-foreground">mm</span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-muted-foreground">
                       Distance between parts to account for cutting blade width (typically 3mm for steel)
                     </p>
                   </div>
 
                   {/* Trim Setting */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="trim">
                       Trim (End Cut)
-                    </label>
+                    </Label>
                     <div className="flex items-center gap-3">
-                      <input
+                      <Input
+                        id="trim"
                         type="number"
                         min="0"
                         max="50"
                         step="1"
                         value={trimValue}
                         onChange={(e) => setTrimValue(Math.min(50, parseFloat(e.target.value) || 0))}
-                        className="w-32 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-32"
                       />
-                      <span className="text-sm text-gray-600">mm</span>
+                      <span className="text-sm text-muted-foreground">mm</span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-muted-foreground">
                       Material removed from stock bar ends for clean cuts
                     </p>
                   </div>
 
                   {/* Stock Tolerance Setting */}
-                  <div className="border-t pt-4">
-                    <div className="flex items-center gap-3 mb-3">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={stockToleranceEnabled}
-                          onChange={(e) => setStockToleranceEnabled(e.target.checked)}
-                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                        />
-                        <span className="text-sm font-semibold text-gray-900">Enable Stock Tolerance</span>
-                      </label>
+                  <div className="border-t pt-4 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="stockTolerance"
+                        checked={stockToleranceEnabled}
+                        onChange={(e) => setStockToleranceEnabled(e.target.checked)}
+                        className="w-4 h-4 rounded border-input"
+                      />
+                      <Label htmlFor="stockTolerance" className="cursor-pointer">
+                        Enable Stock Tolerance
+                      </Label>
                     </div>
                     {stockToleranceEnabled && (
-                      <div className="flex items-center gap-3 ml-6">
-                        <label className="text-sm text-gray-700">Value:</label>
-                        <input
+                      <div className="flex items-center gap-3 ml-7">
+                        <Label htmlFor="toleranceValue" className="text-sm">Value:</Label>
+                        <Input
+                          id="toleranceValue"
                           type="number"
                           min="0"
                           max="100"
                           step="1"
                           value={stockToleranceValue}
                           onChange={(e) => setStockToleranceValue(Math.min(100, parseFloat(e.target.value) || 0))}
-                          className="w-32 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-32"
                         />
-                        <span className="text-sm text-gray-600">mm</span>
+                        <span className="text-sm text-muted-foreground">mm</span>
                       </div>
                     )}
-                    <p className="text-xs text-gray-500 mt-2">
+                    <p className="text-xs text-muted-foreground">
                       {stockToleranceEnabled 
                         ? `Stock bars have 10-50mm excess beyond nominal length. We add ${stockToleranceValue}mm to account for this.`
                         : 'Stock bars treated as exact nominal length.'
@@ -3624,15 +3618,15 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                   </div>
 
                   {/* Stock Lengths Setting */}
-                  <div className="border-t pt-4">
-                    <label className="block text-sm font-semibold text-gray-900 mb-3">
+                  <div className="border-t pt-4 space-y-3">
+                    <Label className="text-sm font-semibold">
                       Stock Bar Lengths (up to 5)
-                    </label>
+                    </Label>
                     <div className="space-y-2">
                       {stockLengths.map((stock, idx) => (
                         <div key={stock.id} className="flex items-center gap-3">
-                          <span className="text-sm text-gray-600 font-medium w-8">{idx + 1}.</span>
-                          <input
+                          <span className="text-sm text-muted-foreground font-medium w-8">{idx + 1}.</span>
+                          <Input
                             type="number"
                             min="1000"
                             max="20000"
@@ -3645,193 +3639,180 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 s.id === stock.id ? {...s, value: parsedVal} : s
                               ))
                             }}
-                            className="w-32 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-32"
                           />
-                          <span className="text-sm text-gray-600">mm</span>
-                          <span className="text-sm text-gray-500">({(stock.value / 1000).toFixed(1)}m)</span>
+                          <span className="text-sm text-muted-foreground">mm</span>
+                          <span className="text-sm text-muted-foreground">({(stock.value / 1000).toFixed(1)}m)</span>
                           {stockLengths.length > 1 && (
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="sm"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 setStockLengths(stockLengths.filter(s => s.id !== stock.id))
                               }}
-                              className="px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                              className="text-destructive hover:text-destructive"
                             >
                               Remove
-                            </button>
+                            </Button>
                           )}
                         </div>
                       ))}
                     </div>
                     {stockLengths.length < 5 && (
-                      <button
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="sm"
                         onClick={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
                           setStockLengths([...stockLengths, {id: nextStockId, value: 6000}])
                           setNextStockId(nextStockId + 1)
                         }}
-                        className="mt-3 px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded font-medium"
+                        className="mt-3"
                       >
                         + Add Stock Length
-                      </button>
+                      </Button>
                     )}
-                    <p className="text-xs text-gray-500 mt-2">
+                    <p className="text-xs text-muted-foreground">
                       Common lengths: 6000mm (6m), 12000mm (12m)
                     </p>
                   </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="mt-8 flex justify-end gap-3 border-t pt-4">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setShowSettingsModal(false)
-                    }}
-                    className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      saveSettings()
-                    }}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold shadow-md transition-colors"
-                  >
-                    Save Settings
-                  </button>
-                </div>
-              </div>
+            <div className="flex justify-end gap-3 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowSettingsModal(false)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  saveSettings()
+                }}
+              >
+                Save Settings
+              </Button>
             </div>
-          </div>
-        )}
+          </DialogContent>
+        </Dialog>
 
         {/* BOM Export Modal */}
-        {showBOMModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowBOMModal(false)}>
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              <div className="p-6">
-                {/* Modal Header */}
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800">Export BOM to PDF</h2>
-                  <button
-                    onClick={() => setShowBOMModal(false)}
-                    className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
-                  >
-                    ×
-                  </button>
-                </div>
+        <Dialog open={showBOMModal} onOpenChange={setShowBOMModal}>
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Export BOM to PDF</DialogTitle>
+            </DialogHeader>
 
-                {/* BOM Export Form */}
-                <div className="space-y-6">
-                  {/* Project Name Input */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-2">
-                      Project Name
-                    </label>
-                    <input
-                      type="text"
-                      value={bomProjectName}
-                      onChange={(e) => setBomProjectName(e.target.value)}
-                      placeholder="Enter project name (optional)"
-                      className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Project name will appear in the PDF header
-                    </p>
-                  </div>
-
-                  {/* Profile Selection */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-900 mb-3">
-                      Select Profiles to Include
-                    </label>
-                    <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 rounded p-3">
-                      {nestingReport && nestingReport.profiles.map((profile) => {
-                        // Get weight from report data
-                        const profileData = report?.profiles.find(p => p.profile_name === profile.profile_name)
-                        const tonnage = profileData ? (profileData.total_weight / 1000).toFixed(3) : '0.000'
-                        
-                        return (
-                          <label key={profile.profile_name} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={bomSelectedProfiles.has(profile.profile_name)}
-                              onChange={(e) => {
-                                const newSet = new Set(bomSelectedProfiles)
-                                if (e.target.checked) {
-                                  newSet.add(profile.profile_name)
-                                } else {
-                                  newSet.delete(profile.profile_name)
-                                }
-                                setBomSelectedProfiles(newSet)
-                              }}
-                              className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
-                            />
-                            <span className="text-sm text-gray-700">{profile.profile_name}</span>
-                            <span className="text-xs text-gray-500 ml-auto">
-                              {tonnage} tonnes
-                            </span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                      Select which profiles to include in the BOM PDF
-                    </p>
-                  </div>
-
-                  {/* Select/Deselect All */}
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => {
-                        if (nestingReport) {
-                          setBomSelectedProfiles(new Set(nestingReport.profiles.map(p => p.profile_name)))
-                        }
-                      }}
-                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm font-medium"
-                    >
-                      Select All
-                    </button>
-                    <button
-                      onClick={() => setBomSelectedProfiles(new Set())}
-                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm font-medium"
-                    >
-                      Deselect All
-                    </button>
-                  </div>
-                </div>
-
-                {/* Modal Actions */}
-                <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-                  <button
-                    onClick={() => setShowBOMModal(false)}
-                    className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleExportBOMToPDF}
-                    disabled={bomSelectedProfiles.size === 0}
-                    className={`px-6 py-2 rounded-lg font-semibold shadow-md transition-colors ${
-                      bomSelectedProfiles.size === 0
-                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-purple-600 text-white hover:bg-purple-700'
-                    }`}
-                  >
-                    Generate BOM PDF
-                  </button>
-                </div>
+            <div className="space-y-6 py-4">
+              {/* Project Name Input */}
+              <div className="space-y-2">
+                <Label htmlFor="bomProjectName">
+                  Project Name
+                </Label>
+                <Input
+                  id="bomProjectName"
+                  type="text"
+                  value={bomProjectName}
+                  onChange={(e) => setBomProjectName(e.target.value)}
+                  placeholder="Enter project name (optional)"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Project name will appear in the PDF header
+                </p>
               </div>
+
+              {/* Profile Selection */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">
+                  Select Profiles to Include
+                </Label>
+                <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
+                  {nestingReport && nestingReport.profiles.map((profile) => {
+                    const profileData = report?.profiles.find(p => p.profile_name === profile.profile_name)
+                    const tonnage = profileData ? (profileData.total_weight / 1000).toFixed(3) : '0.000'
+                    
+                    return (
+                      <label key={profile.profile_name} className="flex items-center gap-3 p-2 hover:bg-muted/50 rounded cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={bomSelectedProfiles.has(profile.profile_name)}
+                          onChange={(e) => {
+                            const newSet = new Set(bomSelectedProfiles)
+                            if (e.target.checked) {
+                              newSet.add(profile.profile_name)
+                            } else {
+                              newSet.delete(profile.profile_name)
+                            }
+                            setBomSelectedProfiles(newSet)
+                          }}
+                          className="w-4 h-4 rounded border-input"
+                        />
+                        <span className="text-sm">{profile.profile_name}</span>
+                        <span className="text-xs text-muted-foreground ml-auto">
+                          {tonnage} tonnes
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Select which profiles to include in the BOM PDF
+                </p>
+              </div>
+
+              {/* Select/Deselect All */}
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (nestingReport) {
+                      setBomSelectedProfiles(new Set(nestingReport.profiles.map(p => p.profile_name)))
+                    }
+                  }}
+                >
+                  Select All
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBomSelectedProfiles(new Set())}
+                >
+                  Deselect All
+                </Button>
+              </div>
+                </div>
+
             </div>
-          </div>
-        )}
+
+            <div className="flex justify-end gap-3 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setShowBOMModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleExportBOMToPDF}
+                disabled={bomSelectedProfiles.size === 0}
+              >
+                Generate BOM PDF
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )
