@@ -15,6 +15,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 interface NestingReportProps {
   filename: string
@@ -609,22 +617,22 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
             <div className="mb-8 page-break-after">
               <h2 className="text-2xl font-bold mb-4">Section 1: BOM Summary</h2>
               
-              <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+              <div className="rounded-lg border overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="min-w-full border-collapse">
-                    <thead>
-                      <tr className="bg-gray-800 text-white">
-                        <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Profile Type</th>
-                        <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Bar Stock Length</th>
-                        <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Amount of Bars</th>
-                        <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Tonnage (tonnes)</th>
-                        <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Number of Cuts</th>
-                        <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Total Waste Tonnage</th>
-                        <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Total Waste in M</th>
-                        <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Waste %</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-primary hover:bg-primary">
+                        <TableHead className="text-primary-foreground font-semibold">Profile Type</TableHead>
+                        <TableHead className="text-primary-foreground text-right font-semibold">Bar Stock Length</TableHead>
+                        <TableHead className="text-primary-foreground text-right font-semibold">Amount of Bars</TableHead>
+                        <TableHead className="text-primary-foreground text-right font-semibold">Tonnage (tonnes)</TableHead>
+                        <TableHead className="text-primary-foreground text-right font-semibold">Number of Cuts</TableHead>
+                        <TableHead className="text-primary-foreground text-right font-semibold">Total Waste Tonnage</TableHead>
+                        <TableHead className="text-primary-foreground text-right font-semibold">Total Waste in M</TableHead>
+                        <TableHead className="text-primary-foreground text-right font-semibold">Waste %</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {nestingReport.profiles.map((profile, profileIdx) => {
                         // Get profile data from report to calculate weight per meter
                         const profileData = report?.profiles.find(p => p.profile_name === profile.profile_name)
@@ -684,49 +692,45 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                             : profile.total_waste_percentage
                           
                           return (
-                            <tr 
-                              key={`${profileIdx}-${stockIdx}`}
-                              className={profileIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
-                            >
-                              <td className="border border-gray-300 px-4 py-3 font-medium">
+                            <TableRow key={`${profileIdx}-${stockIdx}`}>
+                              <TableCell className="font-medium">
                                 {profile.profile_name}
-                              </td>
-                              <td className="border border-gray-300 px-4 py-3 text-right">
+                              </TableCell>
+                              <TableCell className="text-right">
                                 {formatLength(stockLength)}
-                              </td>
-                              <td className="border border-gray-300 px-4 py-3 text-right">
+                              </TableCell>
+                              <TableCell className="text-right">
                                 {barCount}
-                              </td>
-                              <td className="border border-gray-300 px-4 py-3 text-right">
+                              </TableCell>
+                              <TableCell className="text-right">
                                 {tonnage > 0 ? tonnage.toFixed(3) : 'N/A'}
-                              </td>
-                              <td className="border border-gray-300 px-4 py-3 text-right">
+                              </TableCell>
+                              <TableCell className="text-right">
                                 {totalCuts}
-                              </td>
-                              <td className="border border-gray-300 px-4 py-3 text-right">
+                              </TableCell>
+                              <TableCell className="text-right">
                                 {wasteTonnage > 0 ? wasteTonnage.toFixed(3) : '0.000'}
-                              </td>
-                              <td className="border border-gray-300 px-4 py-3 text-right">
+                              </TableCell>
+                              <TableCell className="text-right">
                                 {totalWasteM > 0 ? totalWasteM.toFixed(2) : '0.00'}
-                              </td>
-                              <td className="border border-gray-300 px-4 py-3 text-right">
+                              </TableCell>
+                              <TableCell className="text-right">
                                 <span className={wasteForThisStock > 5 ? 'text-red-600 font-semibold' : 'text-green-600'}>
                                   {wasteForThisStock.toFixed(2)}%
                                 </span>
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           )
                         })
                       })}
-                    </tbody>
-                    <tfoot className="bg-gray-100 font-semibold">
-                      <tr>
-                        <td className="border border-gray-300 px-4 py-3">Total</td>
-                        <td className="border border-gray-300 px-4 py-3 text-right">-</td>
-                        <td className="border border-gray-300 px-4 py-3 text-right">
-                          {nestingReport.summary.total_stock_bars}
-                        </td>
-                        <td className="border border-gray-300 px-4 py-3 text-right">
+                    </TableBody>
+                    <TableRow className="bg-muted/50 font-semibold hover:bg-muted/50">
+                      <TableCell>Total</TableCell>
+                      <TableCell className="text-right">-</TableCell>
+                      <TableCell className="text-right">
+                        {nestingReport.summary.total_stock_bars}
+                      </TableCell>
+                      <TableCell className="text-right">
                           {nestingReport.profiles.reduce((total, profile) => {
                             const profileData = report?.profiles.find(p => p.profile_name === profile.profile_name)
                             if (!profileData || profile.total_length === 0) return total
@@ -739,15 +743,15 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                             
                             return total + profileTonnage
                           }, 0).toFixed(3)}
-                        </td>
-                        <td className="border border-gray-300 px-4 py-3 text-right">
-                          {nestingReport.profiles.reduce((total, profile) => {
-                            return total + profile.cutting_patterns.reduce((sum, pattern) => {
-                              return sum + Math.max(0, pattern.parts.length - 1)
-                            }, 0)
-                          }, 0)}
-                        </td>
-                        <td className="border border-gray-300 px-4 py-3 text-right">
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {nestingReport.profiles.reduce((total, profile) => {
+                          return total + profile.cutting_patterns.reduce((sum, pattern) => {
+                            return sum + Math.max(0, pattern.parts.length - 1)
+                          }, 0)
+                        }, 0)}
+                      </TableCell>
+                      <TableCell className="text-right">
                           {nestingReport.profiles.reduce((total, profile) => {
                             const profileData = report?.profiles.find(p => p.profile_name === profile.profile_name)
                             if (!profileData || profile.total_length === 0) return total
@@ -760,23 +764,22 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                             
                             return total + profileWasteTonnage
                           }, 0).toFixed(3)}
-                        </td>
-                        <td className="border border-gray-300 px-4 py-3 text-right">
-                          {nestingReport.profiles.reduce((total, profile) => {
-                            const profileWasteM = profile.cutting_patterns.reduce((sum, pattern) => {
-                              return sum + ((pattern.waste || 0) / 1000.0)
-                            }, 0)
-                            return total + profileWasteM
-                          }, 0).toFixed(2)}
-                        </td>
-                        <td className="border border-gray-300 px-4 py-3 text-right">
-                          <span className={nestingReport.summary.avg_waste_percentage > 5 ? 'text-red-600' : 'text-green-600'}>
-                            {nestingReport.summary.avg_waste_percentage.toFixed(2)}%
-                          </span>
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {nestingReport.profiles.reduce((total, profile) => {
+                          const profileWasteM = profile.cutting_patterns.reduce((sum, pattern) => {
+                            return sum + ((pattern.waste || 0) / 1000.0)
+                          }, 0)
+                          return total + profileWasteM
+                        }, 0).toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className={nestingReport.summary.avg_waste_percentage > 5 ? 'text-red-600' : 'text-green-600'}>
+                          {nestingReport.summary.avg_waste_percentage.toFixed(2)}%
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  </Table>
                 </div>
               </div>
             </div>
@@ -3230,19 +3233,19 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                       <div className="text-sm mt-3">
                         <div className="font-medium mb-2">Cutting list:</div>
                         <div className="overflow-x-auto">
-                          <table className="min-w-full border-collapse border border-gray-300">
-                            <thead>
-                              <tr className="bg-gray-100">
-                                <th className="border border-gray-300 px-3 py-2 text-left font-semibold">Number</th>
-                                <th className="border border-gray-300 px-3 py-2 text-left font-semibold">Profile Name</th>
-                                <th className="border border-gray-300 px-3 py-2 text-left font-semibold">Part Name</th>
-                                <th className="border border-gray-300 px-3 py-2 text-left font-semibold">Cut Length (mm)</th>
-                                <th className="border border-gray-300 px-3 py-2 text-left font-semibold">Quantity</th>
-                                <th className="border border-gray-300 px-3 py-2 text-left font-semibold">Start Angle</th>
-                                <th className="border border-gray-300 px-3 py-2 text-left font-semibold">End Angle</th>
-                              </tr>
-                            </thead>
-                            <tbody>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Number</TableHead>
+                                <TableHead>Profile Name</TableHead>
+                                <TableHead>Part Name</TableHead>
+                                <TableHead>Cut Length (mm)</TableHead>
+                                <TableHead>Quantity</TableHead>
+                                <TableHead>Start Angle</TableHead>
+                                <TableHead>End Angle</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
                               {(() => {
                                 try {
                                   // Group parts by reference/name and count occurrences
@@ -3305,30 +3308,30 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                     }
                             
                             return (
-                                      <tr key={idx} className="hover:bg-gray-50">
-                                        <td className="border border-gray-300 px-3 py-2">{idx + 1}</td>
-                                        <td className="border border-gray-300 px-3 py-2">{profileName}</td>
-                                        <td className="border border-gray-300 px-3 py-2">{group.name}</td>
-                                        <td className="border border-gray-300 px-3 py-2">{lengthMm}</td>
-                                        <td className="border border-gray-300 px-3 py-2">{group.count}</td>
-                                        <td className="border border-gray-300 px-3 py-2">{formatAngle(group.startAngle)}</td>
-                                        <td className="border border-gray-300 px-3 py-2">{formatAngle(group.endAngle)}</td>
-                                      </tr>
+                                      <TableRow key={idx}>
+                                        <TableCell>{idx + 1}</TableCell>
+                                        <TableCell>{profileName}</TableCell>
+                                        <TableCell>{group.name}</TableCell>
+                                        <TableCell>{lengthMm}</TableCell>
+                                        <TableCell>{group.count}</TableCell>
+                                        <TableCell>{formatAngle(group.startAngle)}</TableCell>
+                                        <TableCell>{formatAngle(group.endAngle)}</TableCell>
+                                      </TableRow>
                                     )
                                   })
                                 } catch (error) {
                                   console.error('[NestingReport] Error generating cutting list:', error)
                                   return (
-                                    <tr>
-                                      <td colSpan={7} className="border border-gray-300 px-3 py-2 text-red-500 text-center">
+                                    <TableRow>
+                                      <TableCell colSpan={7} className="text-destructive text-center">
                                         Error generating cutting list
-                                      </td>
-                                    </tr>
+                                      </TableCell>
+                                    </TableRow>
                                   )
                                 }
                               })()}
-                            </tbody>
-                          </table>
+                            </TableBody>
+                          </Table>
                         </div>
                       </div>
                     </div>
