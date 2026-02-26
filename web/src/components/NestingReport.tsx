@@ -615,6 +615,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
 
             <div id="nesting-report-pdf-content">
             {/* Waste Analysis Chart */}
+            {nestingReport.profiles && nestingReport.profiles.length > 0 && (
             <div className="mb-8">
               <h2 className="text-2xl font-bold mb-4">Waste Analysis by Profile</h2>
               
@@ -742,6 +743,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 </CardContent>
               </Card>
             </div>
+            )}
 
             {/* Section 1: BOM Summary */}
             <div className="mb-8 page-break-after">
