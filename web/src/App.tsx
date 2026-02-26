@@ -23,6 +23,7 @@ import { SteelReport, FilterState, NestingReport as NestingReportType } from './
 import * as ProjectStorage from './utils/projectStorage'
 import type { CompanyDetails } from './utils/projectStorage'
 import type { ProjectData } from './utils/projectStorage'
+import { apiRequest } from './utils/api'
 
 function App() {
   // Auth state
@@ -164,7 +165,7 @@ function App() {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch('http://localhost:8000/api/upload', {
+      const response = await apiRequest('/api/upload', {
         method: 'POST',
         body: formData,
       })
