@@ -3799,8 +3799,6 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                   Deselect All
                 </Button>
               </div>
-                </div>
-
             </div>
 
             <div className="flex justify-end gap-3 pt-4">
