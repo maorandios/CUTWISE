@@ -712,9 +712,104 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 ]
               }
               
+              // Calculate summary metrics based on current filters
+              let avgWastePercent = 0
+              let totalWasteM = 0
+              let totalWasteTonnes = 0
+              
+              if (chartFilterProfile === 'all' && chartFilterStockLength === 'all') {
+                // All profiles - use overall summary
+                avgWastePercent = nestingReport.summary.avg_waste_percentage
+                totalWasteM = nestingReport.summary.total_waste / 1000
+                // Calculate total waste tonnage from all profiles
+                totalWasteTonnes = nestingReport.profiles.reduce((sum, profile) => {
+                  const profileData = report?.profiles.find(p => p.profile_name === profile.profile_name)
+                  if (profileData && profile.total_length > 0) {
+                    const totalLengthM = profile.total_length / 1000
+                    const weightPerMeter = profileData.total_weight / totalLengthM
+                    const wasteM = profile.total_waste / 1000
+                    return sum + (wasteM * weightPerMeter) / 1000
+                  }
+                  return sum
+                }, 0)
+              } else {
+                // Calculate based on filtered data
+                const relevantProfiles = chartFilterProfile === 'all' 
+                  ? nestingReport.profiles 
+                  : nestingReport.profiles.filter(p => p.profile_name === chartFilterProfile)
+                
+                relevantProfiles.forEach(profile => {
+                  const patterns = chartFilterStockLength === 'all'
+                    ? profile.cutting_patterns
+                    : profile.cutting_patterns.filter(p => p.stock_length === Number(chartFilterStockLength))
+                  
+                  if (patterns.length > 0) {
+                    const avgWaste = patterns.reduce((sum, p) => sum + p.waste_percentage, 0) / patterns.length
+                    avgWastePercent += avgWaste
+                    
+                    const totalWaste = patterns.reduce((sum, p) => sum + p.waste, 0)
+                    totalWasteM += totalWaste / 1000
+                    
+                    const profileData = report?.profiles.find(p => p.profile_name === profile.profile_name)
+                    if (profileData && profile.total_length > 0) {
+                      const totalLengthM = profile.total_length / 1000
+                      const weightPerMeter = profileData.total_weight / totalLengthM
+                      totalWasteTonnes += (totalWaste / 1000 * weightPerMeter) / 1000
+                    }
+                  }
+                })
+                
+                avgWastePercent = avgWastePercent / relevantProfiles.length
+              }
+              
               return (
               <div className="mb-8">
                 <h2 className="text-2xl font-bold mb-4">Waste Analysis by Profile</h2>
+                
+                {/* Summary Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground mb-1">Average Waste</p>
+                          <p className="text-3xl font-bold text-primary">{avgWastePercent.toFixed(2)}%</p>
+                        </div>
+                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                          <img src="/Icons/precentage icon.svg?v=2" alt="Percentage" className="h-8 w-8" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground mb-1">Total Waste</p>
+                          <p className="text-3xl font-bold text-primary">{totalWasteM.toFixed(2)} <span className="text-xl">(m)</span></p>
+                        </div>
+                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                          <img src="/Icons/length icon.svg?v=2" alt="Length" className="h-8 w-8" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground mb-1">Waste Weight</p>
+                          <p className="text-3xl font-bold text-primary">{totalWasteTonnes.toFixed(3)} <span className="text-xl">(t)</span></p>
+                        </div>
+                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                          <img src="/Icons/tonnage icon.svg?v=2" alt="Tonnage" className="h-8 w-8" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
                 
                 <Card>
                   <CardContent className="pt-6">
@@ -967,15 +1062,15 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-primary hover:bg-primary">
-                        <TableHead className="text-primary-foreground font-semibold">Profile Type</TableHead>
-                        <TableHead className="text-primary-foreground text-right font-semibold">Bar Stock Length</TableHead>
-                        <TableHead className="text-primary-foreground text-right font-semibold">Amount of Bars</TableHead>
-                        <TableHead className="text-primary-foreground text-right font-semibold">Tonnage (tonnes)</TableHead>
-                        <TableHead className="text-primary-foreground text-right font-semibold">Number of Cuts</TableHead>
-                        <TableHead className="text-primary-foreground text-right font-semibold">Total Waste Tonnage</TableHead>
-                        <TableHead className="text-primary-foreground text-right font-semibold">Total Waste in M</TableHead>
-                        <TableHead className="text-primary-foreground text-right font-semibold">Waste %</TableHead>
+                      <TableRow className="bg-primary hover:bg-primary h-16">
+                        <TableHead className="text-primary-foreground font-semibold h-16 text-base w-[20%] pl-6">Profile Name</TableHead>
+                        <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11.4%]">Stock Length (m)</TableHead>
+                        <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11.4%]">Quantity</TableHead>
+                        <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11.4%]">Weight (t)</TableHead>
+                        <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11.4%]">Cuts qty</TableHead>
+                        <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11.4%] bg-primary/70 pl-4">Waste (t)</TableHead>
+                        <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11.4%] bg-primary/70">Waste (m)</TableHead>
+                        <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11.4%] bg-primary/70 pr-6">Waste (%)</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1038,45 +1133,43 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                             : profile.total_waste_percentage
                           
                           return (
-                            <TableRow key={`${profileIdx}-${stockIdx}`}>
-                              <TableCell className="font-medium">
+                            <TableRow key={`${profileIdx}-${stockIdx}`} className="h-12">
+                              <TableCell className="font-medium h-12 pl-6">
                                 {profile.profile_name}
                               </TableCell>
-                              <TableCell className="text-right">
-                                {formatLength(stockLength)}
+                              <TableCell className="text-right h-12">
+                                {(stockLength / 1000).toFixed(2)}
                               </TableCell>
-                              <TableCell className="text-right">
+                              <TableCell className="text-right h-12">
                                 {barCount}
                               </TableCell>
-                              <TableCell className="text-right">
+                              <TableCell className="text-right h-12">
                                 {tonnage > 0 ? tonnage.toFixed(3) : 'N/A'}
                               </TableCell>
-                              <TableCell className="text-right">
+                              <TableCell className="text-right h-12">
                                 {totalCuts}
                               </TableCell>
-                              <TableCell className="text-right">
+                              <TableCell className="text-right h-12 bg-muted/70 pl-4">
                                 {wasteTonnage > 0 ? wasteTonnage.toFixed(3) : '0.000'}
                               </TableCell>
-                              <TableCell className="text-right">
+                              <TableCell className="text-right h-12 bg-muted/70">
                                 {totalWasteM > 0 ? totalWasteM.toFixed(2) : '0.00'}
                               </TableCell>
-                              <TableCell className="text-right">
-                                <span className={wasteForThisStock > 5 ? 'text-red-600 font-semibold' : 'text-green-600'}>
-                                  {wasteForThisStock.toFixed(2)}%
-                                </span>
+                              <TableCell className="text-right h-12 text-foreground bg-muted/70 pr-6">
+                                {wasteForThisStock.toFixed(2)}%
                               </TableCell>
                             </TableRow>
                           )
                         })
                       })}
                     </TableBody>
-                    <TableRow className="bg-muted/50 font-semibold hover:bg-muted/50">
-                      <TableCell>Total</TableCell>
-                      <TableCell className="text-right">-</TableCell>
-                      <TableCell className="text-right">
+                    <TableRow className="bg-muted/50 font-semibold hover:bg-muted/50 h-12">
+                      <TableCell className="h-12 pl-6">Total</TableCell>
+                      <TableCell className="text-right h-12">-</TableCell>
+                      <TableCell className="text-right h-12">
                         {nestingReport.summary.total_stock_bars}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right h-12">
                           {nestingReport.profiles.reduce((total, profile) => {
                             const profileData = report?.profiles.find(p => p.profile_name === profile.profile_name)
                             if (!profileData || profile.total_length === 0) return total
@@ -1090,14 +1183,14 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                             return total + profileTonnage
                           }, 0).toFixed(3)}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right h-12">
                         {nestingReport.profiles.reduce((total, profile) => {
                           return total + profile.cutting_patterns.reduce((sum, pattern) => {
                             return sum + Math.max(0, pattern.parts.length - 1)
                           }, 0)
                         }, 0)}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right h-12 bg-muted/80 pl-4">
                           {nestingReport.profiles.reduce((total, profile) => {
                             const profileData = report?.profiles.find(p => p.profile_name === profile.profile_name)
                             if (!profileData || profile.total_length === 0) return total
@@ -1111,7 +1204,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                             return total + profileWasteTonnage
                           }, 0).toFixed(3)}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right h-12 bg-muted/80">
                         {nestingReport.profiles.reduce((total, profile) => {
                           const profileWasteM = profile.cutting_patterns.reduce((sum, pattern) => {
                             return sum + ((pattern.waste || 0) / 1000.0)
@@ -1119,10 +1212,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                           return total + profileWasteM
                         }, 0).toFixed(2)}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <span className={nestingReport.summary.avg_waste_percentage > 5 ? 'text-red-600' : 'text-green-600'}>
-                          {nestingReport.summary.avg_waste_percentage.toFixed(2)}%
-                        </span>
+                      <TableCell className="text-right h-12 text-foreground bg-muted/80 pr-6">
+                        {nestingReport.summary.avg_waste_percentage.toFixed(2)}%
                       </TableCell>
                     </TableRow>
                   </Table>
