@@ -2,8 +2,16 @@ import { useState, useEffect } from 'react'
 import * as ProjectStorage from '../utils/projectStorage'
 import type { ProjectData, CompanyDetails } from '../utils/projectStorage'
 import CompanySettingsModal from './CompanySettingsModal'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/Button'
+import { Header } from './Header'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 interface ProjectsDashboardProps {
   onSelectProject: (project: ProjectData) => void
@@ -65,41 +73,16 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <img 
-              src="/Icons/cutwise - logo.svg" 
-              alt="Cutwise" 
-              className="h-8"
-            />
-            <h1 className="text-xl font-bold text-gray-900">My Projects</h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowSettings(true)}
-              title="Company Settings"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </Button>
-            <Button onClick={onUploadNew}>
-              Upload New Project
-            </Button>
-            <Button variant="outline" onClick={onLogout}>
-              Log Out
-            </Button>
-          </div>
-        </div>
-      </header>
+      <Header
+        onSettingsClick={() => setShowSettings(true)}
+        onLogout={onLogout}
+        showUploadButton={true}
+        onUploadClick={onUploadNew}
+        title="My Projects"
+      />
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="max-w-[1440px] mx-auto px-6 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
@@ -110,95 +93,84 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
           </p>
         </div>
 
-        {/* Projects Grid */}
+        {/* Projects Table */}
         {projects.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map((project) => (
-              <Card
-                key={project.id}
-                onClick={() => onSelectProject(project)}
-                className="cursor-pointer hover:shadow-lg transition-shadow"
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1 line-clamp-2">
-                        {project.name}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        {formatDate(project.dateCreated)}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => handleDeleteProject(project.id, e)}
-                      title="Delete project"
-                      className="ml-2 text-muted-foreground hover:text-destructive"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </Button>
-                  </div>
-
-                  {/* Project Icon */}
-                  <div className="flex items-center justify-center h-32 bg-gray-50 rounded-lg mb-4">
-                    <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                  </div>
-
-                  {/* Stats */}
-                  {project.stats && (
-                    <div className="space-y-2 mb-4">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Total Profiles:</span>
-                        <span className="font-medium text-gray-900">{project.stats.totalProfiles || 0}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Total Tonnage:</span>
-                        <span className="font-medium text-gray-900">{(project.stats.totalTonnage || 0).toFixed(2)} tons</span>
-                      </div>
-                      {project.stats.stockBarsUsed > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Stock Bars Used:</span>
-                          <span className="font-medium text-gray-900">{project.stats.stockBarsUsed}</span>
-                        </div>
-                      )}
-                      {project.stats.avgWastePercentage > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Avg Waste:</span>
-                          <span className="font-medium text-gray-900">{project.stats.avgWastePercentage.toFixed(1)}%</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Status Badge */}
-                  {project.status && (
-                    <div className="mb-4">
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                        project.status === 'nested' || project.status === 'completed'
-                          ? 'bg-green-100 text-green-800'
-                          : project.status === 'analyzed'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {project.status === 'nested' ? 'Nesting Complete' :
-                         project.status === 'analyzed' ? 'Ready for Nesting' :
-                         project.status === 'uploaded' ? 'Uploaded' : 'Completed'}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Action Button */}
-                  <Button variant="secondary" className="w-full">
-                    {project.nestingReport ? 'View Report' : 'Edit Project'}
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="rounded-lg border overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-primary hover:bg-primary h-16">
+                    <TableHead className="text-primary-foreground font-semibold h-16 text-base w-[8%] pl-6">#</TableHead>
+                    <TableHead className="text-primary-foreground font-semibold h-16 text-base w-[22%]">Project Name</TableHead>
+                    <TableHead className="text-primary-foreground font-semibold h-16 text-base w-[11%]">Date</TableHead>
+                    <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11%]">Total Project Weight (t)</TableHead>
+                    <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11%] bg-primary/70">Waste (%)</TableHead>
+                    <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11%] bg-primary/70">Waste (m)</TableHead>
+                    <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11%] bg-primary/70">Waste (t)</TableHead>
+                    <TableHead className="text-primary-foreground text-center font-semibold h-16 text-base w-[7.5%] bg-primary/50">Preview</TableHead>
+                    <TableHead className="text-primary-foreground text-center font-semibold h-16 text-base w-[7.5%] bg-primary/50 pr-6">Delete</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {projects.map((project, index) => {
+                    const totalWeight = project.stats?.totalTonnage || 0
+                    const wastePercentage = project.stats?.avgWastePercentage || 0
+                    const wasteTonnage = project.stats?.totalWasteTonnage || 0
+                    const wasteMeters = project.stats?.totalWasteMeters || 0
+                    
+                    return (
+                      <TableRow key={project.id} className="h-12 hover:bg-gray-100">
+                        <TableCell className="font-medium h-12 pl-6">
+                          {index + 1}
+                        </TableCell>
+                        <TableCell className="h-12 font-medium">
+                          {project.name}
+                        </TableCell>
+                        <TableCell className="h-12">
+                          {formatDate(project.dateCreated)}
+                        </TableCell>
+                        <TableCell className="text-right h-12">
+                          {totalWeight.toFixed(3)}
+                        </TableCell>
+                        <TableCell className="text-right h-12 bg-gray-50/50">
+                          {wastePercentage.toFixed(2)}%
+                        </TableCell>
+                        <TableCell className="text-right h-12 bg-gray-50/50">
+                          {wasteMeters.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right h-12 bg-gray-50/50">
+                          {wasteTonnage.toFixed(3)}
+                        </TableCell>
+                        <TableCell className="text-center h-12 bg-gray-100/70">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onSelectProject(project)}
+                            title="Preview project"
+                            className="h-8 w-8"
+                          >
+                            <img src="/Icons/preview.svg" alt="Preview" className="w-5 h-5" />
+                          </Button>
+                        </TableCell>
+                        <TableCell className="text-center h-12 bg-gray-100/70 pr-6">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => handleDeleteProject(project.id, e)}
+                            title="Delete project"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         ) : (
           // Empty State

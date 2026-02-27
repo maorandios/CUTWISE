@@ -115,7 +115,7 @@ export default function ProfilesTab({ filename, report, cachedData }: ProfilesTa
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[1440px] mx-auto">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Profiles</h1>

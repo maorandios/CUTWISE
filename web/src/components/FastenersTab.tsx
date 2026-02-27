@@ -151,7 +151,7 @@ export default function FastenersTab({ filename, report, cachedData }: Fasteners
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[1440px] mx-auto">
         {/* Header with Export Button */}
         <div className="mb-6 flex items-start justify-between">
           <div>

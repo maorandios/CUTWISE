@@ -3,7 +3,8 @@ import Login from './components/Login'
 import Signup from './components/Signup'
 import Onboarding from './components/Onboarding'
 import ProjectsDashboard from './components/ProjectsDashboard'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/ui/Button'
+import { Header } from './components/Header'
 
 import UploadProjectModal from './components/UploadProjectModal'
 import FileUpload from './components/FileUpload'
@@ -384,36 +385,12 @@ function App() {
   if (currentView === 'split') {
     return (
       <div className="h-screen flex flex-col">
-        <header className="bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleBackToDashboard}
-                title="Back to dashboard"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </Button>
-              <img
-                src="/Icons/cutwise - logo.svg"
-                alt="Cutwise"
-                className="h-8"
-              />
-              <h1 className="text-xl font-bold text-gray-900">{currentFile?.replace('.ifc', '') || 'Project'}</h1>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                onClick={handleLogout}
-              >
-                Log Out
-              </Button>
-            </div>
-          </div>
-        </header>
+        <Header
+          onLogout={handleLogout}
+          showBackButton={true}
+          onBackClick={handleBackToDashboard}
+          title={currentFile?.replace('.ifc', '') || 'Project'}
+        />
         
         <div className="flex-1 flex flex-col overflow-hidden">
           {currentFile && (
@@ -443,41 +420,12 @@ function App() {
   if (currentView === 'report') {
     return (
       <div className="h-screen flex flex-col">
-        <header className="bg-white border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleBackToDashboard}
-                title="Back to dashboard"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </Button>
-              <img
-                src="/Icons/cutwise - logo.svg"
-                alt="Cutwise"
-                className="h-8"
-              />
-              <h1 className="text-xl font-bold text-gray-900">{currentFile?.replace('.ifc', '') || 'Project'}</h1>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={handleGenerateNewReport}
-              >
-                Generate New Report
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleLogout}
-              >
-                Log Out
-              </Button>
-            </div>
-          </div>
-        </header>
+        <Header
+          onLogout={handleLogout}
+          showBackButton={true}
+          onBackClick={handleBackToDashboard}
+          title={currentFile?.replace('.ifc', '') || 'Project'}
+        />
         
         <div className="flex-1 flex flex-col overflow-hidden">
           {currentFile && nestingReport && (

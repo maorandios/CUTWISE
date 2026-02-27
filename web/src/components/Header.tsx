@@ -1,0 +1,75 @@
+import { Button } from '@/components/ui/Button';
+
+interface HeaderProps {
+  onSettingsClick?: () => void;
+  onLogout: () => void;
+  showBackButton?: boolean;
+  onBackClick?: () => void;
+  showUploadButton?: boolean;
+  onUploadClick?: () => void;
+  title?: string;
+}
+
+export function Header({
+  onSettingsClick,
+  onLogout,
+  showBackButton = false,
+  onBackClick,
+  showUploadButton = false,
+  onUploadClick,
+  title,
+}: HeaderProps) {
+  return (
+    <header className="bg-[#11181C] border-b border-gray-800">
+      <div className="max-w-[1440px] mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          {showBackButton && onBackClick && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onBackClick}
+              title="Back to dashboard"
+              className="text-white hover:bg-gray-700"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </Button>
+          )}
+          <img
+            src="/Icons/cutwise manu logo.svg"
+            alt="Cutwise"
+            className="h-10"
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          {showUploadButton && onUploadClick && (
+            <Button onClick={onUploadClick} className="bg-blue-600 hover:bg-blue-700 text-white">
+              Upload New Project
+            </Button>
+          )}
+          {onSettingsClick && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onSettingsClick}
+              title="Company Settings"
+              className="text-white hover:bg-gray-700"
+            >
+              <img src="/Icons/cog.svg" alt="Settings" className="w-10 h-10 select-none" style={{ imageRendering: '-webkit-optimize-contrast' }} />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onLogout}
+            title="Log Out"
+            className="text-white hover:bg-gray-700"
+          >
+              <img src="/Icons/logout.svg" alt="Logout" className="w-10 h-10 select-none" style={{ imageRendering: '-webkit-optimize-contrast' }} />
+          </Button>
+        </div>
+      </div>
+    </header>
+  );
+}

@@ -5,7 +5,7 @@ import { NestingReportPDF } from './NestingReportPDF'
 import { BOMPDF } from './BOMPDF'
 import IFCViewerWebIFC from './IFCViewerWebIFC'
 import { apiRequest } from '../utils/api'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
@@ -929,7 +929,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                             tick={(props: any) => {
                               const { x, y, payload } = props
                               // Hide tick for helper points
-                              if (chartData[payload.index]?.isHelper) return null
+                              if (chartData[payload.index]?.isHelper) return <></>
                               return (
                                 <g transform={`translate(${x},${y})`}>
                                   <text
@@ -1053,7 +1053,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                             dot={(props: any) => {
                               const { cx, cy, payload, index } = props
                               // Hide dots for helper points
-                              if (payload?.isHelper) return null
+                              if (payload?.isHelper) return <></>
                               
                               // Calculate delay: dot appears when line reaches it
                               // Line animation is 2000ms linear, so timing is proportional

@@ -22,6 +22,8 @@ export interface ProjectData {
     stockBarsUsed: number
     totalParts: number
     avgWastePercentage: number
+    totalWasteTonnage: number
+    totalWasteMeters: number
   }
   
   // Status
@@ -132,7 +134,9 @@ export const createProject = (
       totalTonnage: steelReport.total_tonnage || 0,
       stockBarsUsed: 0,
       totalParts: 0,
-      avgWastePercentage: 0
+      avgWastePercentage: 0,
+      totalWasteTonnage: 0,
+      totalWasteMeters: 0
     },
     status: 'analyzed'
   }
@@ -187,19 +191,56 @@ export const updateProjectNesting = (
   projectId: string,
   nestingReport: NestingReportType
 ): ProjectData | null => {
+  // Get existing project to access steel report
+  const existingProject = getProject(projectId)
+  if (!existingProject) {
+    console.error('[ProjectStorage] Project not found:', projectId)
+    return null
+  }
+  
   const stockBarsUsed = nestingReport.profiles.reduce(
     (sum, profile) => sum + profile.cutting_patterns.length,
     0
   )
   
+  // Calculate total waste in meters and tonnage
+  let totalWasteMeters = 0
+  let totalWasteTonnage = 0
+  
+  nestingReport.profiles.forEach(profile => {
+    // Sum waste from all cutting patterns
+    const wasteForProfile = profile.cutting_patterns.reduce((sum, pattern) => {
+      return sum + (pattern.waste || 0)
+    }, 0)
+    
+    // Convert waste from mm to meters
+    totalWasteMeters += wasteForProfile / 1000.0
+    
+    // Calculate waste tonnage using steel report data
+    // Find matching profile in steel report to get weight per meter
+    const steelProfile = existingProject.steelReport?.profiles?.find(
+      p => p.profile_name === profile.profile_name
+    )
+    
+    if (steelProfile && profile.total_length > 0) {
+      // weight_per_meter = total_weight_kg / (total_length_mm / 1000)
+      const totalLengthM = profile.total_length / 1000.0
+      const weightPerMeter = steelProfile.total_weight / totalLengthM
+      const wasteM = wasteForProfile / 1000.0
+      totalWasteTonnage += (wasteM * weightPerMeter) / 1000.0
+    }
+  })
+  
   return updateProject(projectId, {
     nestingReport: nestingReport,
     stats: {
       totalProfiles: nestingReport.summary.total_profiles,
-      totalTonnage: 0, // Keep from steelReport
+      totalTonnage: existingProject.stats.totalTonnage, // Keep from steelReport
       stockBarsUsed: stockBarsUsed,
       totalParts: nestingReport.summary.total_parts,
-      avgWastePercentage: nestingReport.summary.avg_waste_percentage
+      avgWastePercentage: nestingReport.summary.avg_waste_percentage,
+      totalWasteTonnage: totalWasteTonnage,
+      totalWasteMeters: totalWasteMeters
     },
     status: 'nested'
   })

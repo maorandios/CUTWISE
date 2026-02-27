@@ -94,10 +94,10 @@ export default function FileUpload({ onUpload, loading, setLoading }: FileUpload
         id="file-upload"
         disabled={loading}
       />
-      <label htmlFor="file-upload">
-        <Button as="span" disabled={loading}>
+      <label htmlFor="file-upload" className="cursor-pointer">
+        <span className={`inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${loading ? 'opacity-50 cursor-not-allowed bg-primary/50' : 'bg-primary hover:bg-primary/90 cursor-pointer'} text-primary-foreground h-10 px-4 py-2`}>
           {loading ? 'Uploading...' : 'Upload IFC File'}
-        </Button>
+        </span>
       </label>
       {error && <span className="text-red-500">{error}</span>}
     </div>
