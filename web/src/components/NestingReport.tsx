@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
 import { ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 interface NestingReportProps {
@@ -626,6 +627,16 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
 
             <div id="nesting-report-pdf-content">
             
+            {/* Tabbed Interface */}
+            <Tabs defaultValue="materials" className="w-full">
+              <TabsList>
+                <TabsTrigger value="materials">Materials Analysis</TabsTrigger>
+                <TabsTrigger value="bom">Bill of Materials Summary</TabsTrigger>
+                <TabsTrigger value="cutting">Cutting Plan</TabsTrigger>
+              </TabsList>
+
+              {/* Tab 1: Materials Analysis (Waste Chart) */}
+              <TabsContent value="materials">
             {/* Waste Analysis Chart */}
             {nestingReport.profiles && nestingReport.profiles.length > 0 && (() => {
               // Get unique stock lengths from all profiles
@@ -1053,10 +1064,13 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               </div>
               )
             })()}
+              </TabsContent>
 
+              {/* Tab 2: Bill of Materials Summary */}
+              <TabsContent value="bom">
             {/* Section 1: BOM Summary */}
             <div className="mb-8 page-break-after">
-              <h2 className="text-2xl font-bold mb-4">Section 1: BOM Summary</h2>
+              <h2 className="text-2xl font-bold mb-4">Bill of Materials Summary</h2>
               
               <div className="rounded-lg border overflow-hidden">
                 <div className="overflow-x-auto">
@@ -1322,10 +1336,13 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 </div>
               )
             })()}
+              </TabsContent>
 
+              {/* Tab 3: Cutting Plan */}
+              <TabsContent value="cutting">
             {/* Section 2: Cutting Patterns */}
             <div className="page-break-before">
-              <h2 className="text-2xl font-bold mb-4">Section 2: Cutting Patterns</h2>
+              <h2 className="text-2xl font-bold mb-4">Cutting Plan</h2>
               {nestingReport.profiles.map((profile, profileIdx) => {
                 const profileKey = profile.profile_name
                 const isExpanded = expandedProfiles.has(profileKey)
@@ -3779,6 +3796,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 )
               })}
             </div>
+              </TabsContent>
+            </Tabs>
             </div> {/* End of max-w-[1440px] container */}
           </div> {/* End of nesting-report-pdf-content */}
 
