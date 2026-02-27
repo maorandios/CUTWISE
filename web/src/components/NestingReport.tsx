@@ -23,7 +23,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 interface NestingReportProps {
   filename: string
@@ -97,6 +104,10 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   const [showBOMModal, setShowBOMModal] = useState<boolean>(false) // BOM export modal visibility
   const [bomProjectName, setBomProjectName] = useState<string>('')
   const [bomSelectedProfiles, setBomSelectedProfiles] = useState<Set<string>>(new Set())
+  
+  // Chart filter states
+  const [chartFilterProfile, setChartFilterProfile] = useState<string>('all')
+  const [chartFilterStockLength, setChartFilterStockLength] = useState<string>('all')
 
   // Get available profiles from report and sort by tonnage (highest first)
   const availableProfiles = (report?.profiles || []).sort((a, b) => b.total_weight - a.total_weight)
@@ -616,52 +627,337 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
             <div id="nesting-report-pdf-content">
             
             {/* Waste Analysis Chart */}
-            {nestingReport.profiles && nestingReport.profiles.length > 0 && (
+            {nestingReport.profiles && nestingReport.profiles.length > 0 && (() => {
+              // Get unique stock lengths from all profiles
+              const allStockLengths = new Set<number>()
+              nestingReport.profiles.forEach(profile => {
+                Object.keys(profile.stock_lengths_used).forEach(length => {
+                  allStockLengths.add(Number(length))
+                })
+              })
+              const stockLengthOptions = Array.from(allStockLengths).sort((a, b) => a - b)
+              
+              // Prepare chart data based on filters
+              let chartData: Array<{ name: string; waste: number; stockLength?: string; isHelper?: boolean }> = []
+              
+              if (chartFilterProfile === 'all' && chartFilterStockLength === 'all') {
+                // Show all profiles with their total waste, sorted by waste (high to low)
+                chartData = nestingReport.profiles.map(profile => ({
+                  name: profile.profile_name,
+                  waste: Number(profile.total_waste_percentage.toFixed(2)),
+                })).sort((a, b) => b.waste - a.waste)
+              } else if (chartFilterProfile !== 'all' && chartFilterStockLength === 'all') {
+                // Show specific profile with breakdown by stock length
+                const profile = nestingReport.profiles.find(p => p.profile_name === chartFilterProfile)
+                if (profile) {
+                  // Group patterns by stock length and calculate average waste
+                  const wasteByStock: Record<number, { total: number; count: number }> = {}
+                  profile.cutting_patterns.forEach(pattern => {
+                    if (!wasteByStock[pattern.stock_length]) {
+                      wasteByStock[pattern.stock_length] = { total: 0, count: 0 }
+                    }
+                    wasteByStock[pattern.stock_length].total += pattern.waste_percentage
+                    wasteByStock[pattern.stock_length].count += 1
+                  })
+                  
+                  chartData = Object.entries(wasteByStock).map(([length, data]) => ({
+                    name: `${Number(length) / 1000}m`,
+                    waste: Number((data.total / data.count).toFixed(2)),
+                    stockLength: length,
+                  })).sort((a, b) => b.waste - a.waste)
+                }
+              } else if (chartFilterProfile === 'all' && chartFilterStockLength !== 'all') {
+                // Show all profiles filtered by specific stock length
+                chartData = nestingReport.profiles
+                  .map(profile => {
+                    const patternsForStock = profile.cutting_patterns.filter(
+                      p => p.stock_length === Number(chartFilterStockLength)
+                    )
+                    if (patternsForStock.length === 0) return null
+                    
+                    const avgWaste = patternsForStock.reduce((sum, p) => sum + p.waste_percentage, 0) / patternsForStock.length
+                    return {
+                      name: profile.profile_name,
+                      waste: Number(avgWaste.toFixed(2)),
+                    }
+                  })
+                  .filter(item => item !== null)
+                  .sort((a, b) => b.waste - a.waste) as Array<{ name: string; waste: number }>
+              } else {
+                // Show specific profile and specific stock length
+                const profile = nestingReport.profiles.find(p => p.profile_name === chartFilterProfile)
+                if (profile) {
+                  const patternsForStock = profile.cutting_patterns.filter(
+                    p => p.stock_length === Number(chartFilterStockLength)
+                  )
+                  if (patternsForStock.length > 0) {
+                    chartData = patternsForStock
+                      .map((pattern, idx) => ({
+                        name: `Bar ${idx + 1}`,
+                        waste: Number(pattern.waste_percentage.toFixed(2)),
+                      }))
+                      .sort((a, b) => b.waste - a.waste)
+                  }
+                }
+              }
+              
+              // Handle single point case - add invisible helper points for line/area animation
+              const originalDataLength = chartData.length
+              if (chartData.length === 1) {
+                const singlePoint = chartData[0]
+                chartData = [
+                  { name: ' ', waste: singlePoint.waste, isHelper: true },
+                  singlePoint,
+                  { name: '  ', waste: singlePoint.waste, isHelper: true }
+                ]
+              }
+              
+              return (
               <div className="mb-8">
                 <h2 className="text-2xl font-bold mb-4">Waste Analysis by Profile</h2>
                 
                 <Card>
                   <CardContent className="pt-6">
-                    <div style={{ width: '100%', height: 400 }}>
-                      <ResponsiveContainer>
-                        <LineChart
-                          data={nestingReport.profiles.map(profile => ({
-                            name: profile.profile_name,
-                            waste: Number(profile.total_waste_percentage.toFixed(2)),
-                          }))}
-                          margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
+                    {/* Filters */}
+                    <div className="flex gap-4 mb-6">
+                      <div className="flex-1">
+                        <Label htmlFor="profile-filter" className="mb-2 block">Filter by Profile</Label>
+                        <Select value={chartFilterProfile} onValueChange={setChartFilterProfile}>
+                          <SelectTrigger id="profile-filter">
+                            <SelectValue placeholder="All Profiles" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Profiles</SelectItem>
+                            {nestingReport.profiles.map(profile => (
+                              <SelectItem key={profile.profile_name} value={profile.profile_name}>
+                                {profile.profile_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="flex-1">
+                        <Label htmlFor="stock-filter" className="mb-2 block">Filter by Stock Length</Label>
+                        <Select value={chartFilterStockLength} onValueChange={setChartFilterStockLength}>
+                          <SelectTrigger id="stock-filter">
+                            <SelectValue placeholder="All Stock Lengths" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Stock Lengths</SelectItem>
+                            {stockLengthOptions.map(length => (
+                              <SelectItem key={length} value={length.toString()}>
+                                {(length / 1000).toFixed(1)}m ({length}mm)
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="flex items-end">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setChartFilterProfile('all')
+                            setChartFilterStockLength('all')
+                          }}
+                          disabled={chartFilterProfile === 'all' && chartFilterStockLength === 'all'}
                         >
+                          Reset Filters
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {/* Chart */}
+                    {chartData.length > 0 ? (
+                    <div style={{ width: '100%', height: 600 }} key={`${chartFilterProfile}-${chartFilterStockLength}`}>
+                      <ResponsiveContainer>
+                        <ComposedChart
+                          data={chartData}
+                          margin={{ top: 20, right: 50, left: 20, bottom: 100 }}
+                        >
+                          <defs>
+                            <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
+                              <stop offset="0%" stopColor="#00817A" />
+                              <stop offset="100%" stopColor="#00FF9F" />
+                            </linearGradient>
+                            <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#00817A" stopOpacity={0.2} />
+                              <stop offset="100%" stopColor="#00817A" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          
                           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                           
                           <XAxis
                             dataKey="name"
                             angle={-45}
                             textAnchor="end"
-                            height={100}
-                            tick={{ fill: '#6b7280', fontSize: 12 }}
+                            height={120}
+                            tick={(props: any) => {
+                              const { x, y, payload } = props
+                              // Hide tick for helper points
+                              if (chartData[payload.index]?.isHelper) return null
+                              return (
+                                <g transform={`translate(${x},${y})`}>
+                                  <text
+                                    x={0}
+                                    y={0}
+                                    dy={16}
+                                    textAnchor="end"
+                                    fill="#374151"
+                                    fontSize={14}
+                                    fontWeight={500}
+                                    transform="rotate(-45)"
+                                  >
+                                    {payload.value}
+                                  </text>
+                                </g>
+                              )
+                            }}
+                            label={{ 
+                              value: chartFilterProfile !== 'all' && chartFilterStockLength === 'all' 
+                                ? 'Stock Length' 
+                                : chartFilterProfile !== 'all' && chartFilterStockLength !== 'all'
+                                ? 'Bar Number'
+                                : 'Profile Name', 
+                              position: 'insideBottom', 
+                              offset: -10,
+                              style: { fill: '#374151', fontWeight: 600, fontSize: 16 }
+                            }}
+                            padding={{ left: 30, right: 30 }}
                           />
                           
                           <YAxis
-                            tick={{ fill: '#6b7280', fontSize: 12 }}
+                            tick={{ fill: '#374151', fontSize: 14, fontWeight: 500 }}
+                            label={{ value: 'Waste (%)', angle: -90, position: 'insideLeft', style: { fill: '#374151', fontWeight: 600, fontSize: 16 } }}
                           />
                           
-                          <Tooltip />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (!active || !payload || !payload.length) return null
+                              
+                              const data = payload[0].payload
+                              if (data.isHelper) return null
+                              
+                              // Get the actual profile data to calculate waste in mm
+                              let profileName = data.name
+                              let wastePercent = data.waste
+                              let wasteMm = 0
+                              
+                              // Calculate waste in mm based on the filter context
+                              if (chartFilterProfile === 'all' && chartFilterStockLength === 'all') {
+                                // All profiles view - get total waste from profile
+                                const profile = nestingReport.profiles.find(p => p.profile_name === data.name)
+                                if (profile) {
+                                  wasteMm = profile.total_waste
+                                  profileName = profile.profile_name
+                                }
+                              } else if (chartFilterProfile !== 'all' && chartFilterStockLength === 'all') {
+                                // Specific profile, all stock lengths - showing stock length breakdown
+                                profileName = chartFilterProfile
+                                const profile = nestingReport.profiles.find(p => p.profile_name === chartFilterProfile)
+                                if (profile && data.stockLength) {
+                                  const patternsForStock = profile.cutting_patterns.filter(p => p.stock_length === Number(data.stockLength))
+                                  wasteMm = patternsForStock.reduce((sum, p) => sum + p.waste, 0) / patternsForStock.length
+                                }
+                              } else if (chartFilterProfile === 'all' && chartFilterStockLength !== 'all') {
+                                // All profiles, specific stock length
+                                const profile = nestingReport.profiles.find(p => p.profile_name === data.name)
+                                if (profile) {
+                                  const patternsForStock = profile.cutting_patterns.filter(p => p.stock_length === Number(chartFilterStockLength))
+                                  wasteMm = patternsForStock.reduce((sum, p) => sum + p.waste, 0) / patternsForStock.length
+                                  profileName = profile.profile_name
+                                }
+                              } else {
+                                // Specific profile and stock length - individual bars
+                                profileName = chartFilterProfile
+                                const profile = nestingReport.profiles.find(p => p.profile_name === chartFilterProfile)
+                                if (profile) {
+                                  const patternsForStock = profile.cutting_patterns.filter(p => p.stock_length === Number(chartFilterStockLength))
+                                  const barIndex = parseInt(data.name.replace('Bar ', '')) - 1
+                                  if (patternsForStock[barIndex]) {
+                                    wasteMm = patternsForStock[barIndex].waste
+                                  }
+                                }
+                              }
+                              
+                              return (
+                                <div className="bg-background border border-border rounded-lg shadow-lg p-3 min-w-[200px]">
+                                  <div className="space-y-2">
+                                    <div className="font-semibold text-foreground border-b border-border pb-2">
+                                      {profileName}
+                                    </div>
+                                    <div className="space-y-1 text-sm">
+                                      <div className="flex justify-between gap-4">
+                                        <span className="text-muted-foreground">Waste:</span>
+                                        <span className="font-semibold text-primary">{wastePercent}%</span>
+                                      </div>
+                                      <div className="flex justify-between gap-4">
+                                        <span className="text-muted-foreground">Waste (mm):</span>
+                                        <span className="font-medium text-foreground">{wasteMm.toFixed(0)}mm</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            }}
+                          />
+                          
+                          <Area
+                            type="monotone"
+                            dataKey="waste"
+                            stroke="none"
+                            fill="url(#areaGradient)"
+                            isAnimationActive={false}
+                          />
                           
                           <Line
                             type="monotone"
                             dataKey="waste"
-                            stroke="#084242"
+                            stroke="url(#lineGradient)"
                             strokeWidth={3}
-                            dot={{ fill: '#084242', r: 6 }}
-                            animationDuration={2000}
+                            fill="none"
+                            dot={(props: any) => {
+                              const { cx, cy, payload, index } = props
+                              // Hide dots for helper points
+                              if (payload?.isHelper) return null
+                              
+                              // Calculate delay: dot appears when line reaches it
+                              // Line animation is 2000ms linear, so timing is proportional
+                              const totalPoints = chartData.length
+                              const delay = totalPoints > 1 ? (index / (totalPoints - 1)) * 2000 : 0
+                              
+                              return (
+                                <circle
+                                  cx={cx}
+                                  cy={cy}
+                                  r={originalDataLength === 1 ? 8 : 6}
+                                  fill="#084242"
+                                  stroke="#fff"
+                                  strokeWidth={2}
+                                  style={{
+                                    opacity: 0,
+                                    animation: `dotInstantAppear 1ms linear ${delay}ms forwards`
+                                  }}
+                                />
+                              )
+                            }}
+                            isAnimationActive={false}
                           />
-                        </LineChart>
+                        </ComposedChart>
                       </ResponsiveContainer>
                     </div>
+                    ) : (
+                      <div className="text-center py-12 text-muted-foreground">
+                        No data available for the selected filters
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
-            )}
+              )
+            })()}
 
             {/* Section 1: BOM Summary */}
             <div className="mb-8 page-break-after">
