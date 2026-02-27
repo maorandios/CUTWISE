@@ -90,6 +90,10 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedProfiles, setExpandedProfiles] = useState<Set<string>>(new Set())
+  const [selectedProfilesForDisplay, setSelectedProfilesForDisplay] = useState<Set<string>>(new Set())
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState<boolean>(false)
+  const [dropdownPosition, setDropdownPosition] = useState<{top: number, left: number, width: number}>({top: 0, left: 0, width: 0})
+  const profileFilterRef = useRef<HTMLButtonElement>(null)
   const [kerfValue, setKerfValue] = useState<number>(3.0) // Default kerf: 3mm
   const [trimValue, setTrimValue] = useState<number>(5.0) // Default trim: 5mm
   const [stockToleranceEnabled, setStockToleranceEnabled] = useState<boolean>(true) // Default: enabled
@@ -112,6 +116,28 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
 
   // Get available profiles from report and sort by tonnage (highest first)
   const availableProfiles = (report?.profiles || []).sort((a, b) => b.total_weight - a.total_weight)
+  
+  // Initialize all profiles as selected when nesting report is loaded
+  useEffect(() => {
+    if (nestingReport?.profiles) {
+      setSelectedProfilesForDisplay(new Set(nestingReport.profiles.map(p => p.profile_name)))
+    }
+  }, [nestingReport])
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!isProfileDropdownOpen) return
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      const dropdown = document.getElementById('profile-dropdown')
+      const trigger = document.getElementById('profile-filter')
+      if (dropdown && !dropdown.contains(event.target as Node) && !trigger?.contains(event.target as Node)) {
+        setIsProfileDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isProfileDropdownOpen])
   
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -1343,7 +1369,140 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
             {/* Section 2: Cutting Patterns */}
             <div className="page-break-before">
               <h2 className="text-2xl font-bold mb-4">Cutting Plan</h2>
-              {nestingReport.profiles.map((profile, profileIdx) => {
+              
+              {/* Profile Filter Multi-Select */}
+              <div className="mb-6 flex items-center gap-4">
+                <div className="flex-1 max-w-md">
+                  <Label className="mb-2 block text-sm font-medium">
+                    Filter Profiles
+                  </Label>
+                  <div className="relative">
+                    <button
+                      ref={profileFilterRef}
+                      id="profile-filter"
+                      type="button"
+                      onClick={() => {
+                        if (profileFilterRef.current) {
+                          const rect = profileFilterRef.current.getBoundingClientRect()
+                          setDropdownPosition({
+                            top: rect.bottom + 4,
+                            left: rect.left,
+                            width: rect.width
+                          })
+                        }
+                        setIsProfileDropdownOpen(prev => !prev)
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2 border border-input bg-background rounded-md text-sm hover:bg-muted/50 transition-colors cursor-pointer"
+                    >
+                      <span>
+                        {selectedProfilesForDisplay.size === nestingReport.profiles.length
+                          ? 'All Profiles'
+                          : selectedProfilesForDisplay.size === 0
+                          ? 'No profiles selected'
+                          : `${selectedProfilesForDisplay.size} profile${selectedProfilesForDisplay.size > 1 ? 's' : ''} selected`}
+                      </span>
+                      <svg className="w-4 h-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    
+                    {isProfileDropdownOpen && (
+                      <div
+                        id="profile-dropdown"
+                        className="fixed z-[100] bg-background border border-border rounded-md shadow-lg max-h-[400px] overflow-y-auto"
+                        style={{
+                          width: dropdownPosition.width + 'px',
+                          top: dropdownPosition.top + 'px',
+                          left: dropdownPosition.left + 'px'
+                        }}
+                      >
+                      <div className="flex gap-2 p-3 border-b bg-muted/30 sticky top-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setSelectedProfilesForDisplay(new Set(nestingReport.profiles.map(p => p.profile_name)))
+                          }}
+                        >
+                          Select All
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setSelectedProfilesForDisplay(new Set())
+                          }}
+                        >
+                          Clear All
+                        </Button>
+                      </div>
+                      <div className="p-1">
+                        {nestingReport.profiles.map((profile) => {
+                          const isSelected = selectedProfilesForDisplay.has(profile.profile_name)
+                          return (
+                            <button
+                              key={profile.profile_name}
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                const newSelected = new Set(selectedProfilesForDisplay)
+                                if (isSelected) {
+                                  newSelected.delete(profile.profile_name)
+                                } else {
+                                  newSelected.add(profile.profile_name)
+                                }
+                                setSelectedProfilesForDisplay(newSelected)
+                              }}
+                              className="w-full flex items-center gap-3 px-3 py-3 hover:bg-muted/50 rounded transition-colors text-left"
+                            >
+                              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                                isSelected ? 'bg-primary border-primary' : 'border-input'
+                              }`}>
+                                {isSelected && (
+                                  <svg className="w-3 h-3 text-primary-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+                              <span className="flex-1 font-medium">{profile.profile_name}</span>
+                              <span className="text-xs text-muted-foreground">({profile.total_parts} parts)</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    )}
+                  </div>
+                </div>
+                <div className="text-sm text-muted-foreground pt-7">
+                  {selectedProfilesForDisplay.size} of {nestingReport.profiles.length} profiles
+                </div>
+              </div>
+              
+              {(() => {
+                const profilesToShow = selectedProfilesForDisplay.size === 0 
+                  ? [] 
+                  : nestingReport.profiles.filter(profile => selectedProfilesForDisplay.has(profile.profile_name))
+                
+                if (profilesToShow.length === 0) {
+                  return (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <p className="text-lg mb-2">No profiles selected</p>
+                      <p className="text-sm">Please select at least one profile from the filter above to view cutting plans.</p>
+                    </div>
+                  )
+                }
+                
+                return profilesToShow.map((profile, profileIdx) => {
                 const profileKey = profile.profile_name
                 const isExpanded = expandedProfiles.has(profileKey)
                 
@@ -1358,42 +1517,102 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 }
                 
                 return (
-                  <div key={profileIdx} className="mb-4 border rounded">
+                  <div key={profileIdx} className="mb-4 border rounded-xl">
                     {/* Collapsible header */}
                     <button
                       onClick={toggleProfile}
-                      className="w-full flex items-center justify-between p-4 bg-white hover:bg-gray-50 transition-colors rounded-t"
+                      className="w-full flex items-center justify-between p-4 bg-white hover:bg-gray-50 transition-colors rounded-t-xl"
                     >
                       <h4 className="font-semibold text-lg text-left">
-                    {profile.profile_name} ({profile.total_parts} parts)
-                  </h4>
-                      <span className="text-gray-600 text-xl font-bold">
-                        {isExpanded ? '−' : '+'}
-                      </span>
+                        {profile.profile_name}
+                      </h4>
+                      <img 
+                        src={isExpanded ? "/Icons/minus icon.svg" : "/Icons/plus icon.svg"} 
+                        alt={isExpanded ? "Collapse" : "Expand"} 
+                        className="w-6 h-6"
+                      />
                     </button>
                   
                     {/* Collapsible content */}
                     {isExpanded && (
                       <div className="p-4">
                   {profile.cutting_patterns.map((pattern, patternIdx) => (
-                    <div key={patternIdx} className="mb-4 p-3 bg-white rounded">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-medium">
-                          {(() => {
-                            const nominalLength = pattern.stock_length
-                            const toleranceText = stockToleranceEnabled ? ` | ${stockToleranceValue.toFixed(0)}mm tolerance` : ''
-                            return `Stockbar ${patternIdx + 1}: ${nominalLength.toLocaleString('en-US')}mm${toleranceText} | ${trimValue.toFixed(0)}mm trim | ${kerfValue.toFixed(0)}mm kerf`
-                          })()}
+                    <div key={patternIdx} className="mb-4 p-3 bg-white rounded-xl">
+                      {/* Stockbar Title */}
+                      <div className="mb-3">
+                        <h5 className="text-base font-medium text-muted-foreground mb-2">
+                          Stockbar {patternIdx + 1}
+                        </h5>
+                      </div>
+                      
+                      <div className="flex justify-between items-center mb-3">
+                        <div className="flex items-center gap-4">
+                          {/* Info Table with Icons */}
+                          <div className="flex items-center gap-3 border rounded-lg px-3 py-1.5 bg-muted/20">
+                            {/* Length */}
+                            <div className="flex items-center gap-1.5">
+                              <img src="/Icons/length for section.svg" alt="Length" className="w-4 h-4" />
+                              <span className="text-sm font-medium">{pattern.stock_length.toLocaleString('en-US')}mm</span>
+                            </div>
+                            
+                            <div className="w-px h-4 bg-border"></div>
+                            
+                            {/* Tolerance */}
+                            {stockToleranceEnabled && (
+                              <>
+                                <div className="flex items-center gap-1.5">
+                                  <img src="/Icons/tolerance for section.svg" alt="Tolerance" className="w-4 h-4" />
+                                  <span className="text-sm font-medium">{stockToleranceValue.toFixed(0)}mm</span>
+                                </div>
+                                <div className="w-px h-4 bg-border"></div>
+                              </>
+                            )}
+                            
+                            {/* Trim */}
+                            <div className="flex items-center gap-1.5">
+                              <img src="/Icons/trim for section.svg" alt="Trim" className="w-4 h-4" />
+                              <span className="text-sm font-medium">{trimValue.toFixed(0)}mm</span>
+                            </div>
+                            
+                            <div className="w-px h-4 bg-border"></div>
+                            
+                            {/* Kerf */}
+                            <div className="flex items-center gap-1.5">
+                              <img src="/Icons/kerf for section.svg" alt="Kerf" className="w-4 h-4" />
+                              <span className="text-sm font-medium">{kerfValue.toFixed(0)}mm</span>
+                            </div>
+                          </div>
+                          
                           {(pattern as any).exceeds_stock && (
                             <span className="ml-2 text-red-600 font-semibold text-xs">
                               ⚠️ Part exceeds stock length!
                             </span>
                           )}
-                        </span>
-                        <div className="flex items-center gap-3">
-                        <span className={`text-sm ${pattern.waste_percentage > 5 ? 'text-red-600 font-semibold' : 'text-gray-600'}`}>
-                          Waste: {pattern.waste.toFixed(0)}mm ({pattern.waste_percentage.toFixed(2)}%)
-                        </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="flex items-center gap-1.5 border rounded-lg px-3 py-1.5 bg-muted/20"
+                            style={
+                              pattern.waste_percentage <= 20
+                                ? {
+                                    backgroundColor: 'rgba(28, 185, 126, 0.12)',
+                                    borderColor: 'rgba(0, 129, 122, 0.4)'
+                                  }
+                                : {}
+                            }
+                          >
+                            <img src="/Icons/Waste icon.svg" alt="Waste" className="w-4 h-4" />
+                            <span 
+                              className="text-sm font-medium"
+                              style={
+                                pattern.waste_percentage <= 20
+                                  ? { color: '#00312F' }
+                                  : {}
+                              }
+                            >
+                              {Math.round(pattern.waste).toLocaleString('en-US')}mm ({pattern.waste_percentage.toFixed(2)}%)
+                            </span>
+                          </div>
                         </div>
                       </div>
                       
@@ -3684,19 +3903,18 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                       </div>
 
                       {/* Cutting list table */}
-                      <div className="text-sm mt-3">
-                        <div className="font-medium mb-2">Cutting list:</div>
+                      <div className="text-sm mt-3 max-w-[65%]">
                         <div className="overflow-x-auto">
                           <Table>
                             <TableHeader>
-                              <TableRow>
-                                <TableHead>Number</TableHead>
-                                <TableHead>Profile Name</TableHead>
-                                <TableHead>Part Name</TableHead>
-                                <TableHead>Cut Length (mm)</TableHead>
-                                <TableHead>Quantity</TableHead>
-                                <TableHead>Start Angle</TableHead>
-                                <TableHead>End Angle</TableHead>
+                              <TableRow className="bg-muted/60">
+                                <TableHead className="w-[6%]">#</TableHead>
+                                <TableHead className="w-[24%]">Profile Name</TableHead>
+                                <TableHead className="w-[14%]">Part Name</TableHead>
+                                <TableHead className="w-[14%]">Length (mm)</TableHead>
+                                <TableHead className="w-[14%]">Quantity</TableHead>
+                                <TableHead className="w-[14%]">Start Angle</TableHead>
+                                <TableHead className="w-[14%]">End Angle</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -3794,7 +4012,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                     )}
                   </div>
                 )
-              })}
+              })
+              })()}
             </div>
               </TabsContent>
             </Tabs>
