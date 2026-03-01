@@ -552,12 +552,12 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                       <div className={`flex items-center justify-center flex-shrink-0 ${
                         activeReportTab === 'materials' 
                           ? 'w-[45px] h-[45px] bg-white rounded-full' 
-                          : 'w-[55px] h-[55px] bg-white/0 border-[2.5px] border-white rounded-full'
+                          : 'w-[55px] h-[55px] bg-white/0 border-[2.5px] border-white/10 rounded-full'
                       }`}>
                         <img 
                           src="/Icons/materials analys logo.svg" 
                           alt="Materials" 
-                          className={`w-[24px] h-[24px] ${activeReportTab !== 'materials' ? 'brightness-0 invert' : ''}`}
+                          className={`w-[34px] h-[34px] ${activeReportTab !== 'materials' ? 'brightness-0 invert' : ''}`}
                         />
                       </div>
                       <span className="text-base font-medium whitespace-nowrap">Materials Analysis</span>
@@ -573,12 +573,12 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                       <div className={`flex items-center justify-center flex-shrink-0 ${
                         activeReportTab === 'bom' 
                           ? 'w-[45px] h-[45px] bg-white rounded-full' 
-                          : 'w-[55px] h-[55px] bg-white/0 border-[2.5px] border-white rounded-full'
+                          : 'w-[55px] h-[55px] bg-white/0 border-[2.5px] border-white/10 rounded-full'
                       }`}>
                         <img 
                           src="/Icons/bom icon.svg" 
                           alt="BOM" 
-                          className={`w-[24px] h-[24px] ${activeReportTab !== 'bom' ? 'brightness-0 invert' : ''}`}
+                          className={`w-[34px] h-[34px] ${activeReportTab !== 'bom' ? 'brightness-0 invert' : ''}`}
                         />
                       </div>
                       <span className="text-base font-medium whitespace-nowrap">Bill of Materials</span>
@@ -594,12 +594,12 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                       <div className={`flex items-center justify-center flex-shrink-0 ${
                         activeReportTab === 'cutting' 
                           ? 'w-[45px] h-[45px] bg-white rounded-full' 
-                          : 'w-[55px] h-[55px] bg-white/0 border-[2.5px] border-white rounded-full'
+                          : 'w-[55px] h-[55px] bg-white/0 border-[2.5px] border-white/10 rounded-full'
                       }`}>
                         <img 
                           src="/Icons/cutting list icon.svg" 
                           alt="Cutting" 
-                          className={`w-[24px] h-[24px] ${activeReportTab !== 'cutting' ? 'brightness-0 invert' : ''}`}
+                          className={`w-[34px] h-[34px] ${activeReportTab !== 'cutting' ? 'brightness-0 invert' : ''}`}
                         />
                       </div>
                       <span className="text-base font-medium whitespace-nowrap">Cutting Plan</span>
