@@ -546,13 +546,13 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                       className={`h-[70px] rounded-full flex items-center justify-center gap-3 transition-all cursor-pointer ${
                         activeReportTab === 'materials'
                           ? 'bg-[#008A67] text-white pl-2 pr-6'
-                          : 'bg-transparent border-[2.5px] border-white/20 text-white hover:border-white/30 px-6'
+                          : 'bg-transparent border-[2.5px] border-white/20 text-white hover:border-white/30 pl-[7px] pr-6'
                       }`}
                     >
                       <div className={`flex items-center justify-center flex-shrink-0 ${
                         activeReportTab === 'materials' 
                           ? 'w-[45px] h-[45px] bg-white rounded-full' 
-                          : 'w-[45px] h-[45px] bg-white/0 border-[2.5px] border-white rounded-full'
+                          : 'w-[55px] h-[55px] bg-white/0 border-[2.5px] border-white rounded-full'
                       }`}>
                         <img 
                           src="/Icons/materials analys logo.svg" 
@@ -567,13 +567,13 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                       className={`h-[70px] rounded-full flex items-center justify-center gap-3 transition-all cursor-pointer ${
                         activeReportTab === 'bom'
                           ? 'bg-[#008A67] text-white pl-2 pr-6'
-                          : 'bg-transparent border-[2.5px] border-white/20 text-white hover:border-white/30 px-6'
+                          : 'bg-transparent border-[2.5px] border-white/20 text-white hover:border-white/30 pl-[7px] pr-6'
                       }`}
                     >
                       <div className={`flex items-center justify-center flex-shrink-0 ${
                         activeReportTab === 'bom' 
                           ? 'w-[45px] h-[45px] bg-white rounded-full' 
-                          : 'w-[45px] h-[45px] bg-white/0 border-[2.5px] border-white rounded-full'
+                          : 'w-[55px] h-[55px] bg-white/0 border-[2.5px] border-white rounded-full'
                       }`}>
                         <img 
                           src="/Icons/bom icon.svg" 
@@ -588,13 +588,13 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                       className={`h-[70px] rounded-full flex items-center justify-center gap-3 transition-all cursor-pointer ${
                         activeReportTab === 'cutting'
                           ? 'bg-[#008A67] text-white pl-2 pr-6'
-                          : 'bg-transparent border-[2.5px] border-white/20 text-white hover:border-white/30 px-6'
+                          : 'bg-transparent border-[2.5px] border-white/20 text-white hover:border-white/30 pl-[7px] pr-6'
                       }`}
                     >
                       <div className={`flex items-center justify-center flex-shrink-0 ${
                         activeReportTab === 'cutting' 
                           ? 'w-[45px] h-[45px] bg-white rounded-full' 
-                          : 'w-[45px] h-[45px] bg-white/0 border-[2.5px] border-white rounded-full'
+                          : 'w-[55px] h-[55px] bg-white/0 border-[2.5px] border-white rounded-full'
                       }`}>
                         <img 
                           src="/Icons/cutting list icon.svg" 
