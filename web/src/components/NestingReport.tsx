@@ -30,7 +30,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs'
 import { ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 interface NestingReportProps {
@@ -104,9 +103,9 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   ]) // Stock bar lengths with stable IDs
   const [nextStockId, setNextStockId] = useState<number>(3) // Counter for next stock ID
   const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1200)
-  const [showSavingsModal, setShowSavingsModal] = useState<boolean>(false) // Savings modal visibility
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false) // Settings modal visibility
   const [showBOMModal, setShowBOMModal] = useState<boolean>(false) // BOM export modal visibility
+  const [activeReportTab, setActiveReportTab] = useState<'materials' | 'bom' | 'cutting'>('materials') // Active tab in report view
   const [bomProjectName, setBomProjectName] = useState<string>('')
   const [bomSelectedProfiles, setBomSelectedProfiles] = useState<Set<string>>(new Set())
   
@@ -308,26 +307,6 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
     generateNesting()
   }
 
-  const handleBack = () => {
-    setCurrentStep('select')
-    setError(null)
-  }
-
-  const handleReset = () => {
-    // Clear all nesting state
-    setSelectedProfiles(new Set())
-    setCurrentStep('select')
-    onNestingReportChange(null)  // Clear nesting report in parent
-    setError(null)
-    
-    // Clear any existing localStorage entries for nesting (cleanup)
-    try {
-      localStorage.removeItem(`nesting_selected_profiles_${filename}`)
-      localStorage.removeItem(`nesting_step_${filename}`)
-    } catch (e) {
-      console.error('Error clearing localStorage:', e)
-    }
-  }
 
   const handleExportToPDF = async () => {
     if (!nestingReport || !report) return
@@ -453,74 +432,9 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
     return `${mm.toFixed(0)}mm`
   }
 
-  const exportToCSV = () => {
-    if (!nestingReport) return
-
-    let csv = 'Profile,Stock Length (mm),Quantity Needed,Total Waste (mm),Waste %\n'
-    
-    nestingReport.profiles.forEach(profile => {
-      Object.entries(profile.stock_lengths_used).forEach(([stockLength, quantity]) => {
-        const profileData = nestingReport.profiles.find(p => p.profile_name === profile.profile_name)
-        if (profileData) {
-          csv += `${profile.profile_name},${stockLength},${quantity},${profile.total_waste.toFixed(2)},${profile.total_waste_percentage.toFixed(2)}%\n`
-        }
-      })
-    })
-
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${filename.replace('.ifc', '')}_nesting_bom.csv`
-    a.click()
-    window.URL.revokeObjectURL(url)
-  }
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header with controls */}
-      <div className="p-4 border-b bg-gray-50">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-xl font-bold">Nesting Optimization</h2>
-            <div className="flex items-center gap-2 mt-1">
-              <div className={`px-3 py-1 rounded text-sm ${currentStep === 'select' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}>
-                Step 1: Select Profiles
-              </div>
-              <div className="text-muted-foreground">→</div>
-              <div className={`px-3 py-1 rounded text-sm ${currentStep === 'results' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}>
-                Step 2: Results
-              </div>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            {currentStep === 'results' && (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={handleBack}
-                >
-                  ← Back
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={exportToCSV}
-                >
-                  📥 Export BOM
-                </Button>
-              </>
-            )}
-            <Button
-              variant="destructive"
-              onClick={handleReset}
-              title="Reset nesting and start fresh"
-            >
-              🔄 Reset
-            </Button>
-          </div>
-        </div>
-      </div>
-
       {/* Content */}
       <div className="flex-1 overflow-hidden flex flex-col">
         {error && (
@@ -620,51 +534,116 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         )}
 
         {currentStep === 'results' && nestingReport && (
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="max-w-[1440px] mx-auto">
-            {/* Minimum width warning */}
-            {windowWidth < 900 && (
-              <div className="mb-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded">
-                <p className="font-semibold">Screen Width Too Small</p>
-                <p className="text-sm">Minimum screen width of 900px required for optimal visualization. Current width: {windowWidth}px</p>
+          <div className="flex-1 overflow-y-auto flex flex-col">
+            {/* Dark Header Section with Tab Buttons */}
+            <div className="bg-[#11181C] pb-6">
+              <div className="max-w-[1440px] mx-auto px-6 pt-8">
+                <div className="flex items-center justify-between">
+                  {/* Tab Buttons */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setActiveReportTab('materials')}
+                      className={`h-[70px] rounded-full flex items-center justify-center gap-3 transition-all cursor-pointer ${
+                        activeReportTab === 'materials'
+                          ? 'bg-[#008A67] text-white pl-2 pr-6'
+                          : 'bg-transparent border-[2.5px] border-white/20 text-white hover:border-white/30 px-6'
+                      }`}
+                    >
+                      <div className={`flex items-center justify-center flex-shrink-0 ${
+                        activeReportTab === 'materials' 
+                          ? 'w-[45px] h-[45px] bg-white rounded-full' 
+                          : 'w-[45px] h-[45px] bg-white/0 border-[2.5px] border-white rounded-full'
+                      }`}>
+                        <img 
+                          src="/Icons/materials analys logo.svg" 
+                          alt="Materials" 
+                          className={`w-[24px] h-[24px] ${activeReportTab !== 'materials' ? 'brightness-0 invert' : ''}`}
+                        />
+                      </div>
+                      <span className="text-base font-medium whitespace-nowrap">Materials Analysis</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveReportTab('bom')}
+                      className={`h-[70px] rounded-full flex items-center justify-center gap-3 transition-all cursor-pointer ${
+                        activeReportTab === 'bom'
+                          ? 'bg-[#008A67] text-white pl-2 pr-6'
+                          : 'bg-transparent border-[2.5px] border-white/20 text-white hover:border-white/30 px-6'
+                      }`}
+                    >
+                      <div className={`flex items-center justify-center flex-shrink-0 ${
+                        activeReportTab === 'bom' 
+                          ? 'w-[45px] h-[45px] bg-white rounded-full' 
+                          : 'w-[45px] h-[45px] bg-white/0 border-[2.5px] border-white rounded-full'
+                      }`}>
+                        <img 
+                          src="/Icons/bom icon.svg" 
+                          alt="BOM" 
+                          className={`w-[24px] h-[24px] ${activeReportTab !== 'bom' ? 'brightness-0 invert' : ''}`}
+                        />
+                      </div>
+                      <span className="text-base font-medium whitespace-nowrap">Bill of Materials</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveReportTab('cutting')}
+                      className={`h-[70px] rounded-full flex items-center justify-center gap-3 transition-all cursor-pointer ${
+                        activeReportTab === 'cutting'
+                          ? 'bg-[#008A67] text-white pl-2 pr-6'
+                          : 'bg-transparent border-[2.5px] border-white/20 text-white hover:border-white/30 px-6'
+                      }`}
+                    >
+                      <div className={`flex items-center justify-center flex-shrink-0 ${
+                        activeReportTab === 'cutting' 
+                          ? 'w-[45px] h-[45px] bg-white rounded-full' 
+                          : 'w-[45px] h-[45px] bg-white/0 border-[2.5px] border-white rounded-full'
+                      }`}>
+                        <img 
+                          src="/Icons/cutting list icon.svg" 
+                          alt="Cutting" 
+                          className={`w-[24px] h-[24px] ${activeReportTab !== 'cutting' ? 'brightness-0 invert' : ''}`}
+                        />
+                      </div>
+                      <span className="text-base font-medium whitespace-nowrap">Cutting Plan</span>
+                    </button>
+                  </div>
+                  
+                  {/* Export Buttons */}
+                  <div className="flex gap-3 ml-6">
+                    <Button
+                      variant="secondary"
+                      onClick={() => setShowBOMModal(true)}
+                      className="whitespace-nowrap"
+                    >
+                      Export BOM
+                    </Button>
+                    <Button
+                      onClick={handleExportToPDF}
+                      className="whitespace-nowrap"
+                    >
+                      Export Full Report
+                    </Button>
+                  </div>
+                </div>
               </div>
-            )}
-            
-            {/* Export to PDF and View Savings Buttons */}
-            <div className="mb-4 flex justify-end gap-3">
-              <Button
-                variant="secondary"
-                onClick={() => setShowSavingsModal(true)}
-              >
-                View Savings
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => setShowBOMModal(true)}
-              >
-                Export BOM
-              </Button>
-              <Button
-                onClick={handleExportToPDF}
-              >
-                Export Full Report
-              </Button>
             </div>
 
-            <div id="nesting-report-pdf-content">
-            
-            {/* Tabbed Interface */}
-            <Tabs defaultValue="materials" className="w-full">
-              <TabsList>
-                <TabsTrigger value="materials">Materials Analysis</TabsTrigger>
-                <TabsTrigger value="bom">Bill of Materials Summary</TabsTrigger>
-                <TabsTrigger value="cutting">Cutting Plan</TabsTrigger>
-              </TabsList>
+            {/* Content Area */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="max-w-[1440px] mx-auto px-6 py-6">
+                {/* Minimum width warning */}
+                {windowWidth < 900 && (
+                  <div className="mb-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded">
+                    <p className="font-semibold">Screen Width Too Small</p>
+                    <p className="text-sm">Minimum screen width of 900px required for optimal visualization. Current width: {windowWidth}px</p>
+                  </div>
+                )}
 
-              {/* Tab 1: Materials Analysis (Waste Chart) */}
-              <TabsContent value="materials">
-            {/* Waste Analysis Chart */}
-            {nestingReport.profiles && nestingReport.profiles.length > 0 && (() => {
+                <div id="nesting-report-pdf-content">
+
+                  {/* Tab 1: Materials Analysis (Waste Chart) */}
+                  {activeReportTab === 'materials' && (
+                    <div>
+                      {/* Waste Analysis Chart */}
+                      {nestingReport.profiles && nestingReport.profiles.length > 0 && (() => {
               // Get unique stock lengths from all profiles
               const allStockLengths = new Set<number>()
               nestingReport.profiles.forEach(profile => {
@@ -1088,12 +1067,14 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                   </CardContent>
                 </Card>
               </div>
-              )
-            })()}
-              </TabsContent>
+                      )
+                    })()}
+                    </div>
+                  )}
 
-              {/* Tab 2: Bill of Materials Summary */}
-              <TabsContent value="bom">
+                  {/* Tab 2: Bill of Materials Summary */}
+                  {activeReportTab === 'bom' && (
+                    <div>
             {/* Section 1: BOM Summary */}
             <div className="mb-8 page-break-after">
               <h2 className="text-2xl font-bold mb-4">Bill of Materials Summary</h2>
@@ -1360,12 +1341,14 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                     </div>
                   </div>
                 </div>
-              )
-            })()}
-              </TabsContent>
+                      )
+                    })()}
+                    </div>
+                  )}
 
-              {/* Tab 3: Cutting Plan */}
-              <TabsContent value="cutting">
+                  {/* Tab 3: Cutting Plan */}
+                  {activeReportTab === 'cutting' && (
+                    <div>
             {/* Section 2: Cutting Patterns */}
             <div className="page-break-before">
               <h2 className="text-2xl font-bold mb-4">Cutting Plan</h2>
@@ -3996,198 +3979,13 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 )
               })
               })()}
-            </div>
-              </TabsContent>
-            </Tabs>
-            </div> {/* End of max-w-[1440px] container */}
-          </div> {/* End of nesting-report-pdf-content */}
-
-            {/* Savings Modal */}
-            {showSavingsModal && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowSavingsModal(false)}>
-                <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-                  <div className="p-6">
-                    {/* Modal Header */}
-                    <div className="flex justify-between items-center mb-6">
-                      <h2 className="text-2xl font-bold text-gray-800">Cutwise Savings Analysis</h2>
-                      <button
-                        onClick={() => setShowSavingsModal(false)}
-                        className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
-                      >
-                        ×
-                      </button>
-                    </div>
-
-                    {/* Chart */}
-                    <div className="mb-6">
-                      <div className="bg-gray-50 rounded-lg p-6">
-                        {/* Y-axis label */}
-                        <div className="flex">
-                          <div className="flex items-center justify-center" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
-                            <span className="text-sm font-semibold text-gray-600">Waste Percentage (%)</span>
-                          </div>
-                          
-                          {/* Chart area */}
-                          <div className="flex-1 ml-4">
-                            <div className="relative" style={{ height: '400px' }}>
-                              {/* Y-axis grid lines and labels */}
-                              <div className="absolute inset-0 flex flex-col justify-between">
-                                {[30, 25, 20, 15, 10, 5, 0].map((value) => (
-                                  <div key={value} className="flex items-center">
-                                    <span className="text-xs text-gray-500 w-8 text-right mr-2">{value}</span>
-                                    <div className="flex-1 border-t border-gray-300"></div>
-                                  </div>
-                                ))}
-                              </div>
-
-                              {/* Data points */}
-                              <div className="absolute inset-0 flex items-end justify-around px-10 pb-8">
-                                {nestingReport.profiles.map((profile, idx) => {
-                                  const cutwiseWaste = profile.total_waste_percentage
-                                  const alternativeWaste = profile.alternative_waste_percentage || 0
-                                  const maxY = 30 // Max percentage for Y-axis
-                                  
-                                  // Calculate positions (bottom = 0%, top = 30%)
-                                  const cutwiseY = (cutwiseWaste / maxY) * 100
-                                  const alternativeY = (alternativeWaste / maxY) * 100
-                                  
-                                  return (
-                                    <div key={idx} className="flex flex-col items-center" style={{ width: `${100 / nestingReport.profiles.length}%` }}>
-                                      <div className="relative w-full flex justify-center items-end" style={{ height: '350px' }}>
-                                        {/* Alternative waste point (red) */}
-                                        {alternativeWaste > 0 && (
-                                          <div
-                                            className="absolute flex flex-col items-center"
-                                            style={{ bottom: `${alternativeY}%` }}
-                                          >
-                                            <div className="bg-red-500 rounded-full w-3 h-3 border-2 border-red-700"></div>
-                                            <span className="text-xs font-semibold text-red-700 mt-1">
-                                              {alternativeWaste.toFixed(1)}%
-                                            </span>
-                                          </div>
-                                        )}
-                                        
-                                        {/* Cutwise waste point (green) */}
-                                        <div
-                                          className="absolute flex flex-col items-center"
-                                          style={{ bottom: `${cutwiseY}%` }}
-                                        >
-                                          <div className="bg-green-500 rounded-full w-3 h-3 border-2 border-green-700"></div>
-                                          <span className="text-xs font-semibold text-green-700 mt-1">
-                                            {cutwiseWaste.toFixed(1)}%
-                                          </span>
-                                        </div>
-
-                                        {/* Connecting line */}
-                                        {alternativeWaste > 0 && (
-                                          <div
-                                            className="absolute w-0.5 bg-gray-400"
-                                            style={{
-                                              bottom: `${Math.min(cutwiseY, alternativeY)}%`,
-                                              height: `${Math.abs(alternativeY - cutwiseY)}%`
-                                            }}
-                                          ></div>
-                                        )}
-                                      </div>
-                                      
-                                      {/* Profile name (X-axis label) */}
-                                      <div className="mt-2 text-xs font-medium text-gray-700 text-center break-words">
-                                        {profile.profile_name}
-                                      </div>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
 
-                    {/* Legend */}
-                    <div className="flex justify-center gap-6 mb-6">
-                      <div className="flex items-center gap-2">
-                        <div className="bg-green-500 rounded-full w-4 h-4 border-2 border-green-700"></div>
-                        <span className="text-sm font-medium text-gray-700">With Cutwise</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="bg-red-500 rounded-full w-4 h-4 border-2 border-red-700"></div>
-                        <span className="text-sm font-medium text-gray-700">Without Cutwise</span>
-                      </div>
-                    </div>
-
-                    {/* Summary Table */}
-                    <div className="bg-white rounded-lg border overflow-hidden">
-                      <table className="min-w-full">
-                        <thead>
-                          <tr className="bg-gray-800 text-white">
-                            <th className="px-4 py-3 text-left font-semibold">Profile</th>
-                            <th className="px-4 py-3 text-right font-semibold">With Cutwise</th>
-                            <th className="px-4 py-3 text-right font-semibold">Without Cutwise</th>
-                            <th className="px-4 py-3 text-right font-semibold">Savings</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {nestingReport.profiles.map((profile, idx) => {
-                            const cutwiseWaste = profile.total_waste_percentage
-                            const alternativeWaste = profile.alternative_waste_percentage || 0
-                            const savings = alternativeWaste - cutwiseWaste
-                            
-                            return (
-                              <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                <td className="px-4 py-3 font-medium">{profile.profile_name}</td>
-                                <td className="px-4 py-3 text-right text-green-600 font-semibold">
-                                  {cutwiseWaste.toFixed(2)}%
-                                </td>
-                                <td className="px-4 py-3 text-right text-red-600">
-                                  {alternativeWaste > 0 ? `${alternativeWaste.toFixed(2)}%` : 'N/A'}
-                                </td>
-                                <td className="px-4 py-3 text-right font-semibold text-green-600">
-                                  {alternativeWaste > 0 ? `${savings.toFixed(2)}%` : 'N/A'}
-                                </td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                        <tfoot className="bg-gray-100 font-semibold">
-                          <tr>
-                            <td className="px-4 py-3">Average</td>
-                            <td className="px-4 py-3 text-right text-green-600">
-                              {nestingReport.summary.avg_waste_percentage.toFixed(2)}%
-                            </td>
-                            <td className="px-4 py-3 text-right text-red-600">
-                              {(() => {
-                                const avgAlt = nestingReport.profiles.reduce((sum, p) => 
-                                  sum + (p.alternative_waste_percentage || 0), 0) / nestingReport.profiles.length
-                                return avgAlt > 0 ? `${avgAlt.toFixed(2)}%` : 'N/A'
-                              })()}
-                            </td>
-                            <td className="px-4 py-3 text-right text-green-600">
-                              {(() => {
-                                const avgAlt = nestingReport.profiles.reduce((sum, p) => 
-                                  sum + (p.alternative_waste_percentage || 0), 0) / nestingReport.profiles.length
-                                const savings = avgAlt - nestingReport.summary.avg_waste_percentage
-                                return avgAlt > 0 ? `${savings.toFixed(2)}%` : 'N/A'
-                              })()}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-
-                    {/* Close button */}
-                    <div className="mt-6 flex justify-end">
-                      <button
-                        onClick={() => setShowSavingsModal(false)}
-                        className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-semibold shadow-md transition-colors"
-                      >
-                        Close
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+                </div> {/* End of nesting-report-pdf-content */}
+              </div> {/* End of max-w-[1440px] container */}
+            </div> {/* End of content area */}
           </div>
         )}
 

@@ -431,7 +431,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
                   onClick={() => setDisplayCount(prev => prev + 20)}
                   className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 text-base font-medium"
                 >
-                  Load More ({filteredProjects.length - displayCount} remaining)
+                  Load More
                 </Button>
               </div>
             )}
