@@ -326,13 +326,12 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
               </div>
 
               {/* Reset Button */}
-              <Button
+              <button
                 onClick={handleResetFilters}
-                variant="outline"
-                className="whitespace-nowrap"
+                className="px-4 py-2 border border-input bg-background rounded-md text-sm hover:bg-muted/50 transition-colors cursor-pointer h-[42px] whitespace-nowrap"
               >
                 Reset
-              </Button>
+              </button>
 
               {/* Results Summary */}
               <div className="text-sm text-gray-600 whitespace-nowrap ml-2">
@@ -446,9 +445,12 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No projects found</h3>
             <p className="text-gray-600 mb-6">Try adjusting your filters</p>
-            <Button onClick={handleResetFilters} variant="outline">
+            <button
+              onClick={handleResetFilters}
+              className="px-4 py-2 border border-input bg-background rounded-md text-sm hover:bg-muted/50 transition-colors cursor-pointer h-[42px]"
+            >
               Reset Filters
-            </Button>
+            </button>
           </div>
         ) : (
           // Empty State - No projects at all
