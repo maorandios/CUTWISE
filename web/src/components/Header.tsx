@@ -20,7 +20,7 @@ export function Header({
   title,
 }: HeaderProps) {
   return (
-    <header className="bg-[#11181C] border-b border-gray-800">
+    <header className="bg-[#11181C]">
       <div className="max-w-[1440px] mx-auto px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           {showBackButton && onBackClick && (
@@ -51,22 +51,20 @@ export function Header({
           {onSettingsClick && (
             <Button
               variant="ghost"
-              size="icon"
               onClick={onSettingsClick}
-              title="Company Settings"
-              className="text-white hover:bg-gray-700"
+              className="text-white hover:text-white hover:bg-gray-700 flex items-center gap-2"
             >
-              <img src="/Icons/cog.svg" alt="Settings" className="w-10 h-10 select-none" style={{ imageRendering: '-webkit-optimize-contrast' }} />
+              <img src="/Icons/cog.svg" alt="Settings" className="w-5 h-5 select-none" style={{ imageRendering: '-webkit-optimize-contrast' }} />
+              <span className="text-sm font-medium">Settings</span>
             </Button>
           )}
           <Button
             variant="ghost"
-            size="icon"
             onClick={onLogout}
-            title="Log Out"
-            className="text-white hover:bg-gray-700"
+            className="text-white hover:text-white hover:bg-gray-700 flex items-center gap-2"
           >
-              <img src="/Icons/logout.svg" alt="Logout" className="w-10 h-10 select-none" style={{ imageRendering: '-webkit-optimize-contrast' }} />
+            <img src="/Icons/logout.svg" alt="Logout" className="w-5 h-5 select-none" style={{ imageRendering: '-webkit-optimize-contrast' }} />
+            <span className="text-sm font-medium">Logout</span>
           </Button>
         </div>
       </div>

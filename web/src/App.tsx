@@ -5,6 +5,7 @@ import Onboarding from './components/Onboarding'
 import ProjectsDashboard from './components/ProjectsDashboard'
 import { Button } from '@/components/ui/Button'
 import { Header } from './components/Header'
+import { Footer } from './components/Footer'
 
 import UploadProjectModal from './components/UploadProjectModal'
 import FileUpload from './components/FileUpload'
@@ -384,7 +385,7 @@ function App() {
   // Show split screen view (model + profile list)
   if (currentView === 'split') {
     return (
-      <div className="h-screen flex flex-col">
+      <div className="h-screen flex flex-col overflow-hidden">
         <Header
           onLogout={handleLogout}
           showBackButton={true}
@@ -392,22 +393,25 @@ function App() {
           title={currentFile?.replace('.ifc', '') || 'Project'}
         />
         
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto">
           {currentFile && (
-            <div className="flex-1 overflow-hidden">
-              <NestingReport 
-                key={`split-${currentFile}`}
-                filename={currentFile} 
-                nestingReport={nestingReport}
-                onNestingReportChange={handleNestingReportChange}
-                report={report}
-                initialView="select"
-              />
+            <div className="min-h-full flex flex-col">
+              <div className="flex-1">
+                <NestingReport 
+                  key={`split-${currentFile}`}
+                  filename={currentFile} 
+                  nestingReport={nestingReport}
+                  onNestingReportChange={handleNestingReportChange}
+                  report={report}
+                  initialView="select"
+                />
+              </div>
+              <Footer />
             </div>
           )}
 
           {!currentFile && (
-            <div className="flex-1 flex items-center justify-center text-gray-500">
+            <div className="flex items-center justify-center text-gray-500 py-20">
               <p>Loading project...</p>
             </div>
           )}
@@ -419,7 +423,7 @@ function App() {
   // Show report view (nesting report only)
   if (currentView === 'report') {
     return (
-      <div className="h-screen flex flex-col">
+      <div className="h-screen flex flex-col overflow-hidden">
         <Header
           onLogout={handleLogout}
           showBackButton={true}
@@ -427,22 +431,25 @@ function App() {
           title={currentFile?.replace('.ifc', '') || 'Project'}
         />
         
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto">
           {currentFile && nestingReport && (
-            <div className="flex-1 overflow-hidden">
-              <NestingReport 
-                key={`report-${currentFile}`}
-                filename={currentFile} 
-                nestingReport={nestingReport}
-                onNestingReportChange={handleNestingReportChange}
-                report={report}
-                initialView="results"
-              />
+            <div className="min-h-full flex flex-col">
+              <div className="flex-1">
+                <NestingReport 
+                  key={`report-${currentFile}`}
+                  filename={currentFile} 
+                  nestingReport={nestingReport}
+                  onNestingReportChange={handleNestingReportChange}
+                  report={report}
+                  initialView="results"
+                />
+              </div>
+              <Footer />
             </div>
           )}
 
           {!currentFile && (
-            <div className="flex-1 flex items-center justify-center text-gray-500">
+            <div className="flex items-center justify-center text-gray-500 py-20">
               <p>Loading project...</p>
             </div>
           )}
@@ -453,8 +460,8 @@ function App() {
 
   // Fallback - should not reach here
   return (
-    <div className="h-screen flex flex-col">
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="h-screen flex flex-col overflow-hidden">
+      <div className="flex-1 overflow-y-auto">
         {currentFile && (
           <>
             {/* Tab Navigation - HIDDEN */}
@@ -589,19 +596,22 @@ function App() {
             )}
 
           {/* Main Content - Nesting View Only */}
-          <div className="flex-1 overflow-hidden">
-            <NestingReport 
-              filename={currentFile} 
-              nestingReport={nestingReport}
-              onNestingReportChange={handleNestingReportChange}
-              report={report}
-            />
+          <div className="min-h-full flex flex-col">
+            <div className="flex-1">
+              <NestingReport 
+                filename={currentFile} 
+                nestingReport={nestingReport}
+                onNestingReportChange={handleNestingReportChange}
+                report={report}
+              />
+            </div>
+            <Footer />
           </div>
         </>
       )}
 
       {!currentFile && (
-        <div className="flex-1 flex items-center justify-center text-gray-500">
+        <div className="flex items-center justify-center text-gray-500 py-20">
           <p>Loading project...</p>
         </div>
       )}
