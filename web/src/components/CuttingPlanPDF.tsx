@@ -1,11 +1,12 @@
 import React from 'react'
-import { Document, Page, Text, View, StyleSheet, Svg, Line, Polygon } from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet, Svg, Line, Polygon, Image } from '@react-pdf/renderer'
 import { NestingReport as NestingReportType, SteelReport, CuttingPattern } from '../types'
 
 interface CuttingPlanPDFProps {
   nestingReport: NestingReportType
   report: SteelReport | null
   projectName?: string
+  svgImages?: { [key: string]: string }
 }
 
 // Define styles for PDF
@@ -98,24 +99,18 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
   )
   
   const wasteMm = pattern.waste || 0
-  const availableForPartsPx = appWidth * (1 - wasteMm / stockLength)
-  const partsPxPerMm = totalPartsLengthMm > 0 ? availableForPartsPx / totalPartsLengthMm : pxPerMm
   
-  const kerfGapPx = 2
-  const kerfGapSlopedPx = 0.5
+  // Position parts without kerf gaps - gaps are visual only and shouldn't affect positioning
+  // Parts are positioned flush against each other based on their actual lengths
+  // This matches the app's positioning exactly
   let cumulativeX = 0
   const partPositions = sortedParts.map((part, partIdx) => {
     const lengthMm = part.length || 0
     const xStart = cumulativeX
-    const xEnd = cumulativeX + (lengthMm * partsPxPerMm)
+    const xEnd = cumulativeX + (lengthMm * pxPerMm)
     
-    const nextPart = sortedParts[partIdx + 1]
-    const currentSlopeInfo = (part as any)?.slope_info || {}
-    const nextSlopeInfo = (nextPart as any)?.slope_info || {}
-    const hasSlopes = currentSlopeInfo.end_has_slope === true || nextSlopeInfo.start_has_slope === true
-    const gapToUse = hasSlopes ? kerfGapSlopedPx : kerfGapPx
-    
-    cumulativeX = xEnd + gapToUse
+    // Move to next part position (no gap)
+    cumulativeX = xEnd
     return { part, xStart, xEnd, lengthMm }
   })
   
@@ -339,15 +334,13 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
       const devDiff = Math.abs(leftDev - rightDev)
       isShared = devDiff <= ANGLE_MATCH_TOL
     } else {
+      // Mixed types (one straight, one miter)
+      // Only share if both are very close to straight
       const bothNearStraight = 
         (leftDev < NEAR_STRAIGHT_THRESHOLD_FOR_SHARING) && 
         (rightDev < NEAR_STRAIGHT_THRESHOLD_FOR_SHARING)
       
-      if (bothNearStraight) {
-        isShared = true
-      } else {
-        isShared = true
-      }
+      isShared = bothNearStraight
     }
     
     if (isShared) {
@@ -689,13 +682,13 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
             let endIsShared = false
             
             if (partIdx > 0) {
-              const boundaryX = partIdx === 0 ? 0 : Math.floor(pos.xStart)
+              const boundaryX = Math.floor(pos.xStart)
               startIsShared = sharedBoundarySet.has(boundaryX)
             }
             
             if (partIdx < numParts - 1) {
               const rightPartXStart = partPositions[partIdx + 1].xStart
-              const boundaryX = (partIdx + 1) === 0 ? 0 : Math.floor(rightPartXStart)
+              const boundaryX = Math.floor(rightPartXStart)
               endIsShared = sharedBoundarySet.has(boundaryX)
             } else if (partIdx === lastPartIdx && pattern.waste > 0) {
               endIsShared = false
@@ -707,137 +700,144 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
             
             return (
               <React.Fragment key={`non-shared-${partIdx}`}>
-                {!startIsShared && (() => {
-                  const boundaryX = partIdx === 0 ? 0 : Math.round(pos.xStart)
+                {/* Start cut marker - only if NOT shared AND NOT first part */}
+                {/* ONLY show for straight cuts - sloped non-shared boundaries don't need markers */}
+                {!startIsShared && partIdx > 0 && startType === 'straight' && (() => {
+                  const boundaryX = Math.round(pos.xStart)
                   const boundaryXScaled = boundaryX * widthScale
                   const clampedX = Math.max(0, Math.min(boundaryXScaled, maxRight))
                   
-                  if (startType === 'miter' && startDev >= SIGNIFICANT_MITER_DEG) {
-                    let x1App = boundaryX + 0.5
-                    let y1App = 0.5
-                    let x2App = boundaryX + diagonalOffset + 0.5
-                    let y2App = appHeight - 0.5
-                    
-                    const clipped = clipLineToBounds(x1App, y1App, x2App, y2App, 0, 0, appWidth, appHeight)
-                    if (!clipped.visible) return null
-                    
-                    const x1Pdf = clipped.x1 * widthScale
-                    const y1Pdf = clipped.y1 * heightScale
-                    const x2Pdf = clipped.x2 * widthScale
-                    const y2Pdf = clipped.y2 * heightScale
-                    
-                    const clippedPdf = clipLineToBounds(x1Pdf, y1Pdf, x2Pdf, y2Pdf, 0, 0, contentWidth, contentHeight - contentPadding)
-                    if (!clippedPdf.visible) return null
-                    
-                    return (
-                      <Svg
-                        key={`start-boundary-${partIdx}`}
-                        style={{
-                          position: 'absolute',
-                          left: 0,
-                          top: 0,
-                          width: contentWidth,
-                          height: contentHeight,
-                        }}
-                      >
-                        <Line
-                          x1={String(clippedPdf.x1)}
-                          y1={String(clippedPdf.y1)}
-                          x2={String(clippedPdf.x2)}
-                          y2={String(clippedPdf.y2)}
-                          stroke="#d1d5db"
-                          strokeWidth="1"
-                        />
-                      </Svg>
-                    )
-                  } else {
-                    return (
-                      <View
-                        key={`start-boundary-${partIdx}`}
-                        style={{
-                          position: 'absolute',
-                          left: clampedX,
-                          top: 0,
-                          width: 1,
-                          height: contentHeight - contentPadding,
-                          backgroundColor: '#d1d5db',
-                        }}
-                      />
-                    )
-                  }
+                  return (
+                    <View
+                      key={`start-boundary-${partIdx}`}
+                      style={{
+                        position: 'absolute',
+                        left: clampedX,
+                        top: 0,
+                        width: 1,
+                        height: contentHeight - contentPadding,
+                        backgroundColor: '#9ca3af',
+                      }}
+                    />
+                  )
                 })()}
                 
+                {/* End cut marker - for non-last parts or last part with waste */}
                 {(() => {
                   const isLastPartWithWaste = partIdx === lastPartIdx && pattern.waste > 0
                   const shouldShowMarker = !endIsShared || isLastPartWithWaste
                   
                   if (!shouldShowMarker) return null
                   
-                  const boundaryX = partIdx === lastPartIdx && pattern.waste > 0
-                    ? exactPartsEndPx
-                    : (partIdx < numParts - 1 && partPositions[partIdx + 1])
-                      ? Math.round(partPositions[partIdx + 1].xStart)
-                      : exactPartsEndPx
+                  // For last part with straight cut, don't draw here (will be drawn outside clipPath)
+                  if (isLastPartWithWaste && endType === 'straight') {
+                    return null
+                  }
+                  
+                  // ONLY show for straight cuts - sloped non-shared boundaries don't need markers
+                  if (endType !== 'straight') return null
+                  
+                  const boundaryX = (partIdx < numParts - 1 && partPositions[partIdx + 1])
+                    ? Math.round(partPositions[partIdx + 1].xStart)
+                    : exactPartsEndPx
                   const boundaryXScaled = boundaryX * widthScale
                   const clampedX = Math.max(0, Math.min(boundaryXScaled, maxRight))
                   
-                  if (endType === 'miter' && endDev >= SIGNIFICANT_MITER_DEG) {
-                    let x1App = boundaryX - diagonalOffset + 0.5
-                    let y1App = 0.5
-                    let x2App = boundaryX + 0.5
-                    let y2App = appHeight - 0.5
-                    
-                    const clipped = clipLineToBounds(x1App, y1App, x2App, y2App, 0, 0, appWidth, appHeight)
-                    if (!clipped.visible) return null
-                    
-                    const x1Pdf = clipped.x1 * widthScale
-                    const y1Pdf = clipped.y1 * heightScale
-                    const x2Pdf = clipped.x2 * widthScale
-                    const y2Pdf = clipped.y2 * heightScale
-                    
-                    const clippedPdf = clipLineToBounds(x1Pdf, y1Pdf, x2Pdf, y2Pdf, 0, 0, contentWidth, contentHeight - contentPadding)
-                    if (!clippedPdf.visible) return null
-                    
-                    return (
-                      <Svg
-                        key={`end-boundary-${partIdx}`}
-                        style={{
-                          position: 'absolute',
-                          left: 0,
-                          top: 0,
-                          width: contentWidth,
-                          height: contentHeight,
-                        }}
-                      >
-                        <Line
-                          x1={String(clippedPdf.x1)}
-                          y1={String(clippedPdf.y1)}
-                          x2={String(clippedPdf.x2)}
-                          y2={String(clippedPdf.y2)}
-                          stroke="#d1d5db"
-                          strokeWidth="1"
-                        />
-                      </Svg>
-                    )
-                  } else {
-                    return (
-                      <View
-                        key={`end-boundary-${partIdx}`}
-                        style={{
-                          position: 'absolute',
-                          left: clampedX,
-                          top: 0,
-                          width: 1,
-                          height: contentHeight - contentPadding,
-                          backgroundColor: '#d1d5db',
-                        }}
-                      />
-                    )
-                  }
+                  return (
+                    <View
+                      key={`end-boundary-${partIdx}`}
+                      style={{
+                        position: 'absolute',
+                        left: clampedX,
+                        top: 0,
+                        width: 1,
+                        height: contentHeight - contentPadding,
+                        backgroundColor: '#9ca3af',
+                      }}
+                    />
+                  )
                 })()}
               </React.Fragment>
             )
           })}
+          
+          {/* End boundary line for last part - draw outside clipPath to ensure visibility */}
+          {exactPartsEndPx > 0 && pattern.waste > 0 && (() => {
+            const lastPartEnd = partEnds[lastPartIdx]
+            if (!lastPartEnd) return null
+            
+            const isFlipped = partFlipStates[lastPartIdx]
+            const endType = isFlipped ? lastPartEnd.startCut.type : lastPartEnd.endCut.type
+            const endDev = isFlipped ? lastPartEnd.startCut.deviation || 0 : lastPartEnd.endCut.deviation || 0
+            
+            const boundaryX = exactPartsEndPx
+            const boundaryXScaled = boundaryX * widthScale
+            const clampedX = Math.max(0, Math.min(boundaryXScaled, contentWidth - contentPadding))
+            
+            if (endType === 'miter') {
+              // Sloped end boundary - use calcDiagOffset
+              const lastPartXStart = partPositions[lastPartIdx].xStart
+              const partWidthPx = Math.max(1, exactPartsEndPx - (lastPartIdx === 0 ? 0 : lastPartXStart))
+              
+              const degToRad = (deg: number) => (deg * Math.PI) / 180
+              const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
+              const calcDiagOffset = (devDeg: number, partWidthPx: number) => {
+                if (!devDeg || devDeg <= 0) return 0
+                const raw = Math.tan(degToRad(devDeg)) * (appHeight - 1)
+                const maxAllowed = Math.max(2, Math.min(partWidthPx * 0.45, appHeight - 2))
+                return clamp(raw, 0, maxAllowed)
+              }
+              
+              const diagonalOffset = calcDiagOffset(endDev, partWidthPx)
+              
+              let x1App = boundaryX - diagonalOffset
+              let y1App = 0
+              let x2App = boundaryX
+              let y2App = appHeight
+              
+              const x1Pdf = (x1App + 0.5) * widthScale
+              const y1Pdf = (y1App + 0.5) * heightScale
+              const x2Pdf = (x2App + 0.5) * widthScale
+              const y2Pdf = (y2App - 0.5) * heightScale
+              
+              return (
+                <Svg
+                  key="last-part-boundary"
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: contentWidth,
+                    height: contentHeight,
+                  }}
+                >
+                  <Line
+                    x1={String(x1Pdf)}
+                    y1={String(y1Pdf)}
+                    x2={String(x2Pdf)}
+                    y2={String(y2Pdf)}
+                    stroke="#9ca3af"
+                    strokeWidth="1"
+                  />
+                </Svg>
+              )
+            } else {
+              // Straight end boundary
+              return (
+                <View
+                  key="last-part-boundary"
+                  style={{
+                    position: 'absolute',
+                    left: clampedX,
+                    top: 0,
+                    width: 1,
+                    height: contentHeight - contentPadding,
+                    backgroundColor: '#9ca3af',
+                  }}
+                />
+              )
+            }
+          })()}
           
           {sharedBoundaries.map((sb, idx) => {
             const xSnapped = sb.x
@@ -856,45 +856,61 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
                     top: 0,
                     width: 1,
                     height: contentHeight - contentPadding,
-                    backgroundColor: '#d1d5db',
+                    backgroundColor: '#9ca3af',
                   }}
                 />
               )
             } else if (sb.leftEndType === 'miter' && sb.rightStartType === 'miter') {
-              const diagonalOffset = 12
+              // Shared sloped boundary - determine direction from deviations
+              const leftWidthPx = Math.max(
+                1,
+                Math.floor(partPositions[sb.leftPartIdx].xEnd) -
+                  (sb.leftPartIdx === 0 ? 0 : Math.floor(partPositions[sb.leftPartIdx].xStart))
+              )
+              const rightWidthPx = Math.max(
+                1,
+                Math.floor(partPositions[sb.rightPartIdx].xEnd) -
+                  Math.floor(partPositions[sb.rightPartIdx].xStart)
+              )
               
               const resolvedBoundary = boundaryMap.get(xSnapped)
               const ownerSide = resolvedBoundary?.ownerSide || 'left'
+              const ownerDev = ownerSide === 'left' ? sb.leftDev : sb.rightDev
+              const ownerWidthPx = ownerSide === 'left' ? leftWidthPx : rightWidthPx
+              
+              // Use calcDiagOffset from app
+              const degToRad = (deg: number) => (deg * Math.PI) / 180
+              const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
+              const calcDiagOffset = (devDeg: number, partWidthPx: number) => {
+                if (!devDeg || devDeg <= 0) return 0
+                const raw = Math.tan(degToRad(devDeg)) * (appHeight - 1)
+                const maxAllowed = Math.max(2, Math.min(partWidthPx * 0.45, appHeight - 2))
+                return clamp(raw, 0, maxAllowed)
+              }
+              
+              const diagonalOffset = calcDiagOffset(ownerDev, ownerWidthPx)
               
               let x1App, y1App, x2App, y2App
               if (ownerSide === 'left') {
-                x1App = xSnapped - diagonalOffset + 0.5
-                y1App = 0.5
-                x2App = xSnapped + 0.5
-                y2App = appHeight - 0.5
+                x1App = xSnapped - diagonalOffset
+                y1App = 0
+                x2App = xSnapped
+                y2App = appHeight
               } else {
-                x1App = xSnapped + 0.5
-                y1App = 0.5
-                x2App = xSnapped + diagonalOffset + 0.5
-                y2App = appHeight - 0.5
+                x1App = xSnapped
+                y1App = 0
+                x2App = xSnapped + diagonalOffset
+                y2App = appHeight
               }
               
-              const clipped = clipLineToBounds(x1App, y1App, x2App, y2App, 0, 0, appWidth, appHeight)
-              
-              if (!clipped.visible) return null
-              
-              const x1Pdf = clipped.x1 * widthScale
-              const y1Pdf = clipped.y1 * heightScale
-              const x2Pdf = clipped.x2 * widthScale
-              const y2Pdf = clipped.y2 * heightScale
-              
-              const clippedPdf = clipLineToBounds(x1Pdf, y1Pdf, x2Pdf, y2Pdf, 0, 0, contentWidth, contentHeight - contentPadding)
-              
-              if (!clippedPdf.visible) return null
+              const x1Pdf = (x1App + 0.5) * widthScale
+              const y1Pdf = (y1App + 0.5) * heightScale
+              const x2Pdf = (x2App + 0.5) * widthScale
+              const y2Pdf = (y2App - 0.5) * heightScale
               
               return (
                 <Svg
-                  key={`shared-sloped-${idx}`}
+                  key={`shared-boundary-${idx}`}
                   style={{
                     position: 'absolute',
                     left: 0,
@@ -904,44 +920,73 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
                   }}
                 >
                   <Line
-                    x1={String(clippedPdf.x1)}
-                    y1={String(clippedPdf.y1)}
-                    x2={String(clippedPdf.x2)}
-                    y2={String(clippedPdf.y2)}
-                    stroke="#d1d5db"
+                    x1={String(x1Pdf)}
+                    y1={String(y1Pdf)}
+                    x2={String(x2Pdf)}
+                    y2={String(y2Pdf)}
+                    stroke="#9ca3af"
                     strokeWidth="1"
                   />
                 </Svg>
               )
             } else {
-              const diagonalOffset = 12
-              
+              // Mixed types: one straight, one miter
+              // Show the marker based on which side has the miter
               const leftIsMiter = sb.leftEndType === 'miter' && sb.leftDev > 0
               const rightIsMiter = sb.rightStartType === 'miter' && sb.rightDev > 0
               
+              const leftWidthPx = Math.max(
+                1,
+                Math.floor(partPositions[sb.leftPartIdx].xEnd) -
+                  (sb.leftPartIdx === 0 ? 0 : Math.floor(partPositions[sb.leftPartIdx].xStart))
+              )
+              const rightWidthPx = Math.max(
+                1,
+                Math.floor(partPositions[sb.rightPartIdx].xEnd) -
+                  Math.floor(partPositions[sb.rightPartIdx].xStart)
+              )
+              
+              // Use calcDiagOffset from app
+              const degToRad = (deg: number) => (deg * Math.PI) / 180
+              const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
+              const calcDiagOffset = (devDeg: number, partWidthPx: number) => {
+                if (!devDeg || devDeg <= 0) return 0
+                const raw = Math.tan(degToRad(devDeg)) * (appHeight - 1)
+                const maxAllowed = Math.max(2, Math.min(partWidthPx * 0.45, appHeight - 2))
+                return clamp(raw, 0, maxAllowed)
+              }
+              
+              const diagonalOffset = calcDiagOffset(
+                leftIsMiter ? sb.leftDev : sb.rightDev,
+                leftIsMiter ? leftWidthPx : rightWidthPx
+              )
+              
               if (leftIsMiter) {
+                // Left end is miter - show sloped marker
+                const resolvedBoundary = boundaryMap.get(xSnapped)
+                const ownerSide = resolvedBoundary?.ownerSide || 'left'
+                
                 let x1App, y1App, x2App, y2App
-                x1App = xSnapped - diagonalOffset + 0.5
-                y1App = 0.5
-                x2App = xSnapped + 0.5
-                y2App = appHeight - 0.5
+                if (ownerSide === 'left') {
+                  x1App = xSnapped - diagonalOffset
+                  y1App = 0
+                  x2App = xSnapped
+                  y2App = appHeight
+                } else {
+                  x1App = xSnapped
+                  y1App = 0
+                  x2App = xSnapped + diagonalOffset
+                  y2App = appHeight
+                }
                 
-                const clipped = clipLineToBounds(x1App, y1App, x2App, y2App, 0, 0, appWidth, appHeight)
-                
-                if (!clipped.visible) return null
-                
-                const x1Pdf = clipped.x1 * widthScale
-                const y1Pdf = clipped.y1 * heightScale
-                const x2Pdf = clipped.x2 * widthScale
-                const y2Pdf = clipped.y2 * heightScale
-                
-                const clippedPdf = clipLineToBounds(x1Pdf, y1Pdf, x2Pdf, y2Pdf, 0, 0, contentWidth, contentHeight - contentPadding)
-                
-                if (!clippedPdf.visible) return null
+                const x1Pdf = (x1App + 0.5) * widthScale
+                const y1Pdf = (y1App + 0.5) * heightScale
+                const x2Pdf = (x2App + 0.5) * widthScale
+                const y2Pdf = (y2App - 0.5) * heightScale
                 
                 return (
                   <Svg
-                    key={`shared-sloped-${idx}`}
+                    key={`shared-boundary-${idx}`}
                     style={{
                       position: 'absolute',
                       left: 0,
@@ -951,38 +996,41 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
                     }}
                   >
                     <Line
-                      x1={String(clippedPdf.x1)}
-                      y1={String(clippedPdf.y1)}
-                      x2={String(clippedPdf.x2)}
-                      y2={String(clippedPdf.y2)}
-                      stroke="#d1d5db"
+                      x1={String(x1Pdf)}
+                      y1={String(y1Pdf)}
+                      x2={String(x2Pdf)}
+                      y2={String(y2Pdf)}
+                      stroke="#9ca3af"
                       strokeWidth="1"
                     />
                   </Svg>
                 )
-              } else if (rightIsMiter) {
+              } else if (rightIsMiter && sb.rightPartIdx === numParts - 1) {
+                // Right start is miter and it's the last internal boundary - show sloped
+                const resolvedBoundary = boundaryMap.get(xSnapped)
+                const ownerSide = resolvedBoundary?.ownerSide || 'right'
+                
                 let x1App, y1App, x2App, y2App
-                x1App = xSnapped + 0.5
-                y1App = 0.5
-                x2App = xSnapped + diagonalOffset + 0.5
-                y2App = appHeight - 0.5
+                if (ownerSide === 'left') {
+                  x1App = xSnapped - diagonalOffset
+                  y1App = 0
+                  x2App = xSnapped
+                  y2App = appHeight
+                } else {
+                  x1App = xSnapped
+                  y1App = 0
+                  x2App = xSnapped + diagonalOffset
+                  y2App = appHeight
+                }
                 
-                const clipped = clipLineToBounds(x1App, y1App, x2App, y2App, 0, 0, appWidth, appHeight)
-                
-                if (!clipped.visible) return null
-                
-                const x1Pdf = clipped.x1 * widthScale
-                const y1Pdf = clipped.y1 * heightScale
-                const x2Pdf = clipped.x2 * widthScale
-                const y2Pdf = clipped.y2 * heightScale
-                
-                const clippedPdf = clipLineToBounds(x1Pdf, y1Pdf, x2Pdf, y2Pdf, 0, 0, contentWidth, contentHeight - contentPadding)
-                
-                if (!clippedPdf.visible) return null
+                const x1Pdf = (x1App + 0.5) * widthScale
+                const y1Pdf = (y1App + 0.5) * heightScale
+                const x2Pdf = (x2App + 0.5) * widthScale
+                const y2Pdf = (y2App - 0.5) * heightScale
                 
                 return (
                   <Svg
-                    key={`shared-sloped-${idx}`}
+                    key={`shared-boundary-${idx}`}
                     style={{
                       position: 'absolute',
                       left: 0,
@@ -992,16 +1040,17 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
                     }}
                   >
                     <Line
-                      x1={String(clippedPdf.x1)}
-                      y1={String(clippedPdf.y1)}
-                      x2={String(clippedPdf.x2)}
-                      y2={String(clippedPdf.y2)}
-                      stroke="#d1d5db"
+                      x1={String(x1Pdf)}
+                      y1={String(y1Pdf)}
+                      x2={String(x2Pdf)}
+                      y2={String(y2Pdf)}
+                      stroke="#9ca3af"
                       strokeWidth="1"
                     />
                   </Svg>
                 )
               } else {
+                // Show straight marker (the simpler cut for mixed boundaries)
                 const clampedX = Math.max(0, Math.min(boundaryXScaled, maxRight))
                 
                 return (
@@ -1013,7 +1062,7 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
                       top: 0,
                       width: 1,
                       height: contentHeight - contentPadding,
-                      backgroundColor: '#d1d5db',
+                      backgroundColor: '#9ca3af',
                     }}
                   />
                 )
@@ -1056,7 +1105,8 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
 export const CuttingPlanPDF: React.FC<CuttingPlanPDFProps> = ({ 
   nestingReport, 
   report,
-  projectName
+  projectName,
+  svgImages = {}
 }) => {
   return (
     <Document>
@@ -1072,16 +1122,39 @@ export const CuttingPlanPDF: React.FC<CuttingPlanPDFProps> = ({
             {profile.profile_name} ({profile.total_parts} parts)
           </Text>
           
-          {profile.cutting_patterns.map((pattern, patternIdx) => (
-            <View key={patternIdx} style={styles.patternSection}>
-              <Text style={styles.patternTitle}>
-                Bar {patternIdx + 1}: {formatLength(pattern.stock_length)} stock
-              </Text>
-              <Text style={styles.patternSubtitle}>
-                Waste: {formatLength(pattern.waste)} ({pattern.waste_percentage.toFixed(2)}%)
-              </Text>
-              
-              <StockBarVisualization pattern={pattern} profileName={profile.profile_name} />
+          {profile.cutting_patterns.map((pattern, patternIdx) => {
+            const svgImageKey = `${profile.profile_name}-${patternIdx}`
+            const hasSvgImage = svgImages[svgImageKey]
+            
+            return (
+              <View key={patternIdx} style={styles.patternSection}>
+                <Text style={styles.patternTitle}>
+                  Bar {patternIdx + 1}: {formatLength(pattern.stock_length)} stock
+                </Text>
+                <Text style={styles.patternSubtitle}>
+                  Waste: {formatLength(pattern.waste)} ({pattern.waste_percentage.toFixed(2)}%)
+                </Text>
+                
+                {hasSvgImage ? (
+                  <View style={{ 
+                    marginBottom: 15, 
+                    marginTop: 5,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <Image 
+                      src={svgImages[svgImageKey]} 
+                      style={{ 
+                        width: '100%',
+                        objectFit: 'contain',
+                        objectPosition: 'center'
+                      }}
+                    />
+                  </View>
+                ) : (
+                  <StockBarVisualization pattern={pattern} profileName={profile.profile_name} />
+                )}
               
               <View style={styles.table}>
                 <View style={[styles.tableRow, styles.tableHeader]}>
@@ -1163,7 +1236,8 @@ export const CuttingPlanPDF: React.FC<CuttingPlanPDFProps> = ({
                 })()}
               </View>
             </View>
-          ))}
+              )
+            })}
         </Page>
       ))}
     </Document>

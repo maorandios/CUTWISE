@@ -407,10 +407,92 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         profiles: nestingReport.profiles.filter(p => cuttingPlanSelectedProfiles.has(p.profile_name))
       }
       
+      // Save original expanded state
+      const originalExpandedProfiles = new Set(expandedProfiles)
+      
+      // Temporarily expand all selected profiles to ensure DOM elements exist
+      const newExpanded = new Set(expandedProfiles)
+      cuttingPlanSelectedProfiles.forEach(profileName => {
+        newExpanded.add(profileName)
+      })
+      setExpandedProfiles(newExpanded)
+      
+      // Wait for fonts to load
+      await document.fonts.ready
+      
+      // Wait for React to render the expanded profiles and for fonts/layout to settle
+      await new Promise(resolve => setTimeout(resolve, 800))
+      
+      // Capture SVG images from the DOM (using original indices)
+      const svgImages: { [key: string]: string } = {}
+      
+      for (let originalProfileIdx = 0; originalProfileIdx < nestingReport.profiles.length; originalProfileIdx++) {
+        const profile = nestingReport.profiles[originalProfileIdx]
+        if (!cuttingPlanSelectedProfiles.has(profile.profile_name)) continue
+        
+        for (let patternIdx = 0; patternIdx < profile.cutting_patterns.length; patternIdx++) {
+          // Use original index to find the full stockbar section (includes header info and visualization)
+          const fullStockbarElement = document.getElementById(`stockbar-full-${originalProfileIdx}-${patternIdx}`) as HTMLElement
+          if (fullStockbarElement) {
+            try {
+              // Store original styles to restore later
+              const flexContainers = fullStockbarElement.querySelectorAll('.flex.items-center')
+              const originalStyles: { element: HTMLElement; display: string; alignItems: string }[] = []
+              
+              // Force explicit vertical alignment styles on flex containers
+              flexContainers.forEach((el) => {
+                const htmlEl = el as HTMLElement
+                originalStyles.push({
+                  element: htmlEl,
+                  display: htmlEl.style.display,
+                  alignItems: htmlEl.style.alignItems
+                })
+                htmlEl.style.display = 'flex'
+                htmlEl.style.alignItems = 'center'
+              })
+              
+              // Get actual rendered dimensions
+              const rect = fullStockbarElement.getBoundingClientRect()
+              const actualWidth = rect.width
+              const actualHeight = rect.height
+              
+              // Use html2canvas to capture the full section with all its children
+              const html2canvas = (await import('html2canvas')).default
+              const canvas = await html2canvas(fullStockbarElement, {
+                backgroundColor: '#ffffff',
+                scale: 4, // Much higher quality for crisp lines
+                logging: false,
+                width: actualWidth,
+                height: actualHeight,
+                useCORS: true,
+                allowTaint: true,
+                imageTimeout: 0,
+                letterRendering: true
+              })
+              
+              const dataUrl = canvas.toDataURL('image/png')
+              // Store with profile name + pattern index as key
+              svgImages[`${profile.profile_name}-${patternIdx}`] = dataUrl
+              
+              // Restore original styles
+              originalStyles.forEach(({ element, display, alignItems }) => {
+                if (display) element.style.display = display
+                else element.style.removeProperty('display')
+                if (alignItems) element.style.alignItems = alignItems
+                else element.style.removeProperty('align-items')
+              })
+            } catch (error) {
+              console.error('Error capturing stockbar:', error)
+            }
+          }
+        }
+      }
+      
       const doc = <CuttingPlanPDF 
         nestingReport={filteredNestingReport}
         report={report}
         projectName={cuttingPlanProjectName}
+        svgImages={svgImages}
       />
       
       const asPdf = pdf(doc)
@@ -427,11 +509,17 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
       
+      // Restore original expanded state
+      setExpandedProfiles(originalExpandedProfiles)
+      
       // Close modal after successful export
       setShowCuttingPlanModal(false)
     } catch (error) {
       console.error('Error exporting Cutting Plan to PDF:', error)
       alert('Failed to export Cutting Plan PDF. Please try again.')
+      
+      // Restore original expanded state even on error
+      setExpandedProfiles(originalExpandedProfiles)
     }
   }
 
@@ -1691,7 +1779,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                     {isExpanded && (
                       <div className="p-4">
                   {profile.cutting_patterns.map((pattern, patternIdx) => (
-                    <div key={patternIdx} className="mb-4 p-3 bg-white rounded-xl">
+                    <div key={patternIdx} id={`stockbar-full-${profileIdx}-${patternIdx}`} className="mb-4 p-3 bg-white rounded-xl">
                       {/* Stockbar Title */}
                       <div className="mb-3">
                         <h5 className="text-base font-medium text-muted-foreground mb-2">
@@ -1776,7 +1864,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                         <div className="relative">
                           {/* Stock bar visualization - boundary-based cut lines */}
                           {/* Container with border matching the SVG border style */}
-                          <div className="relative bg-white rounded mb-3 border border-gray-300" style={{ height: '60px', overflow: 'hidden' }}>
+                          <div id={`stockbar-container-${profileIdx}-${patternIdx}`} className="relative bg-white rounded mb-3 border border-gray-300" style={{ height: '60px', overflow: 'hidden' }}>
                             {/* Text labels rendered as absolute positioned divs to prevent SVG scaling */}
                             {/* Labels are rendered inside the SVG function to access partPositions */}
                             <svg key={`svg-${profileIdx}-${patternIdx}`} id={`stockbar-svg-${profileIdx}-${patternIdx}`} className="absolute inset-0 w-full h-full" viewBox="0 0 1000 60" preserveAspectRatio="none" shapeRendering="crispEdges">
