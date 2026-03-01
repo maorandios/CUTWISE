@@ -1763,31 +1763,20 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 // Calculate total length of all parts first
                                 const totalPartsLengthMm = sortedParts.reduce((sum, part) => sum + (part.length || 0), 0)
                                 
-                                // Calculate the available space for parts in pixels
-                                // Reserve space for waste at the end
+                                // Use true scale (pxPerMm) for positioning parts
+                                // This ensures waste area is visible at the end
                                 const wasteMm = pattern.waste || 0
-                                const availableForPartsPx = 1000 * (1 - wasteMm / pattern.stock_length)
                                 
-                                // Calculate px per mm to fit all parts in available space
-                                const partsPxPerMm = totalPartsLengthMm > 0 ? availableForPartsPx / totalPartsLengthMm : pxPerMm
-                                
-                                // Position parts with kerf gap - smaller for sloped parts to look proportional
-                                const kerfGapPx = 2
-                                const kerfGapSlopedPx = 0.5 // Smaller gap for sloped parts to compensate for visual amplification
+                                // Position parts without kerf gaps - gaps are visual only and shouldn't affect positioning
+                                // Parts are positioned flush against each other based on their actual lengths
                                 let cumulativeX = 0
                                 const partPositions = sortedParts.map((part, partIdx) => {
                                   const lengthMm = part.length || 0
                                   const xStart = cumulativeX
-                                  const xEnd = cumulativeX + (lengthMm * partsPxPerMm)
+                                  const xEnd = cumulativeX + (lengthMm * pxPerMm)
                                   
-                                  // Check if next part has slopes (use smaller gap)
-                                  const nextPart = sortedParts[partIdx + 1]
-                                  const currentSlopeInfo = (part as any)?.slope_info || {}
-                                  const nextSlopeInfo = (nextPart as any)?.slope_info || {}
-                                  const hasSlopes = currentSlopeInfo.end_has_slope === true || nextSlopeInfo.start_has_slope === true
-                                  const gapToUse = hasSlopes ? kerfGapSlopedPx : kerfGapPx
-                                  
-                                  cumulativeX = xEnd + gapToUse
+                                  // Move to next part position (no gap)
+                                  cumulativeX = xEnd
                                   return { part, xStart, xEnd, lengthMm }
                                 })
                                 
@@ -3098,18 +3087,17 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                               bottomRightX = clampX(actualRightX)
                                             }
                                             
-                                            // Shared boundary lookup for complementary miters with small offset for visual gap
-                                            // Add 1px offset to create a visual kerf gap between complementary parts
-                                            const kerfOffsetPx = 1
+                                            // Shared boundary lookup for complementary miters - no visual gap
+                                            // Parts render flush against each other to preserve accurate waste area
                                             
                                             if (startIsShared && startType === 'miter' && partIdx > 0) {
                                               const boundaryX = Math.floor(partPositions[partIdx - 1].xEnd)
                                               const sharedLine = sharedMiterBoundaryMap.get(boundaryX)
                                               if (sharedLine) {
                                                 console.log(`[MITER-LOOKUP-START] Part ${partIdx} (${partName}): boundaryX=${boundaryX}, found sharedLine xTop=${sharedLine.xTop.toFixed(2)} xBottom=${sharedLine.xBottom.toFixed(2)}`)
-                                                // Add small offset to create visual gap
-                                                topLeftX = clampX(sharedLine.xTop + kerfOffsetPx)
-                                                bottomLeftX = clampX(sharedLine.xBottom + kerfOffsetPx)
+                                                // Use exact boundary without offset
+                                                topLeftX = clampX(sharedLine.xTop)
+                                                bottomLeftX = clampX(sharedLine.xBottom)
                                               } else {
                                                 console.log(`[MITER-LOOKUP-START] Part ${partIdx} (${partName}): boundaryX=${boundaryX}, NO sharedLine found`)
                                               }
@@ -3120,9 +3108,9 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                               const sharedLine = sharedMiterBoundaryMap.get(boundaryX)
                                               if (sharedLine) {
                                                 console.log(`[MITER-LOOKUP-END] Part ${partIdx} (${partName}): boundaryX=${boundaryX}, found sharedLine xTop=${sharedLine.xTop.toFixed(2)} xBottom=${sharedLine.xBottom.toFixed(2)}`)
-                                                // Subtract small offset to create visual gap (move left edge left)
-                                                topRightX = clampX(sharedLine.xTop - kerfOffsetPx)
-                                                bottomRightX = clampX(sharedLine.xBottom - kerfOffsetPx)
+                                                // Use exact boundary without offset
+                                                topRightX = clampX(sharedLine.xTop)
+                                                bottomRightX = clampX(sharedLine.xBottom)
                                               } else {
                                                 console.log(`[MITER-LOOKUP-END] Part ${partIdx} (${partName}): boundaryX=${boundaryX}, NO sharedLine found`)
                                               }
@@ -3696,26 +3684,20 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 // Calculate total length and scaling (same as SVG)
                                 const totalPartsLengthMm = sortedParts.reduce((sum, part) => sum + (part.length || 0), 0)
                                 const wasteMm = pattern.waste || 0
-                                const availableForPartsPx = 1000 * (1 - wasteMm / pattern.stock_length)
-                                const partsPxPerMm = totalPartsLengthMm > 0 ? availableForPartsPx / totalPartsLengthMm : pxPerMm
                                 
-                                // Position parts with kerf gap - smaller for sloped parts to look proportional
-                                const kerfGapPx = 2
-                                const kerfGapSlopedPx = 0.5 // Smaller gap for sloped parts to compensate for visual amplification
+                                // Use true scale (pxPerMm) for positioning parts (same as SVG section)
+                                // This ensures waste area is visible at the end
+                                
+                                // Position parts without kerf gaps - gaps are visual only and shouldn't affect positioning
+                                // Parts are positioned flush against each other based on their actual lengths
                                 let cumulativeX = 0
                                 const partPositions = sortedParts.map((part, partIdx) => {
                                   const lengthMm = part.length || 0
                                   const xStart = cumulativeX
-                                  const xEnd = cumulativeX + (lengthMm * partsPxPerMm)
+                                  const xEnd = cumulativeX + (lengthMm * pxPerMm)
                                   
-                                  // Check if next part has slopes (use smaller gap)
-                                  const nextPart = sortedParts[partIdx + 1]
-                                  const currentSlopeInfo = (part as any)?.slope_info || {}
-                                  const nextSlopeInfo = (nextPart as any)?.slope_info || {}
-                                  const hasSlopes = currentSlopeInfo.end_has_slope === true || nextSlopeInfo.start_has_slope === true
-                                  const gapToUse = hasSlopes ? kerfGapSlopedPx : kerfGapPx
-                                  
-                                  cumulativeX = xEnd + gapToUse
+                                  // Move to next part position (no gap)
+                                  cumulativeX = xEnd
                                   return { part, xStart, xEnd, lengthMm }
                                 })
                                 
