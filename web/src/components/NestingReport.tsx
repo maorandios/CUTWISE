@@ -3,6 +3,7 @@ import { NestingReport as NestingReportType, SteelReport } from '../types'
 import { pdf } from '@react-pdf/renderer'
 import { NestingReportPDF } from './NestingReportPDF'
 import { BOMPDF } from './BOMPDF'
+import { CuttingPlanPDF } from './CuttingPlanPDF'
 import IFCViewerWebIFC from './IFCViewerWebIFC'
 import { apiRequest } from '../utils/api'
 import { Button } from '@/components/ui/Button'
@@ -105,9 +106,12 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   const [windowWidth, setWindowWidth] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1200)
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false) // Settings modal visibility
   const [showBOMModal, setShowBOMModal] = useState<boolean>(false) // BOM export modal visibility
+  const [showCuttingPlanModal, setShowCuttingPlanModal] = useState<boolean>(false) // Cutting Plan export modal visibility
   const [activeReportTab, setActiveReportTab] = useState<'materials' | 'bom' | 'cutting'>('materials') // Active tab in report view
   const [bomProjectName, setBomProjectName] = useState<string>('')
   const [bomSelectedProfiles, setBomSelectedProfiles] = useState<Set<string>>(new Set())
+  const [cuttingPlanProjectName, setCuttingPlanProjectName] = useState<string>('')
+  const [cuttingPlanSelectedProfiles, setCuttingPlanSelectedProfiles] = useState<Set<string>>(new Set())
   
   // Chart filter states
   const [chartFilterProfile, setChartFilterProfile] = useState<string>('all')
@@ -387,6 +391,47 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
     } catch (error) {
       console.error('Error exporting BOM to PDF:', error)
       alert('Failed to export BOM PDF. Please try again.')
+    }
+  }
+
+  const handleExportCuttingPlanToPDF = async () => {
+    if (!nestingReport || !report || cuttingPlanSelectedProfiles.size === 0) {
+      alert('Please select at least one profile to export.')
+      return
+    }
+
+    try {
+      // Filter nesting report to only include selected profiles
+      const filteredNestingReport = {
+        ...nestingReport,
+        profiles: nestingReport.profiles.filter(p => cuttingPlanSelectedProfiles.has(p.profile_name))
+      }
+      
+      const doc = <CuttingPlanPDF 
+        nestingReport={filteredNestingReport}
+        report={report}
+        projectName={cuttingPlanProjectName}
+      />
+      
+      const asPdf = pdf(doc)
+      const blob = await asPdf.toBlob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const downloadName = cuttingPlanProjectName 
+        ? `${cuttingPlanProjectName}_Cutting_Plan.pdf` 
+        : `${filename.replace('.ifc', '')}_Cutting_Plan.pdf`
+      link.href = url
+      link.download = downloadName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      
+      // Close modal after successful export
+      setShowCuttingPlanModal(false)
+    } catch (error) {
+      console.error('Error exporting Cutting Plan to PDF:', error)
+      alert('Failed to export Cutting Plan PDF. Please try again.')
     }
   }
 
@@ -1586,7 +1631,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                     <div className="ml-auto">
                       <Button
                         variant="secondary"
-                        onClick={handleExportToPDF}
+                        onClick={() => setShowCuttingPlanModal(true)}
                         className="flex items-center gap-2"
                       >
                         <img src="/Icons/export icon.svg" alt="Export" className="h-5 w-5" />
@@ -4398,6 +4443,115 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               <Button
                 onClick={handleExportBOMToPDF}
                 disabled={bomSelectedProfiles.size === 0}
+              >
+                Generate PDF
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Cutting Plan Export Modal */}
+        <Dialog open={showCuttingPlanModal} onOpenChange={setShowCuttingPlanModal}>
+          <DialogContent className="sm:max-w-[750px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <img src="/Icons/export icon.svg" alt="Export" className="h-5 w-5" />
+                Export Cutting Plan to PDF
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-8 py-6">
+              {/* Project Name Input */}
+              <div className="space-y-2">
+                <Label htmlFor="cuttingPlanProjectName">
+                  Project Name
+                </Label>
+                <Input
+                  id="cuttingPlanProjectName"
+                  type="text"
+                  value={cuttingPlanProjectName}
+                  onChange={(e) => setCuttingPlanProjectName(e.target.value)}
+                  placeholder="Enter project name (optional)"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Project name will appear in the PDF header
+                </p>
+              </div>
+
+              {/* Profile Selection */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">
+                  Select Profiles to Include
+                </Label>
+                <div className="space-y-2 max-h-80 overflow-y-auto border rounded-lg p-3">
+                  {nestingReport && nestingReport.profiles.map((profile) => {
+                    const profileData = report?.profiles.find(p => p.profile_name === profile.profile_name)
+                    const tonnage = profileData ? (profileData.total_weight / 1000).toFixed(3) : '0.000'
+                    
+                    return (
+                      <label key={profile.profile_name} className="flex items-center gap-3 p-2 hover:bg-muted/50 rounded cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={cuttingPlanSelectedProfiles.has(profile.profile_name)}
+                          onChange={(e) => {
+                            const newSet = new Set(cuttingPlanSelectedProfiles)
+                            if (e.target.checked) {
+                              newSet.add(profile.profile_name)
+                            } else {
+                              newSet.delete(profile.profile_name)
+                            }
+                            setCuttingPlanSelectedProfiles(newSet)
+                          }}
+                          className="w-4 h-4 rounded border-input"
+                        />
+                        <span className="text-sm">{profile.profile_name}</span>
+                        <span className="text-xs text-muted-foreground ml-auto">
+                          {tonnage} tonnes
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Select which profiles to include in the Cutting Plan PDF
+                </p>
+              </div>
+
+              {/* Select/Deselect All */}
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (nestingReport) {
+                      setCuttingPlanSelectedProfiles(new Set(nestingReport.profiles.map(p => p.profile_name)))
+                    }
+                  }}
+                >
+                  Select All
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCuttingPlanSelectedProfiles(new Set())}
+                >
+                  Deselect All
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-6">
+              <Button
+                variant="outline"
+                onClick={() => setShowCuttingPlanModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleExportCuttingPlanToPDF}
+                disabled={cuttingPlanSelectedProfiles.size === 0}
               >
                 Generate PDF
               </Button>
