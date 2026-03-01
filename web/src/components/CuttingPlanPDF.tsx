@@ -1,5 +1,5 @@
 import React from 'react'
-import { Document, Page, Text, View, StyleSheet, Svg, Line } from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet, Svg, Line, Polygon } from '@react-pdf/renderer'
 import { NestingReport as NestingReportType, SteelReport, CuttingPattern } from '../types'
 
 interface CuttingPlanPDFProps {
@@ -540,8 +540,15 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
             const xPxScaled = xPx * widthScale
             const endPxScaled = endPx * widthScale
             
-            const diagonalOffset = 12
-            const SIGNIFICANT_MITER_DEG = 8.0
+            const visualHeight = (pdfHeight - 1) * 0.2
+            const degToRad = (deg: number) => (deg * Math.PI) / 180
+            const calcBoundaryOffset = (devDeg: number, partWidthPx: number) => {
+              if (!devDeg || devDeg <= 0) return 0
+              const raw = Math.tan(degToRad(devDeg)) * visualHeight
+              const maxAllowed = Math.min(partWidthPx * 0.25, visualHeight)
+              return Math.max(0, Math.min(raw, maxAllowed))
+            }
+            
             const bothSignificantMiters = startType === 'miter' && endType === 'miter' && startDev >= 1.0 && endDev >= 1.0
             const hasSlopedStart = startType === 'miter' && startDev > 0 && (partIdx > 0 || bothSignificantMiters)
             const hasSlopedEnd = endType === 'miter' && endDev > 0 && (partIdx < numParts - 1 || (partIdx === lastPartIdx && pattern.waste > 0))
@@ -555,14 +562,17 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
             
             const polyLeftXScaled = polyLeftX * widthScale
             const polyRightXScaled = polyRightX * widthScale
-            const diagonalOffsetScaled = diagonalOffset * widthScale
+            const wPx = polyRightX - polyLeftX
+            
+            const startOffset = hasSlopedStart ? calcBoundaryOffset(startDev, wPx) * widthScale : 0
+            const endOffset = hasSlopedEnd ? calcBoundaryOffset(endDev, wPx) * widthScale : 0
             
             let points: Array<{ x: number, y: number }> = []
             
             if (hasSlopedStart && hasSlopedEnd) {
               const topLeftX = polyLeftXScaled
-              const topRightX = polyRightXScaled - diagonalOffsetScaled
-              const bottomLeftX = polyLeftXScaled + diagonalOffsetScaled
+              const topRightX = polyRightXScaled - endOffset
+              const bottomLeftX = polyLeftXScaled + startOffset
               const bottomRightX = polyRightXScaled
               points = [
                 { x: topLeftX, y: 0 },
@@ -572,7 +582,7 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
               ]
             } else if (hasSlopedStart) {
               const topLeftX = polyLeftXScaled
-              const bottomLeftX = polyLeftXScaled + diagonalOffsetScaled
+              const bottomLeftX = polyLeftXScaled + startOffset
               points = [
                 { x: topLeftX, y: 0 },
                 { x: polyRightXScaled, y: 0 },
@@ -580,7 +590,7 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
                 { x: bottomLeftX, y: contentHeight - contentPadding }
               ]
             } else if (hasSlopedEnd) {
-              const topRightX = polyRightXScaled - diagonalOffsetScaled
+              const topRightX = polyRightXScaled - endOffset
               const bottomRightX = polyRightXScaled
               points = [
                 { x: polyLeftXScaled, y: 0 },
@@ -605,9 +615,6 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
             
             const pointsString = points.map(p => `${p.x},${p.y}`).join(' ')
             
-            const centerX = (polyLeftXScaled + polyRightXScaled) / 2
-            const centerY = (contentHeight - contentPadding) / 2
-            
             return (
               <View
                 key={partIdx}
@@ -620,6 +627,23 @@ const StockBarVisualization: React.FC<{ pattern: CuttingPattern; profileName: st
                   overflow: 'hidden',
                 }}
               >
+                <Svg
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: contentWidth,
+                    height: contentHeight,
+                  }}
+                >
+                  <Polygon
+                    points={pointsString}
+                    fill="rgba(156, 163, 175, 0.1)"
+                    stroke="#9ca3af"
+                    strokeWidth="1"
+                  />
+                </Svg>
+                
                 {(() => {
                   const partWidth = Math.abs(polyRightXScaled - polyLeftXScaled)
                   
