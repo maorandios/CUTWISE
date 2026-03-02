@@ -13,6 +13,12 @@ import asyncio
 import re
 import traceback
 import multiprocessing
+import sys
+
+# Fix for Windows Playwright subprocess issue
+# Must be set before any asyncio operations
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 # Try to import ifcopenshell.geom if available (for geometry operations)
 try:
@@ -4781,6 +4787,83 @@ async def generate_plate_nesting_with_geometry(filename: str, request: Request):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to generate geometry-based nesting: {str(e)}")
+
+
+@app.post("/api/generate-cutting-plan-pdf")
+async def generate_cutting_plan_pdf(request: Request):
+    """Generate Cutting Plan PDF server-side using Playwright in a separate process."""
+    try:
+        import subprocess
+        import json
+        
+        # Parse request body
+        data = await request.json()
+        nesting_report = data.get('nestingReport')
+        project_name = data.get('projectName', 'Cutting Plan')
+        tolerance = data.get('tolerance', 0)
+        tolerance_enabled = data.get('toleranceEnabled', False)
+        trim = data.get('trim', 0)
+        kerf = data.get('kerf', 0)
+        selected_profiles = data.get('selectedProfiles', [])
+        icons = data.get('icons', {})
+        
+        if not nesting_report:
+            raise HTTPException(status_code=400, detail="Missing nesting report data")
+        
+        # Get extracted SVG data from browser
+        stockbar_svg_data = data.get('stockbarSvgData', [])
+        
+        # Prepare input data
+        input_data = {
+            'nestingReport': nesting_report,
+            'projectName': project_name,
+            'tolerance': tolerance,
+            'toleranceEnabled': tolerance_enabled,
+            'trim': trim,
+            'kerf': kerf,
+            'selectedProfiles': selected_profiles,
+            'stockbarSvgData': stockbar_svg_data,
+            'icons': icons
+        }
+        
+        # Run PDF generation in a separate process to avoid event loop conflicts
+        worker_path = Path(__file__).parent / "pdf_worker.py"
+        process = subprocess.Popen(
+            [sys.executable, str(worker_path)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        
+        # Send input and get output
+        stdout, stderr = process.communicate(input=json.dumps(input_data).encode('utf-8'), timeout=60)
+        
+        if process.returncode != 0:
+            error_msg = stderr.decode('utf-8', errors='replace')
+            raise Exception(f"PDF worker failed: {error_msg}")
+        
+        pdf_bytes = stdout
+        
+        # Return PDF as response
+        from fastapi.responses import Response
+        return Response(
+            content=pdf_bytes,
+            media_type='application/pdf',
+            headers={
+                'Content-Disposition': f'attachment; filename="{project_name}_cutting_plan.pdf"'
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="PDF generation timed out (60s)")
+    except Exception as e:
+        import traceback as tb
+        error_trace = tb.format_exc()
+        print(f"[ERROR] PDF Generation failed:")
+        print(error_trace)
+        raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e) or repr(e)}")
 
 
 @app.get("/api/health")

@@ -8,3 +8,5 @@ trimesh
 pygltflib
 rectpack
 shapely
+playwright
+jinja2

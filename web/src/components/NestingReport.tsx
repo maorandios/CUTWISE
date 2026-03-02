@@ -112,6 +112,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   const [bomSelectedProfiles, setBomSelectedProfiles] = useState<Set<string>>(new Set())
   const [cuttingPlanProjectName, setCuttingPlanProjectName] = useState<string>('')
   const [cuttingPlanSelectedProfiles, setCuttingPlanSelectedProfiles] = useState<Set<string>>(new Set())
+  const [exportProgress, setExportProgress] = useState<{show: boolean, current: number, total: number}>({show: false, current: 0, total: 0})
   
   // Chart filter states
   const [chartFilterProfile, setChartFilterProfile] = useState<string>('all')
@@ -394,13 +395,37 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
     }
   }
 
+  // Old client-side capture function - no longer used with server-side generation
+  // Kept for reference/fallback if needed
+  // const captureStockbarImage = async (...) => { ... }
+
+  const loadIconAsBase64 = async (iconPath: string): Promise<string> => {
+    try {
+      const response = await fetch(iconPath)
+      const blob = await response.blob()
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const base64 = reader.result as string
+          // Remove data URL prefix to get just the base64 content
+          const base64Content = base64.split(',')[1] || base64
+          resolve(base64Content)
+        }
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      })
+    } catch (error) {
+      console.error(`Failed to load icon: ${iconPath}`, error)
+      return ''
+    }
+  }
+
   const handleExportCuttingPlanToPDF = async () => {
     if (!nestingReport || !report || cuttingPlanSelectedProfiles.size === 0) {
       alert('Please select at least one profile to export.')
       return
     }
 
-    // Save original expanded state before try block
     const originalExpandedProfiles = new Set(expandedProfiles)
 
     try {
@@ -410,156 +435,117 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         profiles: nestingReport.profiles.filter(p => cuttingPlanSelectedProfiles.has(p.profile_name))
       }
       
-      // Temporarily expand all selected profiles to ensure DOM elements exist
+      // Temporarily expand all selected profiles so SVGs are rendered
       const newExpanded = new Set(expandedProfiles)
       cuttingPlanSelectedProfiles.forEach(profileName => {
         newExpanded.add(profileName)
       })
       setExpandedProfiles(newExpanded)
       
-      // Wait for fonts to load
-      await document.fonts.ready
+      // Show progress modal
+      setExportProgress({ show: true, current: 0, total: 1 })
       
-      // Wait for React to render the expanded profiles and for fonts/layout to settle
+      // Wait for fonts to load and React to render
+      await document.fonts.ready
       await new Promise(resolve => setTimeout(resolve, 800))
       
-      // Capture SVG images from the DOM (using original indices)
-      const svgImages: { [key: string]: string } = {}
+      // Extract SVG polygon data from DOM
+      const stockbarSvgData: Array<{
+        profileIdx: number
+        patternIdx: number
+        profileName: string
+        svgData: {
+          viewBox: string
+          parts: Array<{
+            points: string
+            fill: string
+            partName: string
+          }>
+        }
+      }> = []
       
-      for (let originalProfileIdx = 0; originalProfileIdx < nestingReport.profiles.length; originalProfileIdx++) {
-        const profile = nestingReport.profiles[originalProfileIdx]
+      for (let profileIdx = 0; profileIdx < nestingReport.profiles.length; profileIdx++) {
+        const profile = nestingReport.profiles[profileIdx]
         if (!cuttingPlanSelectedProfiles.has(profile.profile_name)) continue
         
         for (let patternIdx = 0; patternIdx < profile.cutting_patterns.length; patternIdx++) {
-          // Use original index to find the full stockbar section (includes header info and visualization)
-          const fullStockbarElement = document.getElementById(`stockbar-full-${originalProfileIdx}-${patternIdx}`) as HTMLElement
-          if (fullStockbarElement) {
-            try {
-              // Store original styles to restore later  
-              const originalStyles: Array<{
-                element: HTMLElement
-                originalStyle: string
-              }> = []
+          const svgElement = document.getElementById(`stockbar-svg-${profileIdx}-${patternIdx}`)
+          
+          if (svgElement) {
+            const viewBox = svgElement.getAttribute('viewBox') || '0 0 1000 60'
+            const polygons = svgElement.querySelectorAll('polygon')
+            const parts: Array<{points: string, fill: string, partName: string}> = []
+            
+            polygons.forEach((polygon) => {
+              const points = polygon.getAttribute('points') || ''
+              const fill = polygon.getAttribute('fill') || '#ccc'
+              const title = polygon.querySelector('title')
+              const titleText = title?.textContent || ''
               
-              // html2canvas has issues with flexbox vertical alignment
-              // Apply different positioning for icons vs text
+              // Extract part name from title (format: "Profile: X | Part: Y | Length: Z...")
+              const partMatch = titleText.match(/Part:\s*([^|]+)/)
+              const partName = partMatch ? partMatch[1].trim() : ''
               
-              // Target all settings boxes (with border and padding)
-              const settingsBoxes = fullStockbarElement.querySelectorAll('.border.rounded-lg')
+              // Skip if no points data
+              if (!points) return
               
-              settingsBoxes.forEach((box) => {
-                const htmlEl = box as HTMLElement
-                
-                // Save box original style
-                originalStyles.push({
-                  element: htmlEl,
-                  originalStyle: htmlEl.getAttribute('style') || ''
-                })
-                
-                // Both icons and text need to shift UP to center properly
-                
-                // Icons - shift down slightly (1px)
-                const icons = htmlEl.querySelectorAll('img')
-                icons.forEach((icon) => {
-                  const iconEl = icon as HTMLElement
-                  
-                  originalStyles.push({
-                    element: iconEl,
-                    originalStyle: iconEl.getAttribute('style') || ''
-                  })
-                  
-                  // Shift icons DOWN by 1px
-                  iconEl.style.position = 'relative'
-                  iconEl.style.top = '1px'
-                })
-                
-                // Text - shift up more (8px)
-                const textElements = htmlEl.querySelectorAll('span, .text-sm')
-                textElements.forEach((text) => {
-                  const textEl = text as HTMLElement
-                  
-                  originalStyles.push({
-                    element: textEl,
-                    originalStyle: textEl.getAttribute('style') || ''
-                  })
-                  
-                  // Shift text UP by 8px
-                  textEl.style.position = 'relative'
-                  textEl.style.top = '-8px'
-                })
-              })
-              
-              // Fix table cell text alignment
-              const tableCells = fullStockbarElement.querySelectorAll('td, th')
-              tableCells.forEach((cell) => {
-                const cellEl = cell as HTMLElement
-                
-                originalStyles.push({
-                  element: cellEl,
-                  originalStyle: cellEl.getAttribute('style') || ''
-                })
-                
-                // Shift all text content in table cells up by 7px
-                cellEl.style.position = 'relative'
-                cellEl.style.top = '-7px'
-              })
-              
-              // Force browser to reflow/repaint with the new styles
-              fullStockbarElement.offsetHeight // Trigger reflow
-              void fullStockbarElement.offsetWidth // Double reflow for good measure
-              await new Promise(resolve => setTimeout(resolve, 300)) // Wait longer for render
-              
-              // Get actual rendered dimensions
-              const rect = fullStockbarElement.getBoundingClientRect()
-              const actualWidth = rect.width
-              const actualHeight = rect.height
-              
-              // Use html2canvas to capture the full section with all its children
-              const html2canvas = (await import('html2canvas')).default
-              const canvas = await html2canvas(fullStockbarElement, {
-                backgroundColor: '#ffffff',
-                scale: 4, // Much higher quality for crisp lines
-                logging: false,
-                width: actualWidth,
-                height: actualHeight,
-                useCORS: true,
-                allowTaint: true,
-                imageTimeout: 0,
-                letterRendering: true
-              })
-              
-              const dataUrl = canvas.toDataURL('image/png')
-              // Store with profile name + pattern index as key
-              svgImages[`${profile.profile_name}-${patternIdx}`] = dataUrl
-              
-              // Restore original styles
-              originalStyles.forEach(({ element, originalStyle }) => {
-                if (originalStyle) {
-                  element.setAttribute('style', originalStyle)
-                } else {
-                  element.removeAttribute('style')
-                }
-              })
-            } catch (error) {
-              console.error('Error capturing stockbar:', error)
-            }
+              parts.push({ points, fill, partName })
+            })
+            
+            stockbarSvgData.push({
+              profileIdx,
+              patternIdx,
+              profileName: profile.profile_name,
+              svgData: { viewBox, parts }
+            })
           }
         }
       }
       
-      const doc = <CuttingPlanPDF 
-        nestingReport={filteredNestingReport}
-        report={report}
-        projectName={cuttingPlanProjectName}
-        svgImages={svgImages}
-        tolerance={stockToleranceValue}
-        toleranceEnabled={stockToleranceEnabled}
-        trim={trimValue}
-        kerf={kerfValue}
-      />
+      // Load all icons as base64
+      const icons = {
+        logo_main: await loadIconAsBase64('/Icons/Cutwise for pdf main.svg'),
+        logo_small: await loadIconAsBase64('/Icons/Cutwise for pdf main.svg'),
+        project: await loadIconAsBase64('/Icons/profile types icon.svg'),
+        date: await loadIconAsBase64('/Icons/date icon.svg'),
+        weight: await loadIconAsBase64('/Icons/weight card icon.svg'),
+        profile_types: await loadIconAsBase64('/Icons/profile types icon.svg'),
+        cuts: await loadIconAsBase64('/Icons/Cutting quantity icon.svg'),
+        tolerance: await loadIconAsBase64('/Icons/ToleranceForCard.svg'),
+        trim: await loadIconAsBase64('/Icons/TrimForCard.svg'),
+        kerf: await loadIconAsBase64('/Icons/KerfforCard.svg'),
+        length: await loadIconAsBase64('/Icons/length for section.svg'),
+        tolerance_section: await loadIconAsBase64('/Icons/tolerance for section.svg'),
+        waste: await loadIconAsBase64('/Icons/Waste icon.svg'),
+      }
       
-      const asPdf = pdf(doc)
-      const blob = await asPdf.toBlob()
+      // Call backend API with extracted SVG data
+      const response = await fetch('http://localhost:8000/api/generate-cutting-plan-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          nestingReport: filteredNestingReport,
+          projectName: cuttingPlanProjectName || filename.replace('.ifc', ''),
+          tolerance: stockToleranceValue,
+          toleranceEnabled: stockToleranceEnabled,
+          trim: trimValue,
+          kerf: kerfValue,
+          selectedProfiles: Array.from(cuttingPlanSelectedProfiles),
+          stockbarSvgData: stockbarSvgData,
+          icons: icons
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}: ${response.statusText}`)
+      }
+      
+      // Get PDF blob
+      const blob = await response.blob()
+      
+      // Trigger download
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       const downloadName = cuttingPlanProjectName 
@@ -575,14 +561,20 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       // Restore original expanded state
       setExpandedProfiles(originalExpandedProfiles)
       
+      // Hide progress modal
+      setExportProgress({ show: false, current: 0, total: 0 })
+      
       // Close modal after successful export
       setShowCuttingPlanModal(false)
     } catch (error) {
       console.error('Error exporting Cutting Plan to PDF:', error)
       alert('Failed to export Cutting Plan PDF. Please try again.')
       
-      // Restore original expanded state even on error
+      // Restore original expanded state
       setExpandedProfiles(originalExpandedProfiles)
+      
+      // Hide progress modal
+      setExportProgress({ show: false, current: 0, total: 0 })
     }
   }
 
@@ -4877,6 +4869,49 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               >
                 Generate PDF
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Export Progress Modal */}
+        <Dialog open={exportProgress.show} onOpenChange={() => {}}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full" />
+                Generating PDF...
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Processing stockbars</span>
+                  <span className="font-medium">
+                    {exportProgress.current} / {exportProgress.total}
+                  </span>
+                </div>
+                
+                <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
+                  <div 
+                    className="bg-primary h-2.5 transition-all duration-300 ease-out"
+                    style={{ 
+                      width: `${exportProgress.total > 0 ? (exportProgress.current / exportProgress.total) * 100 : 0}%` 
+                    }}
+                  />
+                </div>
+                
+                <p className="text-xs text-muted-foreground text-center">
+                  {exportProgress.current < exportProgress.total 
+                    ? `Capturing stockbar images... ${Math.round((exportProgress.current / exportProgress.total) * 100)}%`
+                    : 'Generating PDF document...'
+                  }
+                </p>
+              </div>
+              
+              <p className="text-xs text-muted-foreground text-center">
+                Please wait, this may take a moment for large projects.
+              </p>
             </div>
           </DialogContent>
         </Dialog>
