@@ -41,11 +41,16 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   tableCell: {
-    padding: 5,
+    paddingTop: 6,
+    paddingBottom: 6,
+    paddingLeft: 5,
+    paddingRight: 5,
     fontSize: 9,
     borderRightWidth: 1,
     borderRightColor: '#bfbfbf',
     borderRightStyle: 'solid',
+    display: 'flex',
+    alignItems: 'center',
   },
   tableCellHeader: {
     fontWeight: 'bold',
@@ -1155,86 +1160,6 @@ export const CuttingPlanPDF: React.FC<CuttingPlanPDFProps> = ({
                 ) : (
                   <StockBarVisualization pattern={pattern} profileName={profile.profile_name} />
                 )}
-              
-              <View style={styles.table}>
-                <View style={[styles.tableRow, styles.tableHeader]}>
-                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '8%' }]}>Number</Text>
-                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '20%' }]}>Profile Name</Text>
-                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '20%' }]}>Part Name</Text>
-                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '15%' }]}>Cut Length (mm)</Text>
-                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '10%' }]}>Quantity</Text>
-                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '13%' }]}>Start Angle</Text>
-                  <Text style={[styles.tableCell, styles.tableCellHeader, { width: '14%' }]}>End Angle</Text>
-                </View>
-                {(() => {
-                  const partGroups = new Map<string, { name: string, length: number, count: number, startAngle: any, endAngle: any }>()
-                  
-                  pattern.parts.forEach((part) => {
-                    const partData = part?.part || {}
-                    const partName = partData.reference || partData.element_name || 'Unknown'
-                    const partLength = part?.length || 0
-                    const startAngle = partData.start_angle
-                    const endAngle = partData.end_angle
-                    const key = `${partName}|${partLength.toFixed(2)}`
-                    
-                    if (partGroups.has(key)) {
-                      partGroups.get(key)!.count += 1
-                    } else {
-                      partGroups.set(key, {
-                        name: partName,
-                        length: partLength,
-                        count: 1,
-                        startAngle: startAngle,
-                        endAngle: endAngle
-                      })
-                    }
-                  })
-                  
-                  const sortedGroups = Array.from(partGroups.values()).sort((a, b) => b.length - a.length)
-                  
-                  const formatAngle = (angle: any) => {
-                    if (angle === null || angle === undefined) return '90.0°'
-                    
-                    let numericAngle: number
-                    if (typeof angle === 'number') {
-                      numericAngle = angle
-                    } else if (typeof angle === 'string') {
-                      const match = angle.match(/-?\d+(\.\d+)?/)
-                      numericAngle = match ? parseFloat(match[0]) : 90
-                    } else {
-                      return '90.0°'
-                    }
-                    
-                    return `${numericAngle.toFixed(1)}°`
-                  }
-                  
-                  return sortedGroups.map((group, idx) => (
-                    <View key={idx} style={styles.tableRow}>
-                      <Text style={[styles.tableCell, styles.textRight, { width: '8%' }]}>
-                        {idx + 1}
-                      </Text>
-                      <Text style={[styles.tableCell, { width: '20%' }]}>
-                        {profile.profile_name}
-                      </Text>
-                      <Text style={[styles.tableCell, { width: '20%' }]}>
-                        {group.name}
-                      </Text>
-                      <Text style={[styles.tableCell, styles.textRight, { width: '15%' }]}>
-                        {Math.round(group.length)}
-                      </Text>
-                      <Text style={[styles.tableCell, styles.textRight, { width: '10%' }]}>
-                        {group.count}
-                      </Text>
-                      <Text style={[styles.tableCell, styles.textRight, { width: '13%' }]}>
-                        {formatAngle(group.startAngle)}
-                      </Text>
-                      <Text style={[styles.tableCell, styles.textRight, { width: '14%' }]}>
-                        {formatAngle(group.endAngle)}
-                      </Text>
-                    </View>
-                  ))
-                })()}
-              </View>
             </View>
               )
             })}

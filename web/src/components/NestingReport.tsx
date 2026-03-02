@@ -435,21 +435,79 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
           const fullStockbarElement = document.getElementById(`stockbar-full-${originalProfileIdx}-${patternIdx}`) as HTMLElement
           if (fullStockbarElement) {
             try {
-              // Store original styles to restore later
-              const flexContainers = fullStockbarElement.querySelectorAll('.flex.items-center')
-              const originalStyles: { element: HTMLElement; display: string; alignItems: string }[] = []
+              // Store original styles to restore later  
+              const originalStyles: Array<{
+                element: HTMLElement
+                originalStyle: string
+              }> = []
               
-              // Force explicit vertical alignment styles on flex containers
-              flexContainers.forEach((el) => {
-                const htmlEl = el as HTMLElement
+              // html2canvas has issues with flexbox vertical alignment
+              // Apply different positioning for icons vs text
+              
+              // Target all settings boxes (with border and padding)
+              const settingsBoxes = fullStockbarElement.querySelectorAll('.border.rounded-lg')
+              
+              settingsBoxes.forEach((box) => {
+                const htmlEl = box as HTMLElement
+                
+                // Save box original style
                 originalStyles.push({
                   element: htmlEl,
-                  display: htmlEl.style.display,
-                  alignItems: htmlEl.style.alignItems
+                  originalStyle: htmlEl.getAttribute('style') || ''
                 })
-                htmlEl.style.display = 'flex'
-                htmlEl.style.alignItems = 'center'
+                
+                // Both icons and text need to shift UP to center properly
+                
+                // Icons - shift down slightly (1px)
+                const icons = htmlEl.querySelectorAll('img')
+                icons.forEach((icon) => {
+                  const iconEl = icon as HTMLElement
+                  
+                  originalStyles.push({
+                    element: iconEl,
+                    originalStyle: iconEl.getAttribute('style') || ''
+                  })
+                  
+                  // Shift icons DOWN by 1px
+                  iconEl.style.position = 'relative'
+                  iconEl.style.top = '1px'
+                })
+                
+                // Text - shift up more (8px)
+                const textElements = htmlEl.querySelectorAll('span, .text-sm')
+                textElements.forEach((text) => {
+                  const textEl = text as HTMLElement
+                  
+                  originalStyles.push({
+                    element: textEl,
+                    originalStyle: textEl.getAttribute('style') || ''
+                  })
+                  
+                  // Shift text UP by 8px
+                  textEl.style.position = 'relative'
+                  textEl.style.top = '-8px'
+                })
               })
+              
+              // Fix table cell text alignment
+              const tableCells = fullStockbarElement.querySelectorAll('td, th')
+              tableCells.forEach((cell) => {
+                const cellEl = cell as HTMLElement
+                
+                originalStyles.push({
+                  element: cellEl,
+                  originalStyle: cellEl.getAttribute('style') || ''
+                })
+                
+                // Shift all text content in table cells up by 7px
+                cellEl.style.position = 'relative'
+                cellEl.style.top = '-7px'
+              })
+              
+              // Force browser to reflow/repaint with the new styles
+              fullStockbarElement.offsetHeight // Trigger reflow
+              void fullStockbarElement.offsetWidth // Double reflow for good measure
+              await new Promise(resolve => setTimeout(resolve, 300)) // Wait longer for render
               
               // Get actual rendered dimensions
               const rect = fullStockbarElement.getBoundingClientRect()
@@ -475,11 +533,12 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               svgImages[`${profile.profile_name}-${patternIdx}`] = dataUrl
               
               // Restore original styles
-              originalStyles.forEach(({ element, display, alignItems }) => {
-                if (display) element.style.display = display
-                else element.style.removeProperty('display')
-                if (alignItems) element.style.alignItems = alignItems
-                else element.style.removeProperty('align-items')
+              originalStyles.forEach(({ element, originalStyle }) => {
+                if (originalStyle) {
+                  element.setAttribute('style', originalStyle)
+                } else {
+                  element.removeAttribute('style')
+                }
               })
             } catch (error) {
               console.error('Error capturing stockbar:', error)
