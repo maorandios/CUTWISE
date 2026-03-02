@@ -400,15 +400,15 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       return
     }
 
+    // Save original expanded state before try block
+    const originalExpandedProfiles = new Set(expandedProfiles)
+
     try {
       // Filter nesting report to only include selected profiles
       const filteredNestingReport = {
         ...nestingReport,
         profiles: nestingReport.profiles.filter(p => cuttingPlanSelectedProfiles.has(p.profile_name))
       }
-      
-      // Save original expanded state
-      const originalExpandedProfiles = new Set(expandedProfiles)
       
       // Temporarily expand all selected profiles to ensure DOM elements exist
       const newExpanded = new Set(expandedProfiles)
@@ -552,6 +552,10 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         report={report}
         projectName={cuttingPlanProjectName}
         svgImages={svgImages}
+        tolerance={stockToleranceValue}
+        toleranceEnabled={stockToleranceEnabled}
+        trim={trimValue}
+        kerf={kerfValue}
       />
       
       const asPdf = pdf(doc)
