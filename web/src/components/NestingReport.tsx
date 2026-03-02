@@ -1662,10 +1662,76 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                     <div>
             {/* Section 2: Cutting Patterns */}
             <div className="page-break-before">
-              {/* Profile Filter Multi-Select with Full Width Gray Background */}
-              <div className="bg-[#FAFAFA] py-8 mb-6 -mt-6" style={{ marginLeft: 'calc(-50vw + 50% + 24px)', marginRight: 'calc(-50vw + 50% + 24px)' }}>
-                <div className="max-w-[1440px] mx-auto px-6">
-                  <div className="flex items-end gap-4">
+              {/* Cutting Settings Cards */}
+              {(() => {
+                // Calculate total cuts for all profiles
+                let totalCutsQty = 0
+                
+                nestingReport.profiles.forEach(profile => {
+                  Object.entries(profile.stock_lengths_used)
+                    .filter(([_, barCount]) => barCount > 0)
+                    .forEach(([stockLengthStr, barCount]) => {
+                      const stockLength = parseFloat(stockLengthStr)
+                      const patternsForThisStock = profile.cutting_patterns.filter(
+                        p => Math.abs(p.stock_length - stockLength) < 0.01
+                      )
+                      const cuts = patternsForThisStock.reduce((sum, pattern) => {
+                        return sum + Math.max(0, pattern.parts.length - 1)
+                      }, 0)
+                      totalCutsQty += cuts
+                    })
+                })
+                
+                return (
+                  <div className="bg-[#FAFAFA] py-8 -mt-6" style={{ marginLeft: 'calc(-50vw + 50% + 24px)', marginRight: 'calc(-50vw + 50% + 24px)' }}>
+                    <div className="max-w-[1440px] mx-auto px-6">
+                      <div className="grid grid-cols-4 divide-x divide-gray-200">
+                        {/* Tolerance Card */}
+                        <div className="flex flex-col items-center justify-center text-center py-9">
+                          <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                            <img src="/Icons/ToleranceForCard.svg" alt="Tolerance" className="h-8 w-8" />
+                          </div>
+                          <p className="text-3xl font-bold text-primary mb-2">
+                            {stockToleranceEnabled ? `${stockToleranceValue.toFixed(0)}mm` : 'OFF'}
+                          </p>
+                          <p className="text-sm text-muted-foreground">Stockbar Tolerance</p>
+                        </div>
+                        
+                        {/* Trim Card */}
+                        <div className="flex flex-col items-center justify-center text-center py-9">
+                          <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                            <img src="/Icons/TrimForCard.svg" alt="Trim" className="h-8 w-8" />
+                          </div>
+                          <p className="text-3xl font-bold text-primary mb-2">{trimValue.toFixed(0)}mm</p>
+                          <p className="text-sm text-muted-foreground">Manual Trim</p>
+                        </div>
+                        
+                        {/* Kerf Card */}
+                        <div className="flex flex-col items-center justify-center text-center py-9">
+                          <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                            <img src="/Icons/KerfforCard.svg" alt="Kerf" className="h-8 w-8" />
+                          </div>
+                          <p className="text-3xl font-bold text-primary mb-2">{kerfValue.toFixed(0)}mm</p>
+                          <p className="text-sm text-muted-foreground">Saw Kerf</p>
+                        </div>
+                        
+                        {/* Cuts Quantity Card */}
+                        <div className="flex flex-col items-center justify-center text-center py-9">
+                          <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                            <img src="/Icons/qty of cuts.svg?v=2" alt="Cuts" className="h-8 w-8" />
+                          </div>
+                          <p className="text-3xl font-bold text-primary mb-2">{totalCutsQty}</p>
+                          <p className="text-sm text-muted-foreground">Cuts Quantity</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+              
+              {/* Profile Filter Multi-Select */}
+              <div className="py-8 mb-6">
+                <div className="flex items-end gap-4">
                     <div className="flex-1 max-w-md">
                       <Label className="mb-2 block text-sm font-medium">
                         Filter Profiles
@@ -1786,7 +1852,6 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                       </Button>
                     </div>
                   </div>
-                </div>
               </div>
               
               {(() => {
@@ -4499,6 +4564,48 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
             </DialogHeader>
 
             <div className="space-y-8 py-6">
+              {/* Summary Cards */}
+              {(() => {
+                const selectedProfilesCount = bomSelectedProfiles.size
+                const totalWeight = nestingReport && report ? 
+                  nestingReport.profiles
+                    .filter(profile => bomSelectedProfiles.has(profile.profile_name))
+                    .reduce((sum, profile) => {
+                      const profileData = report.profiles.find(p => p.profile_name === profile.profile_name)
+                      return sum + (profileData ? profileData.total_weight / 1000 : 0)
+                    }, 0) : 0
+                
+                return (
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Profile Types Card */}
+                    <div className="border rounded-lg p-4 bg-muted/20">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          <img src="/Icons/Profile qty.svg?v=2" alt="Profile" className="h-6 w-6" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold text-primary">{selectedProfilesCount}</p>
+                          <p className="text-xs text-muted-foreground">Profile Types</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Weight Card */}
+                    <div className="border rounded-lg p-4 bg-muted/20">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          <img src="/Icons/tonnage icon.svg?v=2" alt="Weight" className="h-6 w-6" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold text-primary">{totalWeight.toFixed(3)} <span className="text-sm">(t)</span></p>
+                          <p className="text-xs text-muted-foreground">Total Weight</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+
               {/* Project Name Input */}
               <div className="space-y-2">
                 <Label htmlFor="bomProjectName">
@@ -4527,21 +4634,32 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                     const tonnage = profileData ? (profileData.total_weight / 1000).toFixed(3) : '0.000'
                     
                     return (
-                      <label key={profile.profile_name} className="flex items-center gap-3 p-2 hover:bg-muted/50 rounded cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={bomSelectedProfiles.has(profile.profile_name)}
-                          onChange={(e) => {
-                            const newSet = new Set(bomSelectedProfiles)
-                            if (e.target.checked) {
-                              newSet.add(profile.profile_name)
-                            } else {
-                              newSet.delete(profile.profile_name)
-                            }
-                            setBomSelectedProfiles(newSet)
-                          }}
-                          className="w-4 h-4 rounded border-input"
-                        />
+                      <label 
+                        key={profile.profile_name} 
+                        className="flex items-center gap-3 p-2 hover:bg-muted/50 rounded cursor-pointer"
+                        onClick={() => {
+                          const newSet = new Set(bomSelectedProfiles)
+                          if (bomSelectedProfiles.has(profile.profile_name)) {
+                            newSet.delete(profile.profile_name)
+                          } else {
+                            newSet.add(profile.profile_name)
+                          }
+                          setBomSelectedProfiles(newSet)
+                        }}
+                      >
+                        <div
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                            bomSelectedProfiles.has(profile.profile_name)
+                              ? 'bg-[#008A67] border-[#008A67]'
+                              : 'border-input bg-white'
+                          }`}
+                        >
+                          {bomSelectedProfiles.has(profile.profile_name) && (
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
                         <span className="text-sm">{profile.profile_name}</span>
                         <span className="text-xs text-muted-foreground ml-auto">
                           {tonnage} tonnes
@@ -4608,6 +4726,48 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
             </DialogHeader>
 
             <div className="space-y-8 py-6">
+              {/* Summary Cards */}
+              {(() => {
+                const selectedProfilesCount = cuttingPlanSelectedProfiles.size
+                const totalWeight = nestingReport && report ? 
+                  nestingReport.profiles
+                    .filter(profile => cuttingPlanSelectedProfiles.has(profile.profile_name))
+                    .reduce((sum, profile) => {
+                      const profileData = report.profiles.find(p => p.profile_name === profile.profile_name)
+                      return sum + (profileData ? profileData.total_weight / 1000 : 0)
+                    }, 0) : 0
+                
+                return (
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Profile Types Card */}
+                    <div className="border rounded-lg p-4 bg-muted/20">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          <img src="/Icons/Profile qty.svg?v=2" alt="Profile" className="h-6 w-6" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold text-primary">{selectedProfilesCount}</p>
+                          <p className="text-xs text-muted-foreground">Profile Types</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Weight Card */}
+                    <div className="border rounded-lg p-4 bg-muted/20">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          <img src="/Icons/tonnage icon.svg?v=2" alt="Weight" className="h-6 w-6" />
+                        </div>
+                        <div>
+                          <p className="text-2xl font-bold text-primary">{totalWeight.toFixed(3)} <span className="text-sm">(t)</span></p>
+                          <p className="text-xs text-muted-foreground">Total Weight</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+
               {/* Project Name Input */}
               <div className="space-y-2">
                 <Label htmlFor="cuttingPlanProjectName">
@@ -4636,21 +4796,32 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                     const tonnage = profileData ? (profileData.total_weight / 1000).toFixed(3) : '0.000'
                     
                     return (
-                      <label key={profile.profile_name} className="flex items-center gap-3 p-2 hover:bg-muted/50 rounded cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={cuttingPlanSelectedProfiles.has(profile.profile_name)}
-                          onChange={(e) => {
-                            const newSet = new Set(cuttingPlanSelectedProfiles)
-                            if (e.target.checked) {
-                              newSet.add(profile.profile_name)
-                            } else {
-                              newSet.delete(profile.profile_name)
-                            }
-                            setCuttingPlanSelectedProfiles(newSet)
-                          }}
-                          className="w-4 h-4 rounded border-input"
-                        />
+                      <label 
+                        key={profile.profile_name} 
+                        className="flex items-center gap-3 p-2 hover:bg-muted/50 rounded cursor-pointer"
+                        onClick={() => {
+                          const newSet = new Set(cuttingPlanSelectedProfiles)
+                          if (cuttingPlanSelectedProfiles.has(profile.profile_name)) {
+                            newSet.delete(profile.profile_name)
+                          } else {
+                            newSet.add(profile.profile_name)
+                          }
+                          setCuttingPlanSelectedProfiles(newSet)
+                        }}
+                      >
+                        <div
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                            cuttingPlanSelectedProfiles.has(profile.profile_name)
+                              ? 'bg-[#008A67] border-[#008A67]'
+                              : 'border-input bg-white'
+                          }`}
+                        >
+                          {cuttingPlanSelectedProfiles.has(profile.profile_name) && (
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
                         <span className="text-sm">{profile.profile_name}</span>
                         <span className="text-xs text-muted-foreground ml-auto">
                           {tonnage} tonnes
