@@ -470,21 +470,24 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         
         for (let patternIdx = 0; patternIdx < profile.cutting_patterns.length; patternIdx++) {
           const svgElement = document.getElementById(`stockbar-svg-${profileIdx}-${patternIdx}`)
+          const containerElement = document.getElementById(`stockbar-container-${profileIdx}-${patternIdx}`)
           
-          if (svgElement) {
+          if (svgElement && containerElement) {
             const viewBox = svgElement.getAttribute('viewBox') || '0 0 1000 60'
             const polygons = svgElement.querySelectorAll('polygon')
+            
+            // Get the part number labels from the container (they are div overlays)
+            const labelDivs = containerElement.querySelectorAll('div[style*="position: absolute"]')
+            const partNumbers = Array.from(labelDivs).map(div => div.textContent?.trim() || '')
+            
             const parts: Array<{points: string, fill: string, partName: string}> = []
             
-            polygons.forEach((polygon) => {
+            polygons.forEach((polygon, idx) => {
               const points = polygon.getAttribute('points') || ''
               const fill = polygon.getAttribute('fill') || '#ccc'
-              const title = polygon.querySelector('title')
-              const titleText = title?.textContent || ''
               
-              // Extract part name from title (format: "Profile: X | Part: Y | Length: Z...")
-              const partMatch = titleText.match(/Part:\s*([^|]+)/)
-              const partName = partMatch ? partMatch[1].trim() : ''
+              // Use the part number from the label div overlay
+              const partName = partNumbers[idx] || String(idx + 1)
               
               // Skip if no points data
               if (!points) return
@@ -516,6 +519,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         kerf: await loadIconAsBase64('/Icons/KerfforCard.svg'),
         length: await loadIconAsBase64('/Icons/length for section.svg'),
         tolerance_section: await loadIconAsBase64('/Icons/tolerance for section.svg'),
+        trim_section: await loadIconAsBase64('/Icons/trim for section.svg'),
+        kerf_section: await loadIconAsBase64('/Icons/kerf for section.svg'),
         waste: await loadIconAsBase64('/Icons/Waste icon.svg'),
       }
       

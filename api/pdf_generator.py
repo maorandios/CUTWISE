@@ -280,124 +280,126 @@ class CuttingPlanPDFGenerator:
         }}
         
         .stockbar-section {{
-            margin-bottom: 20px;
+            margin-bottom: 12px;
+            padding: 10px;
+            background: white;
+            border-radius: 10px;
         }}
         
         .stockbar-title {{
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             color: #6B7280;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }}
         
         .stockbar-info {{
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }}
         
         .info-boxes {{
             display: flex;
-            gap: 0;
+            align-items: center;
+            gap: 10px;
+            padding: 4px 10px;
+            border: 1px solid #E5E7EB;
+            border-radius: 6px;
+            background: rgba(250, 250, 250, 0.2);
         }}
         
         .info-box {{
             display: inline-flex;
             align-items: center;
-            padding: 4px 12px;
-            border: 1px solid #E5E7EB;
-            background: rgba(250, 250, 250, 0.2);
+            gap: 5px;
             font-size: 12px;
             font-weight: 500;
         }}
         
-        .info-box:first-child {{
-            border-radius: 8px 0 0 8px;
-        }}
-        
-        .info-box:last-child {{
-            border-radius: 0 8px 8px 0;
-        }}
-        
-        .info-box:not(:last-child) {{
-            border-right: none;
-        }}
-        
         .info-icon {{
-            width: 16px;
-            height: 16px;
-            margin-right: 6px;
-            position: relative;
-            top: 1px;
+            width: 14px;
+            height: 14px;
         }}
         
         .info-text {{
-            position: relative;
-            top: -8px;
+            color: #374151;
         }}
         
         .divider {{
             width: 1px;
-            height: 16px;
+            height: 14px;
             background: #E5E7EB;
-            margin: 0 12px;
         }}
         
         .waste-box {{
-            padding: 4px 12px;
+            padding: 4px 10px;
             border: 1px solid #E5E7EB;
-            border-radius: 8px;
+            border-radius: 6px;
             background: rgba(250, 250, 250, 0.2);
             font-size: 12px;
             font-weight: 500;
             display: flex;
             align-items: center;
+            gap: 5px;
         }}
         
         .waste-box.good {{
             background: rgba(28, 185, 126, 0.12);
             border-color: rgba(0, 129, 122, 0.4);
+        }}
+        
+        .waste-box.good .info-text {{
             color: #00312F;
         }}
         
         .stockbar-visual {{
-            margin: 12px 0;
+            margin: 16px 0 12px 0;
             height: 60px;
             border: 1px solid #D1D5DB;
             border-radius: 4px;
             position: relative;
             background: white;
+            overflow: hidden;
         }}
         
         .cutting-table {{
             width: 65%;
-            margin-top: 12px;
+            margin-top: 10px;
             border-collapse: collapse;
             font-size: 12px;
         }}
         
         .cutting-table thead tr {{
-            background: rgba(156, 163, 175, 0.6);
-        }}
-        
-        .cutting-table th {{
-            padding: 6px 8px;
-            text-align: left;
-            font-weight: 600;
-            color: #374151;
+            background: #F3F4F6;
             border-bottom: 1px solid #D1D5DB;
         }}
         
-        .cutting-table td {{
-            padding: 6px 8px;
-            border-bottom: 1px solid #E5E7EB;
-            position: relative;
-            top: -7px;
+        .cutting-table th {{
+            height: 32px;
+            padding: 6px 10px;
+            text-align: left;
+            font-weight: 500;
+            font-size: 12px;
+            color: #4B5563;
+            vertical-align: middle;
+            white-space: nowrap;
         }}
         
-        .cutting-table tbody tr:last-child td {{
+        .cutting-table tbody tr {{
+            border-bottom: 1px solid #E5E7EB;
+        }}
+        
+        .cutting-table tbody tr:last-child {{
             border-bottom: none;
+        }}
+        
+        .cutting-table td {{
+            padding: 7px 10px;
+            vertical-align: middle;
+            color: #374151;
+            font-size: 12px;
         }}
     </style>
 </head>
@@ -644,12 +646,12 @@ class CuttingPlanPDFGenerator:
             <div class="divider"></div>
             {tolerance_html}
             <div class="info-box">
-                <img src="data:image/svg+xml;base64,{icons.get('trim', '')}" class="info-icon" />
+                <img src="data:image/svg+xml;base64,{icons.get('trim_section', icons.get('trim', ''))}" class="info-icon" />
                 <span class="info-text">{trim:.0f}mm</span>
             </div>
             <div class="divider"></div>
             <div class="info-box">
-                <img src="data:image/svg+xml;base64,{icons.get('kerf', '')}" class="info-icon" />
+                <img src="data:image/svg+xml;base64,{icons.get('kerf_section', icons.get('kerf', ''))}" class="info-icon" />
                 <span class="info-text">{kerf:.0f}mm</span>
             </div>
         </div>
@@ -688,9 +690,10 @@ class CuttingPlanPDFGenerator:
                 part_name = part_data.get('partName', '')
                 
                 # Render polygon exactly as it was in the browser
-                svg_parts.append(f'<polygon points="{points}" fill="{fill}" stroke="#9ca3af" stroke-width="1" stroke-linejoin="miter" />')
+                # Match the app's polygon styling: rgba(156, 163, 175, 0.1) fill, #9ca3af stroke
+                svg_parts.append(f'<polygon points="{points}" fill="rgba(156, 163, 175, 0.1)" stroke="#9ca3af" stroke-width="1" stroke-linejoin="miter" shape-rendering="crispEdges" />')
                 
-                # Add label if part name exists
+                # Add part number label (matching app's styling)
                 if part_name and points:
                     # Calculate center of polygon for label placement
                     try:
@@ -701,7 +704,9 @@ class CuttingPlanPDFGenerator:
                             y_coords = [coords[i] for i in range(1, len(coords), 2)]
                             center_x = sum(x_coords) / len(x_coords)
                             center_y = sum(y_coords) / len(y_coords)
-                            svg_parts.append(f'<text x="{center_x}" y="{center_y + 4}" text-anchor="middle" font-size="10" fill="#000">{part_name[:10]}</text>')
+                            # Display part NUMBER (1, 2, 3...) not the part name
+                            # Use app's text styling: 12px, medium weight, #374151 color
+                            svg_parts.append(f'<text x="{center_x}" y="{center_y + 4}" text-anchor="middle" font-size="12" font-weight="500" fill="#374151" font-family="system-ui, -apple-system, sans-serif">{part_name}</text>')
                     except:
                         pass
             
@@ -749,13 +754,13 @@ class CuttingPlanPDFGenerator:
             
             rows_html += f"""
                 <tr>
-                    <td>{idx + 1}</td>
-                    <td>{profile_name}</td>
-                    <td>{group['name']}</td>
-                    <td>{group['length']:.0f}</td>
-                    <td>{group['count']}</td>
-                    <td>{start_angle_str}</td>
-                    <td>{end_angle_str}</td>
+                    <td style="width: 6%;">{idx + 1}</td>
+                    <td style="width: 24%;">{profile_name}</td>
+                    <td style="width: 14%;">{group['name']}</td>
+                    <td style="width: 14%;">{group['length']:,.0f}</td>
+                    <td style="width: 14%;">{group['count']}</td>
+                    <td style="width: 14%;">{start_angle_str}</td>
+                    <td style="width: 14%;">{end_angle_str}</td>
                 </tr>
             """
         
