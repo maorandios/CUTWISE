@@ -22,6 +22,9 @@ COPY . .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r api/requirements.txt
 
+# Install Playwright browsers
+RUN python -m playwright install --with-deps chromium
+
 # Install Node dependencies and build frontend
 WORKDIR /app/web
 RUN npm install && npm run build
