@@ -509,20 +509,32 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       const icons = {
         logo_main: await loadIconAsBase64('/Icons/Cutwise for pdf main.svg'),
         logo_small: await loadIconAsBase64('/Icons/Cutwise for pdf main.svg'),
-        project: await loadIconAsBase64('/Icons/profile types icon.svg'),
-        date: await loadIconAsBase64('/Icons/date icon.svg'),
-        weight: await loadIconAsBase64('/Icons/weight card icon.svg'),
-        profile_types: await loadIconAsBase64('/Icons/profile types icon.svg'),
-        cuts: await loadIconAsBase64('/Icons/Cutting quantity icon.svg'),
+        // Cover page icons (pdf- prefix)
+        pdf_project_name: await loadIconAsBase64('/Icons/pdf-ProjectName.svg'),
+        pdf_date: await loadIconAsBase64('/Icons/pdf-Date.svg'),
+        pdf_weight: await loadIconAsBase64('/Icons/pdf-Weight.svg'),
+        pdf_profile_type: await loadIconAsBase64('/Icons/pdf-Profiletype.svg'),
+        pdf_cutting_qty: await loadIconAsBase64('/Icons/pdf-Cuttinqty.svg'),
+        // Settings icons for cover page
         tolerance: await loadIconAsBase64('/Icons/ToleranceForCard.svg'),
         trim: await loadIconAsBase64('/Icons/TrimForCard.svg'),
         kerf: await loadIconAsBase64('/Icons/KerfforCard.svg'),
+        // Section icons
         length: await loadIconAsBase64('/Icons/length for section.svg'),
         tolerance_section: await loadIconAsBase64('/Icons/tolerance for section.svg'),
         trim_section: await loadIconAsBase64('/Icons/trim for section.svg'),
         kerf_section: await loadIconAsBase64('/Icons/kerf for section.svg'),
         waste: await loadIconAsBase64('/Icons/Waste icon.svg'),
       }
+      
+      // Calculate total weight from original report data
+      const totalWeight = nestingReport && report ?
+        nestingReport.profiles
+          .filter(profile => cuttingPlanSelectedProfiles.has(profile.profile_name))
+          .reduce((sum, profile) => {
+            const profileData = report.profiles.find(p => p.profile_name === profile.profile_name)
+            return sum + (profileData ? profileData.total_weight / 1000 : 0)
+          }, 0) : 0
       
       // Call backend API with extracted SVG data
       const response = await fetch('http://localhost:8000/api/generate-cutting-plan-pdf', {
@@ -539,6 +551,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
           kerf: kerfValue,
           selectedProfiles: Array.from(cuttingPlanSelectedProfiles),
           stockbarSvgData: stockbarSvgData,
+          totalWeight: totalWeight,
           icons: icons
         })
       })

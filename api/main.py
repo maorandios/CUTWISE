@@ -4812,6 +4812,7 @@ async def generate_cutting_plan_pdf(request: Request):
         
         # Get extracted SVG data from browser
         stockbar_svg_data = data.get('stockbarSvgData', [])
+        total_weight = data.get('totalWeight', 0)
         
         # Prepare input data
         input_data = {
@@ -4823,6 +4824,7 @@ async def generate_cutting_plan_pdf(request: Request):
             'kerf': kerf,
             'selectedProfiles': selected_profiles,
             'stockbarSvgData': stockbar_svg_data,
+            'totalWeight': total_weight,
             'icons': icons
         }
         

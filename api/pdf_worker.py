@@ -24,7 +24,8 @@ try:
             kerf=input_data['kerf'],
             selected_profiles=input_data['selectedProfiles'],
             icons=input_data['icons'],
-            stockbar_svg_data=input_data.get('stockbarSvgData', [])
+            stockbar_svg_data=input_data.get('stockbarSvgData', []),
+            total_weight=input_data.get('totalWeight', 0)
         )
         
         # Write PDF bytes to stdout

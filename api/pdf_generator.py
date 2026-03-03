@@ -29,7 +29,8 @@ class CuttingPlanPDFGenerator:
         kerf: float,
         selected_profiles: List[str],
         icons: Dict[str, str],  # base64 encoded icons
-        stockbar_svg_data: List[Dict[str, Any]] = None  # Extracted SVG polygon data from browser
+        stockbar_svg_data: List[Dict[str, Any]] = None,  # Extracted SVG polygon data from browser
+        total_weight: float = 0  # Total weight in tonnes, pre-calculated from frontend
     ) -> bytes:
         """Generate PDF from nesting report data."""
         
@@ -47,23 +48,46 @@ class CuttingPlanPDFGenerator:
                 kerf=kerf,
                 selected_profiles=selected_profiles,
                 icons=icons,
-                stockbar_svg_data=stockbar_svg_data
+                stockbar_svg_data=stockbar_svg_data,
+                total_weight=total_weight
             )
             
             # Set content and wait for rendering
             page.set_content(html_content, wait_until='networkidle')
             
-            # Generate PDF
+            # Generate PDF with footer (except cover page)
+            from datetime import datetime
+            current_date = datetime.now().strftime("%d %b %Y")
+            
+            footer_template = f"""
+            <div style="width: 100%; font-size: 9px; padding: 7px 40px; border-top: 1px solid #E5E7EB; display: flex; justify-content: space-between; align-items: center; color: #6B7280; background: white;">
+                <div>
+                    <img src="data:image/svg+xml;base64,{icons.get('logo_small', '')}" style="width: 80px; height: 28px; display: block;" />
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span><strong>Date:</strong> {current_date}</span>
+                    <span style="color: #D1D5DB;">•</span>
+                    <span><strong>Project Name:</strong> {project_name}</span>
+                    <span style="color: #D1D5DB;">•</span>
+                    <span><strong>Page:</strong> <span class="pageNumber"></span> of <span class="totalPages"></span></span>
+                </div>
+            </div>
+            """
+            
             pdf_bytes = page.pdf(
                 format='A4',
                 landscape=True,
                 print_background=True,
+                display_header_footer=True,
+                header_template='<div></div>',
+                footer_template=footer_template,
                 margin={
                     'top': '0mm',
                     'right': '0mm',
-                    'bottom': '0mm',
+                    'bottom': '12mm',
                     'left': '0mm'
-                }
+                },
+                prefer_css_page_size=True
             )
             
             browser.close()
@@ -79,12 +103,16 @@ class CuttingPlanPDFGenerator:
         kerf: float,
         selected_profiles: List[str],
         icons: Dict[str, str],
-        stockbar_svg_data: List[Dict[str, Any]] = None
+        stockbar_svg_data: List[Dict[str, Any]] = None,
+        total_weight: float = 0
     ) -> str:
         """Generate HTML content that matches the React PDF design."""
         
+        from datetime import datetime
+        current_date = datetime.now().strftime("%d %b %Y")
+        
         # Calculate totals for cover page
-        totals = self._calculate_totals(nesting_report, selected_profiles)
+        totals = self._calculate_totals(nesting_report, selected_profiles, total_weight)
         
         # Calculate total pages early for cover page
         profiles = [p for p in nesting_report.get('profiles', []) 
@@ -104,15 +132,16 @@ class CuttingPlanPDFGenerator:
             icons=icons
         )
         
-        # Generate cutting plan pages
+        # Generate cutting plan pages - group stockbars by profile
         cutting_pages_html = ""
         page_num = 2  # Start from 2 (cover is page 1)
         
-        for profile in profiles:
+        for profile_idx, profile in enumerate(profiles):
             profile_name = profile.get('profile_name', 'Unknown')
             cutting_patterns = profile.get('cutting_patterns', [])
             
-            # Generate one page per stockbar
+            # Start new page for each profile
+            stockbars_html = ""
             for idx, pattern in enumerate(cutting_patterns):
                 # Find matching SVG data for this stockbar
                 svg_data = None
@@ -122,13 +151,10 @@ class CuttingPlanPDFGenerator:
                             svg_data = svg_item.get('svgData')
                             break
                 
-                cutting_pages_html += self._generate_stockbar_page(
-                    profile_name=profile_name,
+                stockbars_html += self._generate_stockbar_section(
                     pattern=pattern,
                     pattern_idx=idx,
-                    project_name=project_name,
-                    page_num=page_num,
-                    total_pages=total_pages,
+                    profile_name=profile_name,
                     tolerance=tolerance,
                     tolerance_enabled=tolerance_enabled,
                     trim=trim,
@@ -136,7 +162,16 @@ class CuttingPlanPDFGenerator:
                     icons=icons,
                     svg_data=svg_data
                 )
-                page_num += 1
+            
+            cutting_pages_html += self._generate_profile_page(
+                profile_name=profile_name,
+                stockbars_html=stockbars_html,
+                project_name=project_name,
+                page_num=page_num,
+                total_pages=total_pages,
+                icons=icons
+            )
+            page_num += 1
         
         # Combine everything
         html = f"""
@@ -154,28 +189,42 @@ class CuttingPlanPDFGenerator:
         
         @page {{
             size: A4 landscape;
-            margin: 0;
+            margin: 40px 0 12mm 0;
+        }}
+        
+        @page :first {{
+            margin: 0 0 12mm 0;
         }}
         
         body {{
             font-family: 'Helvetica', 'Arial', sans-serif;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+            counter-reset: page-counter;
         }}
         
         .page {{
             width: {self.page_width}mm;
             height: {self.page_height}mm;
-            page-break-after: always;
             position: relative;
             background: white;
         }}
         
-        .page:last-child {{
-            page-break-after: auto;
+        .profile-section {{
+            width: {self.page_width}mm;
+            position: relative;
+            background: white;
         }}
         
-        /* Footer styles */
+        .page + .profile-section {{
+            page-break-before: avoid;
+        }}
+        
+        .profile-section ~ .profile-section {{
+            page-break-before: always;
+        }}
+        
+        /* Footer styles (for cover page only) */
         .footer {{
             position: absolute;
             bottom: 0;
@@ -208,119 +257,142 @@ class CuttingPlanPDFGenerator:
         
         /* Cover page styles */
         .cover-logo-container {{
-            padding: 40px 0;
+            padding: 20px 0;
             background-color: #F5F5F5;
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }}
         
-        .cover-info-section {{
-            display: flex;
-            justify-content: space-between;
-            padding: 0 60px 10px;
-        }}
-        
-        .cover-info-column {{
-            flex: 1;
+        .cover-main-content {{
+            padding-left: calc((100% - 280px) / 2);
+            max-width: 600px;
+            padding-bottom: 40px;
         }}
         
         .cover-info-row {{
             display: flex;
             align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
+            gap: 10px;
         }}
         
-        .cover-icon {{
-            width: 16px;
-            height: 16px;
-            margin-right: 10px;
+        .cover-icon-large {{
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+        }}
+        
+        .cover-icon-settings {{
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+            filter: grayscale(100%) brightness(0.5);
         }}
         
         .cover-label {{
-            font-size: 9px;
-            color: #6B7280;
-            width: 100px;
-            font-weight: 600;
+            font-size: 12px;
+            color: #000;
+            font-weight: 700;
+            white-space: nowrap;
+            min-width: 130px;
         }}
         
         .cover-value {{
-            font-size: 9px;
+            font-size: 12px;
             color: #000;
             font-weight: 400;
+            white-space: nowrap;
+        }}
+        
+        .cover-unit {{
+            font-size: 10px;
+            color: #6B7280;
+            font-weight: 400;
+            margin-left: 4px;
         }}
         
         .cover-divider {{
             height: 1px;
             background: #E5E7EB;
-            margin: 20px 40px;
-        }}
-        
-        .cover-settings-section {{
-            padding: 0 60px;
+            margin: 14px 0;
+            width: 150%;
+            max-width: 600px;
         }}
         
         .cover-settings-title {{
-            font-size: 11px;
-            font-weight: 600;
+            font-size: 14px;
+            font-weight: 700;
             color: #000;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
         }}
         
         /* Cutting plan page styles */
         .cutting-content {{
-            padding: 40px;
-            padding-bottom: 40px;
+            padding: 0 40px 20px 40px;
         }}
         
         .profile-title {{
             font-size: 18px;
             font-weight: 600;
             margin-bottom: 20px;
+            margin-top: 0;
             color: #000;
+            page-break-after: avoid;
+        }}
+        
+        .stockbars-container {{
+            margin-top: 0;
         }}
         
         .stockbar-section {{
-            margin-bottom: 12px;
+            margin-top: 0;
+            margin-bottom: 20px;
             padding: 10px;
             background: white;
             border-radius: 10px;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }}
+        
+        .stockbar-section:not(:first-child) {{
+            margin-top: 20px;
         }}
         
         .stockbar-title {{
-            font-size: 13px;
+            font-size: 10px;
             font-weight: 500;
             color: #6B7280;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }}
         
         .stockbar-info {{
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }}
         
         .info-boxes {{
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 4px 10px;
+            gap: 8px;
+            padding: 3px 8px;
             border: 1px solid #E5E7EB;
-            border-radius: 6px;
+            border-radius: 5px;
             background: rgba(250, 250, 250, 0.2);
         }}
         
         .info-box {{
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            font-size: 12px;
+            gap: 4px;
+            font-size: 10px;
             font-weight: 500;
         }}
         
         .info-icon {{
-            width: 14px;
-            height: 14px;
+            width: 11px;
+            height: 11px;
         }}
         
         .info-text {{
@@ -329,20 +401,20 @@ class CuttingPlanPDFGenerator:
         
         .divider {{
             width: 1px;
-            height: 14px;
+            height: 11px;
             background: #E5E7EB;
         }}
         
         .waste-box {{
-            padding: 4px 10px;
+            padding: 3px 8px;
             border: 1px solid #E5E7EB;
-            border-radius: 6px;
+            border-radius: 5px;
             background: rgba(250, 250, 250, 0.2);
-            font-size: 12px;
+            font-size: 10px;
             font-weight: 500;
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 4px;
         }}
         
         .waste-box.good {{
@@ -366,9 +438,9 @@ class CuttingPlanPDFGenerator:
         
         .cutting-table {{
             width: 65%;
-            margin-top: 10px;
+            margin-top: 8px;
             border-collapse: collapse;
-            font-size: 12px;
+            font-size: 10px;
         }}
         
         .cutting-table thead tr {{
@@ -377,11 +449,11 @@ class CuttingPlanPDFGenerator:
         }}
         
         .cutting-table th {{
-            height: 32px;
-            padding: 6px 10px;
+            height: 26px;
+            padding: 5px 8px;
             text-align: left;
             font-weight: 500;
-            font-size: 12px;
+            font-size: 10px;
             color: #4B5563;
             vertical-align: middle;
             white-space: nowrap;
@@ -396,10 +468,10 @@ class CuttingPlanPDFGenerator:
         }}
         
         .cutting-table td {{
-            padding: 7px 10px;
+            padding: 6px 8px;
             vertical-align: middle;
             color: #374151;
-            font-size: 12px;
+            font-size: 10px;
         }}
     </style>
 </head>
@@ -411,12 +483,12 @@ class CuttingPlanPDFGenerator:
 """
         return html
     
-    def _calculate_totals(self, nesting_report: Dict[str, Any], selected_profiles: List[str]) -> Dict[str, Any]:
+    def _calculate_totals(self, nesting_report: Dict[str, Any], selected_profiles: List[str], total_weight: float = 0) -> Dict[str, Any]:
         """Calculate totals for cover page."""
         profiles = [p for p in nesting_report.get('profiles', []) 
                    if p['profile_name'] in selected_profiles]
         
-        total_weight = sum(p.get('total_weight', 0) for p in profiles)
+        # Use the weight passed from frontend (already in tonnes)
         profile_types = len(profiles)
         total_cuts = sum(
             sum(max(0, len(pattern.get('parts', [])) - 1) 
@@ -425,7 +497,7 @@ class CuttingPlanPDFGenerator:
         )
         
         return {
-            'weight': total_weight / 1000,  # Convert to tonnes
+            'weight': total_weight,  # Already in tonnes from frontend
             'profile_types': profile_types,
             'cuts': total_cuts
         }
@@ -449,9 +521,9 @@ class CuttingPlanPDFGenerator:
         
         tolerance_row = f"""
             <div class="cover-info-row">
-                <img src="data:image/svg+xml;base64,{icons.get('tolerance', '')}" class="cover-icon" />
-                <span class="cover-label"><strong>Stockbar Tolerance:</strong></span>
-                <span class="cover-value">{tolerance:.0f}mm</span>
+                <img src="data:image/svg+xml;base64,{icons.get('tolerance', '')}" class="cover-icon-settings" />
+                <span class="cover-label">Stockbar Tolerance:</span>
+                <span class="cover-value">{tolerance:.0f} <span class="cover-unit">(mm)</span></span>
             </div>
         """ if tolerance_enabled else ""
         
@@ -461,126 +533,73 @@ class CuttingPlanPDFGenerator:
         <img src="data:image/svg+xml;base64,{icons.get('logo_main', '')}" style="width: 280px; height: 98px;" />
     </div>
     
-    <div class="cover-info-section">
-        <div class="cover-info-column">
-            <div class="cover-info-row">
-                <img src="data:image/svg+xml;base64,{icons.get('project', '')}" class="cover-icon" />
-                <span class="cover-label"><strong>Project Name:</strong></span>
-                <span class="cover-value">{project_name}</span>
-            </div>
-            <div class="cover-info-row">
-                <img src="data:image/svg+xml;base64,{icons.get('date', '')}" class="cover-icon" />
-                <span class="cover-label"><strong>Date:</strong></span>
-                <span class="cover-value">{current_date}</span>
-            </div>
-            <div class="cover-info-row">
-                <img src="data:image/svg+xml;base64,{icons.get('weight', '')}" class="cover-icon" />
-                <span class="cover-label"><strong>Weight:</strong></span>
-                <span class="cover-value">{totals['weight']:.3f}t</span>
-            </div>
+    <div class="cover-main-content">
+        <div class="cover-info-row">
+            <img src="data:image/svg+xml;base64,{icons.get('pdf_project_name', '')}" class="cover-icon-large" />
+            <span class="cover-label">Project Name:</span>
+            <span class="cover-value">{project_name}</span>
         </div>
         
-        <div class="cover-info-column">
-            <div class="cover-info-row">
-                <img src="data:image/svg+xml;base64,{icons.get('profile_types', '')}" class="cover-icon" />
-                <span class="cover-label"><strong>Profile Types:</strong></span>
-                <span class="cover-value">{totals['profile_types']}</span>
-            </div>
-            <div class="cover-info-row">
-                <img src="data:image/svg+xml;base64,{icons.get('cuts', '')}" class="cover-icon" />
-                <span class="cover-label"><strong>Cutting Quantity:</strong></span>
-                <span class="cover-value">{totals['cuts']}</span>
-            </div>
+        <div class="cover-info-row">
+            <img src="data:image/svg+xml;base64,{icons.get('pdf_date', '')}" class="cover-icon-large" />
+            <span class="cover-label">Date:</span>
+            <span class="cover-value">{current_date}</span>
         </div>
-    </div>
-    
-    <div class="cover-divider"></div>
-    
-    <div class="cover-settings-section">
-        <div class="cover-settings-title">Nesting Settings</div>
-        <div class="cover-info-section" style="padding: 0;">
-            <div class="cover-info-column">
-                {tolerance_row}
-                <div class="cover-info-row">
-                    <img src="data:image/svg+xml;base64,{icons.get('trim', '')}" class="cover-icon" />
-                    <span class="cover-label"><strong>Manual Trim:</strong></span>
-                    <span class="cover-value">{trim:.0f}mm</span>
-                </div>
-                <div class="cover-info-row">
-                    <img src="data:image/svg+xml;base64,{icons.get('kerf', '')}" class="cover-icon" />
-                    <span class="cover-label"><strong>Saw Kerf:</strong></span>
-                    <span class="cover-value">{kerf:.0f}mm</span>
-                </div>
-            </div>
-            <div class="cover-info-column"></div>
+        
+        <div class="cover-info-row">
+            <img src="data:image/svg+xml;base64,{icons.get('pdf_weight', '')}" class="cover-icon-large" />
+            <span class="cover-label">Weight:</span>
+            <span class="cover-value">{totals['weight']:.3f} <span class="cover-unit">(t)</span></span>
         </div>
-    </div>
-    
-    <div class="footer">
-        <div class="footer-left">
-            <img src="data:image/svg+xml;base64,{icons.get('logo_small', '')}" style="width: 80px; height: 28px;" />
+        
+        <div class="cover-info-row">
+            <img src="data:image/svg+xml;base64,{icons.get('pdf_profile_type', '')}" class="cover-icon-large" />
+            <span class="cover-label">Profile Types:</span>
+            <span class="cover-value">{totals['profile_types']}</span>
         </div>
-        <div class="footer-right">
-            <span><strong>Date:</strong> {current_date}</span>
-            <span class="footer-dot">•</span>
-            <span><strong>Project Name:</strong> {project_name}</span>
-            <span class="footer-dot">•</span>
-            <span><strong>Page:</strong> 01 of {total_pages:02d}</span>
+        
+        <div class="cover-info-row">
+            <img src="data:image/svg+xml;base64,{icons.get('pdf_cutting_qty', '')}" class="cover-icon-large" />
+            <span class="cover-label">Cutting Quantity:</span>
+            <span class="cover-value">{totals['cuts']}</span>
+        </div>
+        
+        <div class="cover-divider"></div>
+        
+        {tolerance_row}
+        
+        <div class="cover-info-row">
+            <img src="data:image/svg+xml;base64,{icons.get('trim', '')}" class="cover-icon-settings" />
+            <span class="cover-label">Manual Trim:</span>
+            <span class="cover-value">{trim:.0f} <span class="cover-unit">(mm)</span></span>
+        </div>
+        
+        <div class="cover-info-row">
+            <img src="data:image/svg+xml;base64,{icons.get('kerf', '')}" class="cover-icon-settings" />
+            <span class="cover-label">Saw Kerf:</span>
+            <span class="cover-value">{kerf:.0f} <span class="cover-unit">(mm)</span></span>
         </div>
     </div>
 </div>
 """
     
-    def _generate_stockbar_page(
+    def _generate_profile_page(
         self,
         profile_name: str,
-        pattern: Dict[str, Any],
-        pattern_idx: int,
+        stockbars_html: str,
         project_name: str,
         page_num: int,
         total_pages: int,
-        tolerance: float,
-        tolerance_enabled: bool,
-        trim: float,
-        kerf: float,
-        icons: Dict[str, str],
-        svg_data: Dict[str, Any] = None
+        icons: Dict[str, str]
     ) -> str:
-        """Generate a cutting plan page for a single stockbar."""
-        
-        from datetime import datetime
-        current_date = datetime.now().strftime("%d %b %Y")
-        
-        # Generate stockbar section
-        stockbar_html = self._generate_stockbar_section(
-            pattern=pattern,
-            pattern_idx=pattern_idx,
-            profile_name=profile_name,
-            tolerance=tolerance,
-            tolerance_enabled=tolerance_enabled,
-            trim=trim,
-            kerf=kerf,
-            icons=icons,
-            svg_data=svg_data
-        )
+        """Generate a page section for a profile with all its stockbars."""
         
         return f"""
-<div class="page">
+<div class="profile-section">
     <div class="cutting-content">
         <h2 class="profile-title">{profile_name}</h2>
-        {stockbar_html}
-    </div>
-    
-    <div class="footer">
-        <div class="footer-left">
-            <img src="data:image/svg+xml;base64,{icons.get('logo_small', '')}" style="width: 80px; height: 28px;" />
-        </div>
-        <div class="footer-right">
-            <span><strong>Date:</strong> {current_date}</span>
-            <span class="footer-dot">•</span>
-            <span><strong>Project Name:</strong> {project_name}</span>
-            <span class="footer-dot">•</span>
-            <span><strong>Page:</strong> {page_num:02d} of {total_pages:02d}</span>
+        <div class="stockbars-container">
+            {stockbars_html}
         </div>
     </div>
 </div>
