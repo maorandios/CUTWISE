@@ -60,16 +60,16 @@ class CuttingPlanPDFGenerator:
             current_date = datetime.now().strftime("%d %b %Y")
             
             footer_template = f"""
-            <div style="width: 100%; font-size: 9px; padding: 7px 40px; border-top: 1px solid #E5E7EB; display: flex; justify-content: space-between; align-items: center; color: #6B7280; background: white;">
-                <div>
-                    <img src="data:image/svg+xml;base64,{icons.get('logo_small', '')}" style="width: 80px; height: 28px; display: block;" />
+            <div style="width: 100%; font-size: 9px; padding: 9px 40px; border-top: 1px solid #E5E7EB; display: flex; justify-content: space-between; align-items: center; color: #6B7280; background: white;">
+                <div style="display: flex; align-items: center;">
+                    <img src="data:image/svg+xml;base64,{icons.get('logo_small', '')}" style="width: 80px; height: 28px;" />
                 </div>
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <span><strong>Date:</strong> {current_date}</span>
-                    <span style="color: #D1D5DB;">•</span>
-                    <span><strong>Project Name:</strong> {project_name}</span>
-                    <span style="color: #D1D5DB;">•</span>
-                    <span><strong>Page:</strong> <span class="pageNumber"></span> of <span class="totalPages"></span></span>
+                <div style="display: flex; align-items: center; gap: 12px; line-height: 1;">
+                    <span style="line-height: 1;"><strong>Date:</strong> {current_date}</span>
+                    <span style="color: #D1D5DB; line-height: 1;">•</span>
+                    <span style="line-height: 1;"><strong>Project Name:</strong> {project_name}</span>
+                    <span style="color: #D1D5DB; line-height: 1;">•</span>
+                    <span style="line-height: 1;"><strong>Page:</strong> <span class="pageNumber"></span> of <span class="totalPages"></span></span>
                 </div>
             </div>
             """
