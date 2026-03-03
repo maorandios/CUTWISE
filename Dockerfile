@@ -23,7 +23,8 @@ COPY . .
 RUN pip install --no-cache-dir -r api/requirements.txt
 
 # Install Node dependencies and build frontend
-RUN cd web && npm install && npm run build
+WORKDIR /app/web
+RUN npm install && npm run build
 
 # Expose port (Railway will set PORT env var)
 EXPOSE 8000
