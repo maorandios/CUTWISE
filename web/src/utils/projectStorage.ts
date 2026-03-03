@@ -67,7 +67,9 @@ const migrateOldProject = (oldProject: any): ProjectData => {
       totalTonnage: oldProject.totalTonnage || 0,
       stockBarsUsed: oldProject.stockBarsUsed || 0,
       totalParts: 0,
-      avgWastePercentage: 0
+      avgWastePercentage: 0,
+      totalWasteTonnage: 0,
+      totalWasteMeters: 0
     },
     status: 'analyzed'
   }
