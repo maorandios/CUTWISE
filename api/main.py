@@ -66,10 +66,26 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 # CORS middleware
+# In production (Railway), allow all origins. In development, only allow localhost
+if os.environ.get("RAILWAY_ENVIRONMENT"):
+    # Production: Allow all origins (Railway serves frontend and backend from same domain)
+    allowed_origins = ["*"]
+    allow_credentials = False  # Can't use credentials with wildcard
+else:
+    # Development: Only allow localhost
+    allowed_origins = [
+        "http://localhost:5173",
+        "http://localhost:3000", 
+        "http://localhost:5180", 
+        "http://localhost:5181", 
+        "http://0.0.0.0:5180",
+    ]
+    allow_credentials = True
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:5180", "http://localhost:5181", "http://0.0.0.0:5180"],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

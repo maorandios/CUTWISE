@@ -4,7 +4,7 @@ import { pdf } from '@react-pdf/renderer'
 import { NestingReportPDF } from './NestingReportPDF'
 import { BOMPDF } from './BOMPDF'
 import IFCViewerWebIFC from './IFCViewerWebIFC'
-import { apiRequest } from '../utils/api'
+import { apiRequest, getBackendUrl } from '../utils/api'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -536,7 +536,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
           }, 0) : 0
       
       // Call backend API with extracted SVG data
-      const response = await fetch('http://localhost:8000/api/generate-cutting-plan-pdf', {
+      const response = await fetch(`${getBackendUrl()}/api/generate-cutting-plan-pdf`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
