@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import * as ProjectStorage from '../utils/projectStorage'
 import type { ProjectData, CompanyDetails } from '../utils/projectStorage'
-import CompanySettingsModal from './CompanySettingsModal'
 import { Button } from '@/components/ui/Button'
 import { Header } from './Header'
 import { Footer } from './Footer'
@@ -20,27 +19,19 @@ interface ProjectsDashboardProps {
   onLogout: () => void
   userName?: string
   refreshTrigger?: number
+  onOpenSettings?: () => void
 }
 
-const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 'User', refreshTrigger }: ProjectsDashboardProps) => {
+const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 'User', refreshTrigger, onOpenSettings }: ProjectsDashboardProps) => {
   const [projects, setProjects] = useState<ProjectData[]>([])
-  const [showSettings, setShowSettings] = useState(false)
   const [displayCount, setDisplayCount] = useState(20)
   const [searchText, setSearchText] = useState('')
   const [filterMonth, setFilterMonth] = useState<string>('all')
   const [filterYear, setFilterYear] = useState<string>('all')
-  const [companyDetails, setCompanyDetails] = useState<CompanyDetails>({
-    companyName: '',
-    address: '',
-    country: '',
-    phoneNumber: '',
-    companySize: ''
-  })
 
   // Load projects from storage (reload when refreshTrigger changes)
   useEffect(() => {
     loadProjects()
-    loadCompanyDetails()
   }, [refreshTrigger])
 
   const loadProjects = () => {
@@ -48,18 +39,6 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
     setProjects(allProjects)
     setDisplayCount(20) // Reset to 20 when projects are reloaded
     console.log('[Dashboard] Loaded', allProjects.length, 'projects')
-  }
-  
-  const loadCompanyDetails = () => {
-    const details = ProjectStorage.getCompanyDetails()
-    if (details) {
-      setCompanyDetails(details)
-    }
-  }
-  
-  const handleSaveCompanyDetails = (details: CompanyDetails) => {
-    ProjectStorage.saveCompanyDetails(details)
-    setCompanyDetails(details)
   }
 
   const handleDeleteProject = (projectId: string, e: React.MouseEvent) => {
@@ -156,7 +135,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
   return (
     <div className="min-h-screen bg-gray-50">
       <Header
-        onSettingsClick={() => setShowSettings(true)}
+        onSettingsClick={onOpenSettings}
         onLogout={onLogout}
         showUploadButton={false}
         title="My Projects"
@@ -170,7 +149,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
             <div>
               <p className="text-white/70 text-sm mb-1">Hello,</p>
               <h1 className="text-3xl font-bold text-white">
-                {companyDetails.companyName || userName}
+                {userName}
               </h1>
             </div>
             
@@ -195,82 +174,74 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
 
       {/* Main Content */}
       <main className="max-w-[1440px] mx-auto px-6 -mt-[100px]">
-        {/* Metric Cards Grid - positioned to overlap header */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-8">
-          {/* Projects Card */}
-          <div className="bg-white rounded-xl shadow-sm p-8 hover:shadow-md transition-shadow border border-gray-100">
-            <div className="flex flex-col items-center text-center">
+        {/* Metric Cards - Full width with dividers */}
+        <div className="bg-[#FAFAFA] rounded-xl shadow-sm mb-8 border border-gray-100 overflow-hidden">
+          <div className="grid grid-cols-5 divide-x divide-gray-200">
+            {/* Projects Card */}
+            <div className="flex flex-col items-center justify-center text-center py-9">
               <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                 <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
               </div>
-              <p className="text-3xl font-bold text-gray-900 mb-2">
+              <p className="text-3xl font-bold text-primary mb-2">
                 {metrics.totalProjects}
               </p>
-              <p className="text-sm text-gray-500 font-medium">
+              <p className="text-sm text-muted-foreground">
                 Projects
               </p>
             </div>
-          </div>
 
-          {/* Weight Card */}
-          <div className="bg-white rounded-xl shadow-sm p-8 hover:shadow-md transition-shadow border border-gray-100">
-            <div className="flex flex-col items-center text-center">
+            {/* Weight Card */}
+            <div className="flex flex-col items-center justify-center text-center py-9">
               <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                 <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
                 </svg>
               </div>
-              <p className="text-3xl font-bold text-gray-900 mb-2">
+              <p className="text-3xl font-bold text-primary mb-2">
                 {(metrics.totalWeight / 1000).toFixed(3)} t
               </p>
-              <p className="text-sm text-gray-500 font-medium">
+              <p className="text-sm text-muted-foreground">
                 Weight
               </p>
             </div>
-          </div>
 
-          {/* Waste (m) Card */}
-          <div className="bg-white rounded-xl shadow-sm p-8 hover:shadow-md transition-shadow border border-gray-100">
-            <div className="flex flex-col items-center text-center">
+            {/* Waste (m) Card */}
+            <div className="flex flex-col items-center justify-center text-center py-9">
               <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                 <img src="/Icons/length icon.svg?v=2" alt="Length" className="h-8 w-8" />
               </div>
-              <p className="text-3xl font-bold text-gray-900 mb-2">
-                {metrics.totalWasteMeters.toFixed(1)}
+              <p className="text-3xl font-bold text-primary mb-2">
+                {metrics.totalWasteMeters.toFixed(1)} <span className="text-sm text-muted-foreground">(m)</span>
               </p>
-              <p className="text-sm text-gray-500 font-medium">
-                Waste (m)
+              <p className="text-sm text-muted-foreground">
+                Total Waste
               </p>
             </div>
-          </div>
 
-          {/* Waste (t) Card */}
-          <div className="bg-white rounded-xl shadow-sm p-8 hover:shadow-md transition-shadow border border-gray-100">
-            <div className="flex flex-col items-center text-center">
+            {/* Waste (t) Card */}
+            <div className="flex flex-col items-center justify-center text-center py-9">
               <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                 <img src="/Icons/tonnage icon.svg?v=2" alt="Tonnage" className="h-8 w-8" />
               </div>
-              <p className="text-3xl font-bold text-gray-900 mb-2">
-                {metrics.totalWasteTonnage.toFixed(3)}
+              <p className="text-3xl font-bold text-primary mb-2">
+                {metrics.totalWasteTonnage.toFixed(3)} <span className="text-sm text-muted-foreground">(t)</span>
               </p>
-              <p className="text-sm text-gray-500 font-medium">
-                Waste (t)
+              <p className="text-sm text-muted-foreground">
+                Waste Weight
               </p>
             </div>
-          </div>
 
-          {/* Average Waste % Card */}
-          <div className="bg-white rounded-xl shadow-sm p-8 hover:shadow-md transition-shadow border border-gray-100">
-            <div className="flex flex-col items-center text-center">
+            {/* Average Waste % Card */}
+            <div className="flex flex-col items-center justify-center text-center py-9">
               <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                 <img src="/Icons/precentage icon.svg?v=2" alt="Percentage" className="h-8 w-8" />
               </div>
-              <p className="text-3xl font-bold text-gray-900 mb-2">
+              <p className="text-3xl font-bold text-primary mb-2">
                 {metrics.avgWastePercentage.toFixed(1)}%
               </p>
-              <p className="text-sm text-gray-500 font-medium">
+              <p className="text-sm text-muted-foreground">
                 Average Waste %
               </p>
             </div>
@@ -471,14 +442,6 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
       
       {/* Footer */}
       <Footer />
-      
-      {/* Company Settings Modal */}
-      <CompanySettingsModal
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
-        onSave={handleSaveCompanyDetails}
-        currentDetails={companyDetails}
-      />
     </div>
   )
 }

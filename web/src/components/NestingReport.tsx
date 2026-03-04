@@ -117,6 +117,18 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   const [chartFilterProfile, setChartFilterProfile] = useState<string>('all')
   const [chartFilterStockLength, setChartFilterStockLength] = useState<string>('all')
 
+  // Tooltip state for stockbar parts
+  const [tooltip, setTooltip] = useState<{
+    visible: boolean
+    x: number
+    y: number
+    profileName: string
+    partName: string
+    length: number
+    startAngle: string
+    endAngle: string
+  } | null>(null)
+
   // Get available profiles from report and sort by tonnage (highest first)
   const availableProfiles = (report?.profiles || []).sort((a, b) => b.total_weight - a.total_weight)
   
@@ -1110,7 +1122,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                 ? 'Bar Number'
                                 : 'Profile Name'
                               const x = viewBox.x + viewBox.width / 2
-                              const y = viewBox.y + viewBox.height - 10
+                              const y = viewBox.y + viewBox.height + 20
                               return (
                                 <g>
                                   <rect
@@ -3529,9 +3541,32 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                                   strokeLinejoin="miter"
                                                   shapeRendering="crispEdges"
                                                   style={{ cursor: 'pointer' }}
-                                                >
-                                                  <title>{`Profile: ${Array.from(selectedProfiles)[0] || 'N/A'} | Part: ${partName} | Length: ${(part?.length || 0).toFixed(0)}mm | Start: ${partEndInfo?.startCut?.type === 'miter' && partEndInfo.startCut.rawAngle !== null ? (partEndInfo.startCut.rawAngle.toFixed(2) + '°') : '0°'} | End: ${partEndInfo?.endCut?.type === 'miter' && partEndInfo.endCut.rawAngle !== null ? (partEndInfo.endCut.rawAngle.toFixed(2) + '°') : '0°'}`}</title>
-                                                </polygon>
+                                                  onMouseEnter={(e) => {
+                                                    const rect = e.currentTarget.getBoundingClientRect()
+                                                    setTooltip({
+                                                      visible: true,
+                                                      x: rect.left + rect.width / 2,
+                                                      y: rect.top - 10,
+                                                      profileName: profile.profile_name,
+                                                      partName: partName,
+                                                      length: part?.length || 0,
+                                                      startAngle: partEndInfo?.startCut?.type === 'miter' && partEndInfo.startCut.rawAngle !== null ? (partEndInfo.startCut.rawAngle.toFixed(1) + '°') : '0°',
+                                                      endAngle: partEndInfo?.endCut?.type === 'miter' && partEndInfo.endCut.rawAngle !== null ? (partEndInfo.endCut.rawAngle.toFixed(1) + '°') : '0°'
+                                                    })
+                                                  }}
+                                                  onMouseMove={(e) => {
+                                                    const rect = e.currentTarget.getBoundingClientRect()
+                                                    setTooltip(prev => prev ? {
+                                                      ...prev,
+                                                      x: rect.left + rect.width / 2,
+                                                      y: rect.top - 10
+                                                    } : null)
+                                                  }}
+                                                  onMouseLeave={() => {
+                                                    setTooltip(null)
+                                                  }}
+                                                />
+
                                                 
                                                 {/* Per-part end markers - vertical lines at the boundary positions */}
                                                 {/* Only show markers for non-shared boundaries */}
@@ -4932,6 +4967,43 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Shadcn-styled tooltip for stockbar parts */}
+        {tooltip && (
+          <div
+            className="fixed z-50 pointer-events-none"
+            style={{
+              left: `${tooltip.x}px`,
+              top: `${tooltip.y}px`,
+              transform: 'translate(-50%, -100%)',
+            }}
+          >
+            <div className="bg-popover text-popover-foreground px-3 py-2 rounded-md shadow-md border border-border">
+              <div className="text-xs space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-foreground">Profile:</span>
+                  <span className="text-muted-foreground">{tooltip.profileName}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-foreground">Part:</span>
+                  <span className="text-muted-foreground">{tooltip.partName}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-foreground">Length:</span>
+                  <span className="text-muted-foreground">{tooltip.length.toFixed(0)}mm</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-foreground">Start:</span>
+                  <span className="text-muted-foreground">{tooltip.startAngle}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-foreground">End:</span>
+                  <span className="text-muted-foreground">{tooltip.endAngle}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

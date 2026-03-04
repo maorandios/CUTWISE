@@ -3,9 +3,11 @@ import Login from './components/Login'
 import Signup from './components/Signup'
 import Onboarding from './components/Onboarding'
 import ProjectsDashboard from './components/ProjectsDashboard'
+import Settings from './components/Settings'
 import { Button } from '@/components/ui/Button'
 import { Header } from './components/Header'
 import { Footer } from './components/Footer'
+import { Toaster } from '@/components/ui/sonner'
 
 import UploadProjectModal from './components/UploadProjectModal'
 import FileUpload from './components/FileUpload'
@@ -36,7 +38,7 @@ function App() {
   const [needsOnboarding, setNeedsOnboarding] = useState(false)
   
   // View state
-  const [currentView, setCurrentView] = useState<'dashboard' | 'split' | 'report'>('dashboard')
+  const [currentView, setCurrentView] = useState<'dashboard' | 'split' | 'report' | 'settings'>('dashboard')
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
   const [dashboardRefresh, setDashboardRefresh] = useState(0)
   const [showUploadModal, setShowUploadModal] = useState(false)
@@ -343,6 +345,10 @@ function App() {
     setCurrentView('split')
   }
 
+  const handleOpenSettings = () => {
+    setCurrentView('settings')
+  }
+
   // REMOVED: Tab preloading (was causing 23s delay)
   // Data is now loaded on-demand when each tab is opened
   // This saves ~23 seconds on file upload and only loads what's needed
@@ -350,15 +356,53 @@ function App() {
   // Show auth screens if not authenticated
   if (!isAuthenticated) {
     if (authView === 'login') {
-      return <Login onLogin={handleLogin} onSwitchToSignup={() => setAuthView('signup')} />
+      return (
+        <>
+          <Login onLogin={handleLogin} onSwitchToSignup={() => setAuthView('signup')} />
+          <Toaster position="top-right" />
+        </>
+      )
     } else {
-      return <Signup onSignup={handleSignup} onSwitchToLogin={() => setAuthView('login')} />
+      return (
+        <>
+          <Signup onSignup={handleSignup} onSwitchToLogin={() => setAuthView('login')} />
+          <Toaster position="top-right" />
+        </>
+      )
     }
   }
   
   // Show onboarding if user just signed up and hasn't completed it
   if (needsOnboarding) {
-    return <Onboarding onComplete={handleOnboardingComplete} />
+    return (
+      <>
+        <Onboarding onComplete={handleOnboardingComplete} />
+        <Toaster position="top-right" />
+      </>
+    )
+  }
+
+  // Show settings view
+  if (currentView === 'settings') {
+    return (
+      <>
+        <Settings
+          onBack={handleBackToDashboard}
+          onLogout={handleLogout}
+          companyDetails={ProjectStorage.getCompanyDetails() || {
+            companyName: '',
+            address: '',
+            country: '',
+            phoneNumber: '',
+            companySize: ''
+          }}
+          onSaveCompanyDetails={(details) => {
+            ProjectStorage.saveCompanyDetails(details)
+          }}
+        />
+        <Toaster position="top-right" />
+      </>
+    )
   }
 
   // Show dashboard view
@@ -371,6 +415,7 @@ function App() {
           onLogout={handleLogout}
           userName={userName}
           refreshTrigger={dashboardRefresh}
+          onOpenSettings={handleOpenSettings}
         />
         <UploadProjectModal
           isOpen={showUploadModal}
@@ -378,6 +423,7 @@ function App() {
           onUpload={handleUploadWithName}
           loading={loading}
         />
+        <Toaster position="top-right" />
       </>
     )
   }
@@ -385,76 +431,82 @@ function App() {
   // Show split screen view (model + profile list)
   if (currentView === 'split') {
     return (
-      <div className="h-screen flex flex-col overflow-hidden">
-        <Header
-          onLogout={handleLogout}
-          showBackButton={true}
-          onBackClick={handleBackToDashboard}
-          title={currentFile?.replace('.ifc', '') || 'Project'}
-        />
-        
-        <div className="flex-1 overflow-y-auto">
-          {currentFile && (
-            <div className="min-h-full flex flex-col">
-              <div className="flex-1">
-                <NestingReport 
-                  key={`split-${currentFile}`}
-                  filename={currentFile} 
-                  nestingReport={nestingReport}
-                  onNestingReportChange={handleNestingReportChange}
-                  report={report}
-                  initialView="select"
-                />
+      <>
+        <div className="h-screen flex flex-col overflow-hidden">
+          <Header
+            onLogout={handleLogout}
+            showBackButton={true}
+            onBackClick={handleBackToDashboard}
+            title={currentFile?.replace('.ifc', '') || 'Project'}
+          />
+          
+          <div className="flex-1 overflow-y-auto">
+            {currentFile && (
+              <div className="min-h-full flex flex-col">
+                <div className="flex-1">
+                  <NestingReport 
+                    key={`split-${currentFile}`}
+                    filename={currentFile} 
+                    nestingReport={nestingReport}
+                    onNestingReportChange={handleNestingReportChange}
+                    report={report}
+                    initialView="select"
+                  />
+                </div>
+                <Footer />
               </div>
-              <Footer />
-            </div>
-          )}
+            )}
 
-          {!currentFile && (
-            <div className="flex items-center justify-center text-gray-500 py-20">
-              <p>Loading project...</p>
-            </div>
-          )}
+            {!currentFile && (
+              <div className="flex items-center justify-center text-gray-500 py-20">
+                <p>Loading project...</p>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+        <Toaster position="top-right" />
+      </>
     )
   }
 
   // Show report view (nesting report only)
   if (currentView === 'report') {
     return (
-      <div className="h-screen flex flex-col overflow-hidden">
-        <Header
-          onLogout={handleLogout}
-          showBackButton={true}
-          onBackClick={handleBackToDashboard}
-          title={currentFile?.replace('.ifc', '') || 'Project'}
-        />
-        
-        <div className="flex-1 overflow-y-auto">
-          {currentFile && nestingReport && (
-            <div className="min-h-full flex flex-col">
-              <div className="flex-1">
-                <NestingReport 
-                  key={`report-${currentFile}`}
-                  filename={currentFile} 
-                  nestingReport={nestingReport}
-                  onNestingReportChange={handleNestingReportChange}
-                  report={report}
-                  initialView="results"
-                />
+      <>
+        <div className="h-screen flex flex-col overflow-hidden">
+          <Header
+            onLogout={handleLogout}
+            showBackButton={true}
+            onBackClick={handleBackToDashboard}
+            title={currentFile?.replace('.ifc', '') || 'Project'}
+          />
+          
+          <div className="flex-1 overflow-y-auto">
+            {currentFile && nestingReport && (
+              <div className="min-h-full flex flex-col">
+                <div className="flex-1">
+                  <NestingReport 
+                    key={`report-${currentFile}`}
+                    filename={currentFile} 
+                    nestingReport={nestingReport}
+                    onNestingReportChange={handleNestingReportChange}
+                    report={report}
+                    initialView="results"
+                  />
+                </div>
+                <Footer />
               </div>
-              <Footer />
-            </div>
-          )}
+            )}
 
-          {!currentFile && (
-            <div className="flex items-center justify-center text-gray-500 py-20">
-              <p>Loading project...</p>
-            </div>
-          )}
+            {!currentFile && (
+              <div className="flex items-center justify-center text-gray-500 py-20">
+                <p>Loading project...</p>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+        <Toaster position="top-right" />
+      </>
     )
   }
 
