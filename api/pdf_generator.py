@@ -30,9 +30,13 @@ class CuttingPlanPDFGenerator:
         selected_profiles: List[str],
         icons: Dict[str, str],  # base64 encoded icons
         stockbar_svg_data: List[Dict[str, Any]] = None,  # Extracted SVG polygon data from browser
-        total_weight: float = 0  # Total weight in tonnes, pre-calculated from frontend
+        total_weight: float = 0,  # Total weight in tonnes, pre-calculated from frontend
+        company_details: Dict[str, str] = None  # Company details for footer
     ) -> bytes:
         """Generate PDF from nesting report data."""
+        
+        if company_details is None:
+            company_details = {}
         
         with sync_playwright() as p:
             browser = p.chromium.launch()
@@ -49,7 +53,8 @@ class CuttingPlanPDFGenerator:
                 selected_profiles=selected_profiles,
                 icons=icons,
                 stockbar_svg_data=stockbar_svg_data,
-                total_weight=total_weight
+                total_weight=total_weight,
+                company_details=company_details
             )
             
             # Set content and wait for rendering
@@ -58,16 +63,17 @@ class CuttingPlanPDFGenerator:
             # Generate PDF with footer (except cover page)
             from datetime import datetime
             current_date = datetime.now().strftime("%d %b %Y")
-            
+            company_name = company_details.get('companyName', 'N/A')
+
             footer_template = f"""
             <div style="width: 100%; font-size: 9px; padding: 9px 40px; border-top: 1px solid #E5E7EB; display: flex; justify-content: space-between; align-items: center; color: #6B7280; background: white;">
                 <div style="display: flex; align-items: center;">
                     <img src="data:image/svg+xml;base64,{icons.get('logo_small', '')}" style="width: 80px; height: 28px;" />
                 </div>
                 <div style="display: flex; align-items: center; gap: 12px; line-height: 1;">
-                    <span style="line-height: 1;"><strong>Date:</strong> {current_date}</span>
+                    <span style="line-height: 1;"><strong>Company Name:</strong> {company_name}</span>
                     <span style="color: #D1D5DB; line-height: 1;">•</span>
-                    <span style="line-height: 1;"><strong>Project Name:</strong> {project_name}</span>
+                    <span style="line-height: 1;"><strong>Project name:</strong> {project_name}</span>
                     <span style="color: #D1D5DB; line-height: 1;">•</span>
                     <span style="line-height: 1;"><strong>Page:</strong> <span class="pageNumber"></span> of <span class="totalPages"></span></span>
                 </div>
@@ -104,9 +110,13 @@ class CuttingPlanPDFGenerator:
         selected_profiles: List[str],
         icons: Dict[str, str],
         stockbar_svg_data: List[Dict[str, Any]] = None,
-        total_weight: float = 0
+        total_weight: float = 0,
+        company_details: Dict[str, str] = None
     ) -> str:
         """Generate HTML content that matches the React PDF design."""
+        
+        if company_details is None:
+            company_details = {}
         
         from datetime import datetime
         current_date = datetime.now().strftime("%d %b %Y")
@@ -820,3 +830,395 @@ class CuttingPlanPDFGenerator:
             pass
         
         return '90.0°'
+
+
+class BOMPDFGenerator:
+    """Generates Bill of Materials PDFs server-side using Playwright."""
+    
+    def __init__(self):
+        self.page_width = 210  # A4 portrait width in mm
+        self.page_height = 297  # A4 portrait height in mm
+        
+    def generate_pdf(
+        self,
+        nesting_report: Dict[str, Any],
+        report: Dict[str, Any],
+        project_name: str,
+        company_details: Dict[str, str],
+        icons: Dict[str, str]  # base64 encoded icons
+    ) -> bytes:
+        """Generate BOM PDF from nesting report data."""
+        
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page()
+            
+            # Generate HTML content
+            html_content = self._generate_html(
+                nesting_report=nesting_report,
+                report=report,
+                project_name=project_name,
+                company_details=company_details,
+                icons=icons
+            )
+            
+            # Set content and wait for rendering
+            page.set_content(html_content, wait_until='networkidle')
+            
+            # Generate PDF (portrait A4) with footer
+            company_name = company_details.get('companyName', 'N/A')
+            
+            footer_template = f"""
+            <div style="width: 100%; font-size: 9px; padding: 9px 62px; border-top: 1px solid #E5E7EB; display: flex; justify-content: space-between; align-items: center; color: #6B7280; background: white;">
+                <div style="display: flex; align-items: center;">
+                    <img src="data:image/svg+xml;base64,{icons.get('logo', '')}" style="width: 80px; height: 28px;" />
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; line-height: 1;">
+                    <span style="line-height: 1;"><strong>Company Name:</strong> {company_name}</span>
+                    <span style="color: #D1D5DB; line-height: 1;">•</span>
+                    <span style="line-height: 1;"><strong>Project name:</strong> {project_name}</span>
+                    <span style="color: #D1D5DB; line-height: 1;">•</span>
+                    <span style="line-height: 1;"><strong>Page:</strong> <span class="pageNumber"></span> of <span class="totalPages"></span></span>
+                </div>
+            </div>
+            """
+            
+            pdf_bytes = page.pdf(
+                format='A4',
+                landscape=False,
+                print_background=True,
+                display_header_footer=True,
+                header_template='<div></div>',
+                footer_template=footer_template,
+                margin={
+                    'top': '0mm',
+                    'right': '0mm',
+                    'bottom': '12mm',
+                    'left': '0mm'
+                },
+                prefer_css_page_size=True
+            )
+            
+            browser.close()
+            return pdf_bytes
+    
+    def _generate_html(
+        self,
+        nesting_report: Dict[str, Any],
+        report: Dict[str, Any],
+        project_name: str,
+        company_details: Dict[str, str],
+        icons: Dict[str, str]
+    ) -> str:
+        """Generate complete HTML for BOM PDF."""
+        
+        from datetime import datetime
+        current_date = datetime.now().strftime("%d %B, %Y")  # Used in company info section
+        
+        # Calculate totals based on stock lengths used (same as frontend)
+        total_weight_t = 0
+        total_length_m = 0
+        profile_count = len(nesting_report.get('profiles', []))
+        
+        # Build table rows data - one row per (profile, stock_length) combination
+        bom_rows = []
+        for profile in nesting_report.get('profiles', []):
+            profile_name = profile.get('profile_name', '')
+            
+            # Get weight per meter from report
+            profile_data = None
+            for p in report.get('profiles', []):
+                if p.get('profile_name') == profile_name:
+                    profile_data = p
+                    break
+            
+            weight_per_meter = 0
+            if profile_data and profile.get('total_length', 0) > 0:
+                total_length_mm = profile.get('total_length', 0)
+                total_length_m_calc = total_length_mm / 1000.0
+                weight_per_meter = profile_data.get('total_weight', 0) / total_length_m_calc
+            
+            # Split by stock_lengths_used - create one row per stock length
+            stock_lengths_used = profile.get('stock_lengths_used', {})
+            for stock_length_str, bar_count in stock_lengths_used.items():
+                if bar_count > 0:
+                    stock_length = float(stock_length_str)
+                    stock_length_m = stock_length / 1000.0
+                    
+                    # Calculate weight for this stock length
+                    stock_weight_kg = (weight_per_meter * stock_length_m * bar_count)
+                    
+                    # Add to grand totals
+                    total_length_m += stock_length_m * bar_count
+                    total_weight_t += stock_weight_kg / 1000.0
+                    
+                    bom_rows.append({
+                        'profile_name': profile_name,
+                        'stock_length_m': stock_length_m,
+                        'quantity': bar_count,
+                        'weight_kg': stock_weight_kg
+                    })
+        
+        # Generate table rows HTML
+        table_rows_html = ''
+        for row in bom_rows:
+            table_rows_html += f'''
+            <tr>
+                <td>{row['profile_name']}</td>
+                <td>{row['stock_length_m']:.2f}</td>
+                <td>{row['quantity']}</td>
+                <td>{row['weight_kg']:.0f}</td>
+            </tr>
+            '''
+        
+        # Build HTML
+        html = f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                @page {{
+                    size: A4 portrait;
+                    margin: 50px 0 80px 0;
+                }}
+                
+                * {{
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }}
+                
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    padding: 0 62px;
+                    background: white;
+                }}
+                
+                /* Header Section */
+                .header {{
+                    margin-bottom: 24px;
+                }}
+                
+                .title {{
+                    font-size: 32px;
+                    font-weight: 600;
+                    color: #000000;
+                    letter-spacing: -0.5px;
+                    margin-bottom: 20px;
+                }}
+                
+                .company-info {{
+                    margin-top: 12px;
+                }}
+                
+                .company-row {{
+                    display: flex;
+                    align-items: center;
+                    margin-bottom: 8px;
+                }}
+                
+                .company-icon {{
+                    width: 14px;
+                    height: 14px;
+                    margin-right: 10px;
+                    flex-shrink: 0;
+                    filter: grayscale(100%) brightness(0.4);
+                }}
+                
+                .company-label {{
+                    font-size: 11px;
+                    color: #000000;
+                    font-weight: 700;
+                    margin-right: 4px;
+                }}
+                
+                .company-value {{
+                    font-size: 11px;
+                    color: #000000;
+                    font-weight: 400;
+                }}
+                
+                /* Divider */
+                .divider {{
+                    border-bottom: 1px solid #D3D3D3;
+                    margin: 20px 0;
+                }}
+                
+                /* Project Section */
+                .project-section {{
+                    display: flex;
+                    align-items: center;
+                    margin-bottom: 16px;
+                }}
+                
+                .project-icon {{
+                    width: 16px;
+                    height: 16px;
+                    margin-right: 8px;
+                }}
+                
+                .project-name {{
+                    font-size: 18px;
+                    font-weight: 400;
+                    color: #000000;
+                }}
+                
+                /* Summary Box */
+                .summary-box {{
+                    background-color: rgba(28, 185, 126, 0.12);
+                    border-radius: 4px;
+                    padding: 16px;
+                    margin-bottom: 20px;
+                    display: inline-block;
+                    min-width: 220px;
+                }}
+                
+                .summary-row {{
+                    display: flex;
+                    justify-content: space-between;
+                    margin-bottom: 4px;
+                }}
+                
+                .summary-row:last-child {{
+                    margin-bottom: 0;
+                }}
+                
+                .summary-label {{
+                    font-size: 10px;
+                    font-weight: 700;
+                    color: #000000;
+                }}
+                
+                .summary-value {{
+                    font-size: 10px;
+                    color: #000000;
+                    font-weight: 400;
+                }}
+                
+                /* Table */
+                .bom-table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 9px;
+                    page-break-inside: auto;
+                }}
+                
+                .bom-table tr {{
+                    page-break-inside: avoid;
+                    page-break-after: auto;
+                }}
+                
+                .bom-table thead {{
+                    display: table-header-group;
+                }}
+                
+                .bom-table thead {{
+                    border-bottom: 1px solid #D3D3D3;
+                    background-color: #F3F4F6;
+                }}
+                
+                .bom-table th {{
+                    text-align: left;
+                    padding: 6px 10px;
+                    font-size: 8px;
+                    font-weight: 700;
+                    color: #A5A7A9;
+                    text-transform: uppercase;
+                }}
+                
+                .bom-table td {{
+                    padding: 6px 10px;
+                    font-size: 9px;
+                    color: #000000;
+                    border-bottom: 0.5px solid #F0F0F0;
+                }}
+                
+                .bom-table th:nth-child(2),
+                .bom-table th:nth-child(3),
+                .bom-table th:nth-child(4),
+                .bom-table td:nth-child(2),
+                .bom-table td:nth-child(3),
+                .bom-table td:nth-child(4) {{
+                    text-align: right;
+                }}
+                
+            </style>
+        </head>
+        <body>
+            <!-- Header with Company Info -->
+            <div class="header">
+                <div class="title">Bill of materials</div>
+                
+                <div class="company-info">
+                    <div class="company-row">
+                        <img src="data:image/svg+xml;base64,{icons.get('company', '')}" class="company-icon" />
+                        <span class="company-label">Company name:</span>
+                        <span class="company-value">{company_details.get('companyName', 'Your Company Name')}</span>
+                    </div>
+                    <div class="company-row">
+                        <img src="data:image/svg+xml;base64,{icons.get('address', '')}" class="company-icon" />
+                        <span class="company-label">Address:</span>
+                        <span class="company-value">{company_details.get('address', 'Company Address')}</span>
+                    </div>
+                    <div class="company-row">
+                        <img src="data:image/svg+xml;base64,{icons.get('email', '')}" class="company-icon" />
+                        <span class="company-label">Email:</span>
+                        <span class="company-value">{company_details.get('email', 'Company Email')}</span>
+                    </div>
+                    <div class="company-row">
+                        <img src="data:image/svg+xml;base64,{icons.get('phone', '')}" class="company-icon" />
+                        <span class="company-label">Phone:</span>
+                        <span class="company-value">{company_details.get('phoneNumber', 'Company Phone Number')}</span>
+                    </div>
+                    <div class="company-row">
+                        <img src="data:image/svg+xml;base64,{icons.get('date', '')}" class="company-icon" />
+                        <span class="company-label">Date:</span>
+                        <span class="company-value">{current_date}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="divider"></div>
+            
+            <!-- Project Section -->
+            <div class="project-section">
+                <img src="data:image/svg+xml;base64,{icons.get('project', '')}" class="project-icon" />
+                <div class="project-name">{project_name}</div>
+            </div>
+            
+            <!-- Summary Box -->
+            <div class="summary-box">
+                <div class="summary-row">
+                    <span class="summary-label">Total weight</span>
+                    <span class="summary-value">{total_weight_t:.2f} (t)</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Total length</span>
+                    <span class="summary-value">{total_length_m:.0f} (m)</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Profile Type</span>
+                    <span class="summary-value">{profile_count}</span>
+                </div>
+            </div>
+            
+            <!-- BOM Table -->
+            <table class="bom-table">
+                <thead>
+                    <tr>
+                        <th>PROFILE NAME</th>
+                        <th>STOCK LENGTH (M)</th>
+                        <th>QUANTITY</th>
+                        <th>WEIGHT (T)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {table_rows_html}
+                </tbody>
+            </table>
+        </body>
+        </html>
+        '''
+        
+        return html

@@ -5,6 +5,7 @@ import { NestingReportPDF } from './NestingReportPDF'
 import { BOMPDF } from './BOMPDF'
 import IFCViewerWebIFC from './IFCViewerWebIFC'
 import { apiRequest, getBackendUrl } from '../utils/api'
+import * as ProjectStorage from '../utils/projectStorage'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -376,16 +377,76 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         profiles: nestingReport.profiles.filter(p => bomSelectedProfiles.has(p.profile_name))
       }
       
-      const doc = <BOMPDF 
-        nestingReport={filteredNestingReport}
-        report={report}
-        projectName={bomProjectName}
-        companyName="Your Company Name"
-        contactName=""
-      />
+      // Load company details from storage
+      const companyDetails = ProjectStorage.getCompanyDetails() || {
+        companyName: 'Your Company Name',
+        address: 'Company Address',
+        country: '',
+        phoneNumber: 'Company Phone Number',
+        companySize: ''
+      }
       
-      const asPdf = pdf(doc)
-      const blob = await asPdf.toBlob()
+      // Get user email from current user (stored during signup)
+      const currentUser = ProjectStorage.getCurrentUser()
+      
+      // Check if userName is an email address (for backwards compatibility)
+      let userEmail = ''
+      if (currentUser?.email) {
+        userEmail = currentUser.email
+      } else if (currentUser?.userName && currentUser.userName.includes('@')) {
+        userEmail = currentUser.userName // Username is actually an email
+      } else if (companyDetails.email) {
+        userEmail = companyDetails.email
+      }
+      
+      console.log('[BOM Export] Company details:', companyDetails)
+      console.log('[BOM Export] Current user:', currentUser)
+      console.log('[BOM Export] User email:', userEmail)
+      
+      // Load icons as base64
+      const iconPaths = {
+        check: '/Icons/check-circle.svg',
+        company: '/Icons/building-one.svg',
+        address: '/Icons/location.svg',
+        email: '/Icons/envelope-open.svg',
+        phone: '/Icons/telephone.svg',
+        date: '/Icons/calendar.svg',
+        project: '/Icons/ar.svg',
+        logo: '/Icons/Cutwise for pdf main.svg'
+      }
+      
+      const icons: Record<string, string> = {}
+      for (const [key, path] of Object.entries(iconPaths)) {
+        icons[key] = await loadIconAsBase64(path)
+      }
+      
+      // Call backend to generate PDF
+      const response = await fetch(`${getBackendUrl()}/api/generate-bom-pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          nestingReport: filteredNestingReport,
+          report: report,
+          projectName: bomProjectName || filename.replace('.ifc', ''),
+          companyDetails: {
+            companyName: companyDetails.companyName,
+            address: companyDetails.address,
+            email: userEmail,
+            phoneNumber: companyDetails.phoneNumber
+          },
+          icons: icons
+        }),
+      })
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Server returned ${response.status}: ${errorText}`)
+      }
+      
+      // Download the PDF
+      const blob = await response.blob()
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       const downloadName = bomProjectName 
@@ -538,6 +599,9 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         waste: await loadIconAsBase64('/Icons/Waste icon.svg'),
       }
       
+      // Load company details for footer
+      const companyDetails = ProjectStorage.getCompanyDetails() || {}
+      
       // Calculate total weight from original report data
       const totalWeight = nestingReport && report ?
         nestingReport.profiles
@@ -563,6 +627,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
           selectedProfiles: Array.from(cuttingPlanSelectedProfiles),
           stockbarSvgData: stockbarSvgData,
           totalWeight: totalWeight,
+          companyDetails: companyDetails,
           icons: icons
         })
       })
@@ -4620,7 +4685,15 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                     .filter(profile => bomSelectedProfiles.has(profile.profile_name))
                     .reduce((sum, profile) => {
                       const profileData = report.profiles.find(p => p.profile_name === profile.profile_name)
-                      return sum + (profileData ? profileData.total_weight / 1000 : 0)
+                      if (!profileData || profile.total_length === 0) return sum
+                      
+                      const weightPerMeter = profileData.total_weight / (profile.total_length / 1000.0)
+                      const profileTonnage = Object.entries(profile.stock_lengths_used).reduce((stockSum, [stockLengthStr, barCount]) => {
+                        const stockLengthM = parseFloat(stockLengthStr) / 1000.0
+                        return stockSum + (weightPerMeter * stockLengthM * barCount) / 1000.0
+                      }, 0)
+                      
+                      return sum + profileTonnage
                     }, 0) : 0
                 
                 return (

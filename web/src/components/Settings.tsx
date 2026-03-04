@@ -20,6 +20,7 @@ interface CompanyDetails {
   country: string
   phoneNumber: string
   companySize: '1' | '1-10' | '10-50' | '50-300' | '300+' | ''
+  email?: string
 }
 
 interface NestingSettings {
@@ -52,8 +53,25 @@ const Settings = ({
   const [activeTab, setActiveTab] = useState<SettingsTab>('general')
   const [generalDetails, setGeneralDetails] = useState<CompanyDetails>(companyDetails)
 
-  // Account tab state
-  const [email, setEmail] = useState('user@example.com')
+  // Account tab state - get email from current user
+  const currentUser = (() => {
+    try {
+      const data = localStorage.getItem('cutwise_current_user')
+      return data ? JSON.parse(data) : null
+    } catch {
+      return null
+    }
+  })()
+  
+  // Check if userName is an email (for backwards compatibility)
+  const getUserEmail = () => {
+    if (currentUser?.email) return currentUser.email
+    if (currentUser?.userName && currentUser.userName.includes('@')) return currentUser.userName
+    if (companyDetails.email) return companyDetails.email
+    return 'user@example.com'
+  }
+  
+  const [email, setEmail] = useState(getUserEmail())
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -75,6 +93,18 @@ const Settings = ({
 
   useEffect(() => {
     setGeneralDetails(companyDetails)
+    // Get email from current user (stored during signup/login)
+    try {
+      const data = localStorage.getItem('cutwise_current_user')
+      const user = data ? JSON.parse(data) : null
+      if (user?.email) {
+        setEmail(user.email)
+      } else if (user?.userName && user.userName.includes('@')) {
+        setEmail(user.userName) // Username is actually an email
+      }
+    } catch (e) {
+      console.error('Failed to load user email:', e)
+    }
   }, [companyDetails])
 
   // Load technical settings from localStorage on mount
@@ -108,7 +138,7 @@ const Settings = ({
       return
     }
     
-    onSaveCompanyDetails(generalDetails)
+    onSaveCompanyDetails({ ...generalDetails, email })
     toast.success('General settings saved successfully!')
   }
 

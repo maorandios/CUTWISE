@@ -251,9 +251,9 @@ function App() {
     // TODO: Implement actual signup with backend
     console.log('Signup:', fullName, email, password)
     
-    // For now, just set user in localStorage
+    // For now, just set user in localStorage with email
     const userId = `user_${Date.now()}`
-    ProjectStorage.setCurrentUser(userId, fullName)
+    ProjectStorage.setCurrentUser(userId, fullName, email)
     
     setUserName(fullName)
     setIsAuthenticated(true)
@@ -394,7 +394,8 @@ function App() {
             address: '',
             country: '',
             phoneNumber: '',
-            companySize: ''
+            companySize: '',
+            email: ''
           }}
           onSaveCompanyDetails={(details) => {
             ProjectStorage.saveCompanyDetails(details)

@@ -42,6 +42,7 @@ export interface CompanyDetails {
   country: string
   phoneNumber: string
   companySize: '1' | '1-10' | '10-50' | '50-300' | '300+' | ''
+  email?: string
 }
 
 /**
@@ -302,11 +303,11 @@ export const importProjectData = (jsonData: string): boolean => {
 }
 
 // User management (placeholder for future auth integration)
-export const setCurrentUser = (userId: string, userName: string): void => {
-  localStorage.setItem(CURRENT_USER_KEY, JSON.stringify({ userId, userName }))
+export const setCurrentUser = (userId: string, userName: string, email?: string): void => {
+  localStorage.setItem(CURRENT_USER_KEY, JSON.stringify({ userId, userName, email }))
 }
 
-export const getCurrentUser = (): { userId: string; userName: string } | null => {
+export const getCurrentUser = (): { userId: string; userName: string; email?: string } | null => {
   try {
     const data = localStorage.getItem(CURRENT_USER_KEY)
     return data ? JSON.parse(data) : null
