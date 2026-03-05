@@ -1191,7 +1191,7 @@ class BOMPDFGenerator:
             <div class="summary-box">
                 <div class="summary-row">
                     <span class="summary-label">Total weight</span>
-                    <span class="summary-value">{total_weight_t:.2f} (t)</span>
+                    <span class="summary-value">{total_weight_t:.3f} (t)</span>
                 </div>
                 <div class="summary-row">
                     <span class="summary-label">Total length</span>

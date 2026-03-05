@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Header } from './components/Header'
 import { Footer } from './components/Footer'
 import { Toaster } from '@/components/ui/sonner'
+import { LottieLoader } from './components/LottieLoader'
 
 import UploadProjectModal from './components/UploadProjectModal'
 import FileUpload from './components/FileUpload'
@@ -78,6 +79,7 @@ function App() {
   const [gltfPath, setGltfPath] = useState<string | undefined>(undefined)
   const [gltfAvailable, setGltfAvailable] = useState<boolean>(false)
   const [loading, setLoading] = useState(false)
+  const [loadingMessage, setLoadingMessage] = useState<string>('')
   const [filters, setFilters] = useState<FilterState>(savedState?.filters || {
     profileTypes: new Set<string>(),
     plateThicknesses: new Set<string>(),
@@ -163,8 +165,13 @@ function App() {
   }
   
   const handleUploadWithName = async (projectName: string, file: File) => {
+    const startTime = Date.now()
     setLoading(true)
-    
+    setLoadingMessage('Uploading and processing project...')
+
+    // Close modal immediately so Lottie loader is visible
+    setShowUploadModal(false)
+
     try {
       // Upload file to backend
       const formData = new FormData()
@@ -180,7 +187,7 @@ function App() {
       }
 
       const data = await response.json()
-      
+
       // Create project with custom name
       setNestingReport(null)
       setCurrentFile(data.filename)
@@ -194,22 +201,32 @@ function App() {
       })
       setActiveTab('ifcm')
       setTabDataCache({})
-      
+
       // Create project with custom name
       const project = ProjectStorage.createProject(data.filename, data.report)
       // Update project name to custom name
       ProjectStorage.updateProject(project.id, { name: projectName })
       setCurrentProjectId(project.id)
-      
-      // Close modal and go to split screen
-      setShowUploadModal(false)
+
+      // Ensure minimum 3 seconds display time
+      const elapsedTime = Date.now() - startTime
+      const remainingTime = Math.max(0, 3000 - elapsedTime)
+      await new Promise(resolve => setTimeout(resolve, remainingTime))
       setCurrentView('split')
       
     } catch (error) {
       console.error('Upload error:', error)
+      
+      // Ensure minimum 3 seconds display time even on error
+      const elapsedTime = Date.now() - startTime
+      const remainingTime = Math.max(0, 3000 - elapsedTime)
+      await new Promise(resolve => setTimeout(resolve, remainingTime))
+      
       alert('Failed to upload file. Please try again.')
+      setShowUploadModal(true) // Reopen modal on error
     } finally {
       setLoading(false)
+      setLoadingMessage('')
     }
   }
 
@@ -401,6 +418,7 @@ function App() {
             ProjectStorage.saveCompanyDetails(details)
           }}
         />
+        {loading && <LottieLoader message={loadingMessage} size={250} />}
         <Toaster position="top-right" />
       </>
     )
@@ -424,6 +442,7 @@ function App() {
           onUpload={handleUploadWithName}
           loading={loading}
         />
+        {loading && <LottieLoader message={loadingMessage} size={250} />}
         <Toaster position="top-right" />
       </>
     )
@@ -465,6 +484,7 @@ function App() {
             )}
           </div>
         </div>
+        {loading && <LottieLoader message={loadingMessage} size={250} />}
         <Toaster position="top-right" />
       </>
     )
@@ -506,6 +526,7 @@ function App() {
             )}
           </div>
         </div>
+        {loading && <LottieLoader message={loadingMessage} size={250} />}
         <Toaster position="top-right" />
       </>
     )

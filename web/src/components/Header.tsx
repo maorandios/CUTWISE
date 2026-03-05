@@ -20,54 +20,60 @@ export function Header({
   title,
 }: HeaderProps) {
   return (
-    <header className="bg-[#11181C]">
-      <div className="max-w-[1440px] mx-auto px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          {showBackButton && onBackClick && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onBackClick}
-              title="Back to dashboard"
-              className="text-white hover:bg-gray-700"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </Button>
-          )}
+    <>
+      <header className="bg-[#11181C]">
+        <div className="max-w-[1440px] mx-auto px-6 py-4 flex items-center justify-between">
           <img
             src="/Icons/cutwise manu logo.svg"
             alt="Cutwise"
             className="h-10"
           />
-        </div>
-        <div className="flex items-center gap-3">
-          {showUploadButton && onUploadClick && (
-            <Button onClick={onUploadClick} className="bg-blue-600 hover:bg-blue-700 text-white">
-              Upload New Project
-            </Button>
-          )}
-          {onSettingsClick && (
+          <div className="flex items-center gap-3">
+            {showUploadButton && onUploadClick && (
+              <Button onClick={onUploadClick} className="bg-blue-600 hover:bg-blue-700 text-white">
+                Upload New Project
+              </Button>
+            )}
+            {onSettingsClick && (
+              <Button
+                variant="ghost"
+                onClick={onSettingsClick}
+                className="text-white hover:text-white hover:bg-gray-700 flex items-center gap-2"
+              >
+                <img src="/Icons/cog.svg" alt="Settings" className="w-5 h-5 select-none" style={{ imageRendering: '-webkit-optimize-contrast' }} />
+                <span className="text-sm font-medium">Settings</span>
+              </Button>
+            )}
             <Button
               variant="ghost"
-              onClick={onSettingsClick}
+              onClick={onLogout}
               className="text-white hover:text-white hover:bg-gray-700 flex items-center gap-2"
             >
-              <img src="/Icons/cog.svg" alt="Settings" className="w-5 h-5 select-none" style={{ imageRendering: '-webkit-optimize-contrast' }} />
-              <span className="text-sm font-medium">Settings</span>
+              <img src="/Icons/logout.svg" alt="Logout" className="w-5 h-5 select-none" style={{ imageRendering: '-webkit-optimize-contrast' }} />
+              <span className="text-sm font-medium">Logout</span>
             </Button>
-          )}
-          <Button
-            variant="ghost"
-            onClick={onLogout}
-            className="text-white hover:text-white hover:bg-gray-700 flex items-center gap-2"
-          >
-            <img src="/Icons/logout.svg" alt="Logout" className="w-5 h-5 select-none" style={{ imageRendering: '-webkit-optimize-contrast' }} />
-            <span className="text-sm font-medium">Logout</span>
-          </Button>
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+      
+      {/* Back Button - Separate from header */}
+      {showBackButton && onBackClick && (
+        <div className="bg-[#11181C]">
+          <div className="max-w-[1440px] mx-auto px-6 py-2">
+            <Button
+              variant="ghost"
+              onClick={onBackClick}
+              title="Back to dashboard"
+              className="text-white hover:text-white hover:bg-gray-700 flex items-center gap-2 px-3 py-1"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              <span className="text-sm">Back to dashboard</span>
+            </Button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

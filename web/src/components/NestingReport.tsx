@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { LottieLoader } from './LottieLoader'
 
 interface NestingReportProps {
   filename: string
@@ -113,6 +114,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   const [cuttingPlanProjectName, setCuttingPlanProjectName] = useState<string>('')
   const [cuttingPlanSelectedProfiles, setCuttingPlanSelectedProfiles] = useState<Set<string>>(new Set())
   const [exportProgress, setExportProgress] = useState<{show: boolean, current: number, total: number}>({show: false, current: 0, total: 0})
+  const [loadingMessage, setLoadingMessage] = useState<string>('')
   
   // Chart filter states
   const [chartFilterProfile, setChartFilterProfile] = useState<string>('all')
@@ -370,7 +372,16 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       return
     }
 
+    const startTime = Date.now()
+
+    // Close modal immediately so Lottie loader is visible
+    setShowBOMModal(false)
+
     try {
+      // Show Lottie loader
+      setLoadingMessage('Generating Bill of Materials PDF...')
+      setExportProgress({ show: true, current: 0, total: 1 })
+      
       // Filter nesting report to only include selected profiles
       const filteredNestingReport = {
         ...nestingReport,
@@ -459,11 +470,27 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
       
-      // Close modal after successful export
-      setShowBOMModal(false)
+      // Ensure minimum 3 seconds display time
+      const elapsedTime = Date.now() - startTime
+      const remainingTime = Math.max(0, 3000 - elapsedTime)
+      await new Promise(resolve => setTimeout(resolve, remainingTime))
+      
+      // Hide loader
+      setExportProgress({ show: false, current: 0, total: 0 })
+      setLoadingMessage('')
     } catch (error) {
       console.error('Error exporting BOM to PDF:', error)
+      
+      // Ensure minimum 3 seconds display time even on error
+      const elapsedTime = Date.now() - startTime
+      const remainingTime = Math.max(0, 3000 - elapsedTime)
+      await new Promise(resolve => setTimeout(resolve, remainingTime))
+      
       alert('Failed to export BOM PDF. Please try again.')
+      
+      // Hide loader
+      setExportProgress({ show: false, current: 0, total: 0 })
+      setLoadingMessage('')
     }
   }
 
@@ -499,6 +526,10 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
     }
 
     const originalExpandedProfiles = new Set(expandedProfiles)
+    const startTime = Date.now()
+
+    // Close modal immediately so Lottie loader is visible
+    setShowCuttingPlanModal(false)
 
     try {
       // Filter nesting report to only include selected profiles
@@ -514,7 +545,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       })
       setExpandedProfiles(newExpanded)
       
-      // Show progress modal
+      // Show Lottie loader
+      setLoadingMessage('Generating Cutting Plan PDF...')
       setExportProgress({ show: true, current: 0, total: 1 })
       
       // Wait for fonts to load and React to render
@@ -652,30 +684,42 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
       
+      // Ensure minimum 3 seconds display time
+      const elapsedTime = Date.now() - startTime
+      const remainingTime = Math.max(0, 3000 - elapsedTime)
+      await new Promise(resolve => setTimeout(resolve, remainingTime))
+      
       // Restore original expanded state
       setExpandedProfiles(originalExpandedProfiles)
       
-      // Hide progress modal
+      // Hide loader
       setExportProgress({ show: false, current: 0, total: 0 })
-      
-      // Close modal after successful export
-      setShowCuttingPlanModal(false)
+      setLoadingMessage('')
     } catch (error) {
       console.error('Error exporting Cutting Plan to PDF:', error)
+      
+      // Ensure minimum 3 seconds display time even on error
+      const elapsedTime = Date.now() - startTime
+      const remainingTime = Math.max(0, 3000 - elapsedTime)
+      await new Promise(resolve => setTimeout(resolve, remainingTime))
+      
       alert('Failed to export Cutting Plan PDF. Please try again.')
       
       // Restore original expanded state
       setExpandedProfiles(originalExpandedProfiles)
       
-      // Hide progress modal
+      // Hide loader
       setExportProgress({ show: false, current: 0, total: 0 })
+      setLoadingMessage('')
     }
   }
 
   const generateNesting = async () => {
     if (!filename || selectedProfiles.size === 0) return
 
+    const startTime = Date.now()
     setLoading(true)
+    setLoadingMessage('Optimizing nesting patterns...')
     setError(null)
 
     try {
@@ -699,11 +743,22 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       const data: NestingReportType = await response.json()
       onNestingReportChange(data)
       setCurrentStep('results')
+      
+      // Ensure minimum 3 seconds display time
+      const elapsedTime = Date.now() - startTime
+      const remainingTime = Math.max(0, 3000 - elapsedTime)
+      await new Promise(resolve => setTimeout(resolve, remainingTime))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
       console.error('Error generating nesting:', err)
+      
+      // Ensure minimum 3 seconds display time even on error
+      const elapsedTime = Date.now() - startTime
+      const remainingTime = Math.max(0, 3000 - elapsedTime)
+      await new Promise(resolve => setTimeout(resolve, remainingTime))
     } finally {
       setLoading(false)
+      setLoadingMessage('')
     }
   }
 
@@ -4998,48 +5053,9 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
           </DialogContent>
         </Dialog>
 
-        {/* Export Progress Modal */}
-        <Dialog open={exportProgress.show} onOpenChange={() => {}}>
-          <DialogContent className="sm:max-w-[400px]">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full" />
-                Generating PDF...
-              </DialogTitle>
-            </DialogHeader>
-            
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Processing stockbars</span>
-                  <span className="font-medium">
-                    {exportProgress.current} / {exportProgress.total}
-                  </span>
-                </div>
-                
-                <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
-                  <div 
-                    className="bg-primary h-2.5 transition-all duration-300 ease-out"
-                    style={{ 
-                      width: `${exportProgress.total > 0 ? (exportProgress.current / exportProgress.total) * 100 : 0}%` 
-                    }}
-                  />
-                </div>
-                
-                <p className="text-xs text-muted-foreground text-center">
-                  {exportProgress.current < exportProgress.total 
-                    ? `Capturing stockbar images... ${Math.round((exportProgress.current / exportProgress.total) * 100)}%`
-                    : 'Generating PDF document...'
-                  }
-                </p>
-              </div>
-              
-              <p className="text-xs text-muted-foreground text-center">
-                Please wait, this may take a moment for large projects.
-              </p>
-            </div>
-          </DialogContent>
-        </Dialog>
+        {/* Lottie Loading Animation */}
+        {exportProgress.show && <LottieLoader message={loadingMessage} size={250} />}
+        {loading && <LottieLoader message={loadingMessage} size={250} />}
 
         {/* Shadcn-styled tooltip for stockbar parts */}
         {tooltip && (
