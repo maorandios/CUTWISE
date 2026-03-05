@@ -124,6 +124,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false) // Settings modal visibility
   const [showBOMModal, setShowBOMModal] = useState<boolean>(false) // BOM export modal visibility
   const [showCuttingPlanModal, setShowCuttingPlanModal] = useState<boolean>(false) // Cutting Plan export modal visibility
+  const [showConfirmNestingModal, setShowConfirmNestingModal] = useState<boolean>(false) // Confirm nesting modal visibility
+  const [nestingApproved, setNestingApproved] = useState<boolean>(false) // User approval checkbox
   const [activeReportTab, setActiveReportTab] = useState<'materials' | 'bom' | 'cutting'>('materials') // Active tab in report view
   const [animatedTabs, setAnimatedTabs] = useState<Set<string>>(new Set()) // Track which tabs have been animated
   const [bomProjectName, setBomProjectName] = useState<string>('')
@@ -618,9 +620,30 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
             const viewBox = svgElement.getAttribute('viewBox') || '0 0 1000 60'
             const polygons = svgElement.querySelectorAll('polygon')
             
-            // Get the part number labels from the container (they are div overlays)
-            const labelDivs = containerElement.querySelectorAll('div[style*="position: absolute"]')
-            const partNumbers = Array.from(labelDivs).map(div => div.textContent?.trim() || '')
+            // Create mapping from part name to table number (same logic as rendering)
+            const partNameToNumber = new Map<string, number>()
+            try {
+              const partGroups = new Map<string, { name: string, length: number, count: number }>()
+              
+              profile.cutting_patterns[patternIdx].parts.forEach((part) => {
+                const partName = getDisplayPartName(part)
+                const partLength = part?.length || 0
+                
+                if (partGroups.has(partName)) {
+                  const existing = partGroups.get(partName)!
+                  existing.count += 1
+                } else {
+                  partGroups.set(partName, { name: partName, length: partLength, count: 1 })
+                }
+              })
+              
+              const sortedGroups = Array.from(partGroups.values()).sort((a, b) => b.length - a.length)
+              sortedGroups.forEach((group, idx) => {
+                partNameToNumber.set(group.name, idx + 1)
+              })
+            } catch (e) {
+              console.error('[PDF-EXPORT] Failed to create part mapping:', e)
+            }
             
             const parts: Array<{points: string, fill: string, partName: string}> = []
             
@@ -628,13 +651,18 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               const points = polygon.getAttribute('points') || ''
               const fill = polygon.getAttribute('fill') || '#ccc'
               
-              // Use the part number from the label div overlay
-              const partName = partNumbers[idx] || String(idx + 1)
-              
-              // Skip if no points data
-              if (!points) return
-              
-              parts.push({ points, fill, partName })
+              // Get the actual part from the pattern
+              const part = profile.cutting_patterns[patternIdx].parts[idx]
+              if (part) {
+                const partName = getDisplayPartName(part)
+                const partNumber = partNameToNumber.get(partName)
+                const displayLabel = partNumber ? String(partNumber) : partName
+                
+                // Skip if no points data
+                if (!points) return
+                
+                parts.push({ points, fill, partName: displayLabel })
+              }
             })
             
             stockbarSvgData.push({
@@ -901,7 +929,10 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                   {selectedProfiles.size} of {availableProfiles.length} profiles selected
                 </div>
                 <Button
-                  onClick={generateNesting}
+                  onClick={() => {
+                    setNestingApproved(false)
+                    setShowConfirmNestingModal(true)
+                  }}
                   disabled={selectedProfiles.size === 0 || loading}
                   className="w-full"
                   size="lg"
@@ -2332,6 +2363,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                   sortedGroups.forEach((group, idx) => {
                                     partNameToNumber.set(group.name, idx + 1)
                                   })
+                                  
                                 } catch (e) {
                                   // If mapping fails, labels will fall back to part names
                                 }
@@ -3208,8 +3240,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                       
                                       // Get the part number from the cutting list table mapping
                                       const partNameStr = String(partName || '')
-                                      const partNumber = partNameToNumber.get(partNameStr) || partIdx + 1
-                                      const displayLabel = partNameToNumber.has(partNameStr) ? String(partNumber) : partNameStr
+                                      const partNumber = partNameToNumber.get(partNameStr)
+                                      const displayLabel = partNumber ? String(partNumber) : partNameStr
                                       
                                       // ROBUST SOLUTION: Calculate exact boundaries to prevent gaps and overlaps
                                       
@@ -4178,6 +4210,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                   sortedGroups.forEach((group, idx) => {
                                     partNameToNumber.set(group.name, idx + 1)
                                   })
+                                  
                                 } catch (e) {
                                   // If mapping fails, labels will fall back to part names
                                 }
@@ -4235,13 +4268,23 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                       let wPx = endPx - xPx
                                       wPx = Math.max(1, Math.floor(wPx))
                                       
-                                      // Only show label if part is wide enough (lowered threshold to show labels for smaller parts)
-                                      if (wPx < 15) return null
-                                      
                                       // Get part number from mapping - use the EXACT same logic as SVG rendering
                                       const partName = getDisplayPartName(part)
                                       const partNameStr = String(partName || '')
-                                      const partNumber = partNameToNumber.get(partNameStr) || partIdx + 1
+                                      const partNumber = partNameToNumber.get(partNameStr)
+                                      const displayLabel = partNumber ? String(partNumber) : partNameStr
+                                      
+                                      // Adjust font size based on part width for better readability
+                                      let fontSize = '12px'
+                                      if (wPx < 8) {
+                                        fontSize = '8px'
+                                      } else if (wPx < 12) {
+                                        fontSize = '9px'
+                                      } else if (wPx < 15) {
+                                        fontSize = '10px'
+                                      }
+                                      
+                                      // Show labels for all parts (removed width threshold)
                                       
                                       // Calculate actual polygon boundaries (same logic as SVG rendering lines 1288-1360)
                                       let topLeftX = xPx
@@ -4327,20 +4370,6 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                       const centerX = (topLeftX + topRightX) / 2
                                       const centerXPercent = (centerX / 1000) * 100
                                       
-                                      // Debug logging for part 2 (last part with 0 waste)
-                                      if (partIdx === lastPartIdx && pattern.waste === 0) {
-                                        console.log(`[LABEL-CENTER] Part ${partIdx} (${partName}):`, {
-                                          xPx,
-                                          endPx,
-                                          topLeftX,
-                                          topRightX,
-                                          centerX,
-                                          centerXPercent,
-                                          wPx,
-                                          waste: pattern.waste
-                                        })
-                                      }
-                                      
                                       return (
                                         <div
                                           key={`part-label-${partIdx}`}
@@ -4350,7 +4379,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                             top: '50%',
                                             transform: 'translate(-50%, -50%)',
                                             fontFamily: 'system-ui, -apple-system, sans-serif',
-                                            fontSize: '12px',
+                                            fontSize: fontSize,
                                             fontWeight: '500',
                                             color: '#374151',
                                             textAlign: 'center',
@@ -4365,7 +4394,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                             zIndex: 10
                                           }}
                                         >
-                                          {partNumber}
+                                          {displayLabel}
                                         </div>
                                       )
                                     })}
@@ -4374,6 +4403,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                   </>
                                 )
                               } catch (error) {
+                                console.error('[LABEL-RENDER] Error rendering labels:', error)
                                 return null
                               }
                             })()}
@@ -4689,6 +4719,170 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 }}
               >
                 Save Settings
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Confirm Nesting Modal */}
+        <Dialog open={showConfirmNestingModal} onOpenChange={setShowConfirmNestingModal}>
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Confirm Nesting Configuration</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-6 py-4">
+              {/* Profile Summary */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-gray-900">Selected Profiles Summary</h3>
+                <div className="grid grid-cols-3 divide-x divide-gray-200">
+                  {/* Profile Types Card */}
+                  <div className="flex flex-col items-center justify-center py-4">
+                    <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#00817A15' }}>
+                      <img 
+                        src="/Icons/Profile qty.svg" 
+                        alt="Profile Types" 
+                        className="h-6 w-6"
+                        style={{ filter: 'brightness(0) saturate(100%) invert(34%) sepia(46%) saturate(1234%) hue-rotate(141deg) brightness(94%) contrast(101%)' }}
+                      />
+                    </div>
+                    <div className="text-2xl font-semibold text-primary">{selectedProfiles.size}</div>
+                    <div className="text-xs text-gray-600 mt-1">Profile Types</div>
+                  </div>
+
+                  {/* Weight Card */}
+                  <div className="flex flex-col items-center justify-center py-4">
+                    <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#00817A15' }}>
+                      <img 
+                        src="/Icons/pdf-Weight.svg" 
+                        alt="Weight" 
+                        className="h-6 w-6"
+                        style={{ filter: 'brightness(0) saturate(100%) invert(34%) sepia(46%) saturate(1234%) hue-rotate(141deg) brightness(94%) contrast(101%)' }}
+                      />
+                    </div>
+                    <div className="text-2xl font-semibold text-primary">
+                      {report ? 
+                        (report.profiles
+                          .filter(p => selectedProfiles.has(p.profile_name))
+                          .reduce((sum, p) => sum + p.total_weight, 0) / 1000).toFixed(2)
+                        : '0.00'
+                      }
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Weight (t)</div>
+                  </div>
+
+                  {/* Cuts Quantity Card */}
+                  <div className="flex flex-col items-center justify-center py-4">
+                    <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#00817A15' }}>
+                      <img 
+                        src="/Icons/pdf-Cuttinqty.svg" 
+                        alt="Cuts" 
+                        className="h-6 w-6"
+                        style={{ filter: 'brightness(0) saturate(100%) invert(34%) sepia(46%) saturate(1234%) hue-rotate(141deg) brightness(94%) contrast(101%)' }}
+                      />
+                    </div>
+                    <div className="text-2xl font-semibold text-primary">
+                      {report ? 
+                        report.profiles
+                          .filter(p => selectedProfiles.has(p.profile_name))
+                          .reduce((sum, p) => sum + p.piece_count, 0)
+                          .toLocaleString('en-US')
+                        : '0'
+                      }
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Cuts Quantity</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Technical Settings */}
+              <div className="space-y-3 border-t pt-4">
+                <h3 className="text-sm font-semibold text-gray-900">Technical Settings</h3>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-3">
+                    <img src="/Icons/kerf for section.svg" alt="Kerf" className="h-4 w-4 opacity-60" />
+                    <span className="text-gray-600">Saw Kerf:</span>
+                    <span className="font-medium">{kerfValue} (mm)</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <img src="/Icons/trim for section.svg" alt="Trim" className="h-4 w-4 opacity-60" />
+                    <span className="text-gray-600">Trim:</span>
+                    <span className="font-medium">{trimValue} (mm)</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <img src="/Icons/tolerance for section.svg" alt="Tolerance" className="h-4 w-4 opacity-60" />
+                    <span className="text-gray-600">Tolerance Stockbar:</span>
+                    <span className="font-medium">
+                      {stockToleranceEnabled ? `${stockToleranceValue} (mm)` : 'Disabled'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stock Lengths */}
+              <div className="space-y-3 border-t pt-4">
+                <h3 className="text-sm font-semibold text-gray-900">Stockbar Lengths</h3>
+                <div className="space-y-2">
+                  {stockLengths.map((stock, idx) => (
+                    <div key={stock.id} className="flex items-center gap-2 text-sm">
+                      <span className="text-gray-600">{(stock.value / 1000).toFixed(2)} (m)</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Approval Checkbox */}
+              <div className="border-t pt-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <div className="relative flex-shrink-0 w-5 h-5 mt-0.5">
+                    <input
+                      type="checkbox"
+                      checked={nestingApproved}
+                      onChange={(e) => setNestingApproved(e.target.checked)}
+                      className="appearance-none w-5 h-5 border-2 border-gray-300 rounded-full cursor-pointer transition-all checked:bg-[#00817A] checked:border-[#00817A] focus:ring-2 focus:ring-[#00817A] focus:ring-offset-1"
+                    />
+                    {nestingApproved && (
+                      <svg 
+                        className="absolute inset-0 w-5 h-5 text-white pointer-events-none p-1"
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="text-sm">
+                    <p className="font-medium text-gray-900">I confirm the nesting configuration</p>
+                    <p className="text-gray-500 mt-1">
+                      I have reviewed the selected profiles and technical settings and approve running the nesting engine with this configuration.
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowConfirmNestingModal(false)
+                  setNestingApproved(false)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setShowConfirmNestingModal(false)
+                  generateNesting()
+                }}
+                disabled={!nestingApproved}
+                className="min-w-[180px]"
+              >
+                Run Nesting Engine
               </Button>
             </div>
           </DialogContent>

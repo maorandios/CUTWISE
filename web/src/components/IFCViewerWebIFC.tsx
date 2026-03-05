@@ -4,7 +4,6 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import * as WebIFC from 'web-ifc'
 import { ContextMenu } from './IFCViewer/components'
 import { ContextMenuState, ElementData, SelectionMode } from './IFCViewer/types'
-import { Switch } from '@/components/ui/switch'
 
 interface IFCViewerWebIFCProps {
   filename: string | null
@@ -52,7 +51,6 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
     error: null
   })
   const [selectedElement, setSelectedElement] = useState<THREE.Mesh | null>(null)
-  const [hideNonProfiles, setHideNonProfiles] = useState(false)
 
   // Helper function to build mesh lookup cache (called once after model loads)
   const buildMeshLookup = (modelGroup: THREE.Group) => {
@@ -85,28 +83,33 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
     
     let updatedMeshes = 0
     
-    // Update newly selected profiles (gray opaque -> original color)
+    // Update newly selected profiles (wireframe -> solid with color)
     added.forEach(profileName => {
       const meshes = meshLookup.get(profileName)
       if (meshes) {
         meshes.forEach(mesh => {
           if (mesh.userData.originalMaterial) {
             mesh.material = mesh.userData.originalMaterial
+            mesh.visible = true // Show the solid mesh
+            if (mesh.userData.edgeLine) {
+              mesh.userData.edgeLine.visible = false // Hide edges when selected
+            }
             updatedMeshes++
           }
         })
       }
     })
     
-    // Update newly deselected profiles (original color -> gray opaque)
+    // Update newly deselected profiles (solid color -> wireframe only)
     removed.forEach(profileName => {
       const meshes = meshLookup.get(profileName)
       if (meshes) {
         meshes.forEach(mesh => {
-          if (mesh.userData.grayMaterial) {
-            mesh.material = mesh.userData.grayMaterial
-            updatedMeshes++
+          mesh.visible = false // Hide the solid mesh
+          if (mesh.userData.edgeLine) {
+            mesh.userData.edgeLine.visible = true // Show only edges
           }
+          updatedMeshes++
         })
       }
     })
@@ -116,70 +119,41 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
     }
   }
   
-  // Helper function to apply initial materials (all meshes gray opaque on first load)
+  // Helper function to apply initial materials (all meshes wireframe on first load)
   const applyInitialMaterials = (selectedProfiles: Set<string>) => {
     const meshLookup = meshLookupRef.current
     if (meshLookup.size === 0) return
     
-    let updatedMeshes = 0
+    let coloredMeshes = 0
+    let wireframeMeshes = 0
     
-    // Set selected profiles to original color, all others stay gray opaque (already set on load)
-    selectedProfiles.forEach(profileName => {
-      const meshes = meshLookup.get(profileName)
-      if (meshes) {
-        meshes.forEach(mesh => {
-          if (mesh.userData.originalMaterial) {
-            mesh.material = mesh.userData.originalMaterial
-            updatedMeshes++
+    // Iterate through all profiles
+    meshLookup.forEach((meshes, profileName) => {
+      const isSelected = selectedProfiles.has(profileName)
+      
+      meshes.forEach(mesh => {
+        if (isSelected) {
+          // Selected: show solid with color, hide edges
+          mesh.material = mesh.userData.originalMaterial
+          mesh.visible = true
+          if (mesh.userData.edgeLine) {
+            mesh.userData.edgeLine.visible = false
           }
-        })
-      }
+          coloredMeshes++
+        } else {
+          // Unselected: hide solid, show only edges (wireframe)
+          mesh.visible = false
+          if (mesh.userData.edgeLine) {
+            mesh.userData.edgeLine.visible = true
+          }
+          wireframeMeshes++
+        }
+      })
     })
     
-    console.log(`[MATERIALS] Initial: ${updatedMeshes} meshes set to color, rest are gray opaque`)
+    console.log(`[MATERIALS] Initial: ${coloredMeshes} meshes colored, ${wireframeMeshes} meshes as wireframe`)
   }
 
-  // Helper function to toggle visibility of non-profile elements
-  const toggleNonProfileVisibility = (hide: boolean) => {
-    if (!modelRef.current) return
-    
-    const meshLookup = meshLookupRef.current
-    const profileNames = new Set(meshLookup.keys())
-    
-    let hiddenCount = 0
-    let shownCount = 0
-    
-    modelRef.current.traverse((child) => {
-      if (child instanceof THREE.Mesh && !child.userData.isEdge) {
-        const profileName = child.userData.profile_name
-        
-        // If this mesh doesn't belong to any profile in the list, hide/show it
-        if (!profileName || !profileNames.has(profileName)) {
-          child.visible = !hide
-          if (hide) {
-            hiddenCount++
-          } else {
-            shownCount++
-          }
-        }
-      }
-    })
-    
-    console.log(`[VISIBILITY] ${hide ? 'Hidden' : 'Shown'} ${hide ? hiddenCount : shownCount} non-profile elements`)
-    
-    // Trigger render
-    if (rendererRef.current && sceneRef.current && cameraRef.current) {
-      if (!renderRequestedRef.current) {
-        renderRequestedRef.current = true
-        requestAnimationFrame(() => {
-          if (rendererRef.current && sceneRef.current && cameraRef.current) {
-            rendererRef.current.render(sceneRef.current, cameraRef.current)
-          }
-          renderRequestedRef.current = false
-        })
-      }
-    }
-  }
 
   // Initialize Three.js scene
   useEffect(() => {
@@ -661,19 +635,20 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
               opacity: 1.0
             })
 
-            // Create mesh with gray transparent material by default
-            const mesh = new THREE.Mesh(bufferGeometry, grayMaterial)
+            // Create mesh - will be hidden by default (wireframe only for unselected)
+            const mesh = new THREE.Mesh(bufferGeometry, originalMaterial)
             mesh.castShadow = false
             mesh.receiveShadow = false
             mesh.frustumCulled = true
             mesh.matrixAutoUpdate = false
             mesh.updateMatrix()
+            mesh.visible = false // Hidden by default - will show only edges until selected
             mesh.userData = {
               product_id: expressID,
               type: elementType,
               geometry_id: geometryID,
               originalMaterial: originalMaterial, // Store original for selection
-              grayMaterial: grayMaterial, // Store gray for deselection
+              grayMaterial: grayMaterial, // Keep for backward compatibility
               originalColor: color
               // profile_name will be set by loadAssemblyMapping
             }
@@ -685,12 +660,9 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
               // Use higher angle threshold for better performance while maintaining visibility
               const edges = new THREE.EdgesGeometry(bufferGeometry, 25) // 25 degree threshold
               
-              // Create darker version of the element color for edges
-              const edgeColor = new THREE.Color(color)
-              edgeColor.multiplyScalar(0.5) // Make it 50% darker for better contrast
-              
+              // Use light gray for wireframe edges (for unselected elements)
               const lineMaterial = new THREE.LineBasicMaterial({ 
-                color: edgeColor,
+                color: 0xCCCCCC, // Light gray for wireframe
                 linewidth: 1,
                 transparent: false, // Disable transparency for performance
                 depthTest: true,
@@ -701,7 +673,7 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
               edgeLine.frustumCulled = true // Enable frustum culling
               edgeLine.matrixAutoUpdate = false // Static geometry
               edgeLine.updateMatrix() // Update once
-              edgeLine.visible = false // Hide all edges by default for performance
+              edgeLine.visible = true // Visible by default - shows wireframe for unselected elements
               edgeLine.userData = {
                 isEdgeLine: true,
                 parentMesh: mesh
@@ -838,13 +810,6 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
       }
     }
   }, [selectedProfiles])
-
-  // Handle hide/show non-profile elements
-  useEffect(() => {
-    if (!modelRef.current) return
-    toggleNonProfileVisibility(hideNonProfiles)
-  }, [hideNonProfiles])
-
   // Helper function to clear selection
   const clearSelection = () => {
     // Restore original materials
@@ -1230,17 +1195,6 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
         </div>
       </div> */}
 
-      {/* Hide Non-Profiles Switch */}
-      <div className="absolute top-4 right-4 z-20 flex items-center gap-3">
-        <label htmlFor="hide-non-profiles" className="text-sm font-medium text-gray-700 cursor-pointer">
-          Hide Non-Profiles
-        </label>
-        <Switch
-          id="hide-non-profiles"
-          checked={hideNonProfiles}
-          onCheckedChange={setHideNonProfiles}
-        />
-      </div>
     </div>
   )
 })
