@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import * as WebIFC from 'web-ifc'
 import { ContextMenu } from './IFCViewer/components'
 import { ContextMenuState, ElementData, SelectionMode } from './IFCViewer/types'
+import { Switch } from '@/components/ui/switch'
 
 interface IFCViewerWebIFCProps {
   filename: string | null
@@ -1229,29 +1230,16 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
         </div>
       </div> */}
 
-      {/* Hide Non-Profiles Button */}
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20">
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            e.preventDefault()
-            setHideNonProfiles(!hideNonProfiles)
-          }}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-lg ${
-            hideNonProfiles
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
-              : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-          }`}
-          title={hideNonProfiles ? 'Show all elements' : 'Hide non-profile elements (plates, anchors, etc.)'}
-        >
-          {hideNonProfiles ? 'Show All' : 'Hide Non-Profiles'}
-        </button>
-      </div>
-
-      {/* Info Badge */}
-      <div className="absolute bottom-4 right-4 bg-white bg-opacity-90 px-4 py-2 rounded-lg shadow-lg text-xs text-gray-600 z-10">
-        <div className="font-semibold text-blue-600">IFCM - Fast Viewer</div>
-        <div>web-ifc (no conversion needed)</div>
+      {/* Hide Non-Profiles Switch */}
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-3">
+        <label htmlFor="hide-non-profiles" className="text-sm font-medium text-gray-700 cursor-pointer">
+          Hide Non-Profiles
+        </label>
+        <Switch
+          id="hide-non-profiles"
+          checked={hideNonProfiles}
+          onCheckedChange={setHideNonProfiles}
+        />
       </div>
     </div>
   )

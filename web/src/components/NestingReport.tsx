@@ -43,6 +43,7 @@ interface NestingReportProps {
   onNestingReportChange: (report: NestingReportType | null) => void
   report: SteelReport | null  // Report data to get available profiles
   initialView?: 'select' | 'results' // Control which view to show initially
+  onSettingsClick?: (handler: () => void) => void // Callback to expose settings handler to parent
 }
 
 type Step = 'select' | 'results'
@@ -61,24 +62,36 @@ const ProfileItem = memo(({ profile, isSelected, onToggle }: ProfileItemProps) =
 
   return (
     <label
-      className={`block p-3 border rounded cursor-pointer transition-colors ${
+      className={`block py-4 px-3 border rounded-xl cursor-pointer transition-colors ${
         isSelected
-          ? 'bg-blue-50 border-blue-300'
+          ? 'border-[#00817A]'
           : 'bg-white border-gray-200 hover:bg-gray-50'
       }`}
+      style={isSelected ? { backgroundColor: 'rgba(0, 129, 122, 0.08)' } : {}}
     >
-      <div className="flex items-start gap-3">
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={handleChange}
-          className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-        />
+      <div className="flex items-center gap-3">
+        <div className="relative flex-shrink-0 w-5 h-5">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={handleChange}
+            className="appearance-none w-5 h-5 border-2 border-gray-300 rounded-full cursor-pointer transition-all checked:bg-[#00817A] checked:border-[#00817A] focus:ring-2 focus:ring-[#00817A] focus:ring-offset-1"
+          />
+          {isSelected && (
+            <svg 
+              className="absolute inset-0 w-5 h-5 text-white pointer-events-none p-1"
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </div>
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm truncate">{profile.profile_name}</div>
-          <div className="text-xs text-gray-600 mt-1">
-            <div>{profile.piece_count} parts</div>
-            <div>{profile.total_weight.toLocaleString('en-US')} kg</div>
+          <div className="text-sm truncate">
+            <span className="font-semibold">{profile.profile_name}</span>
+            <span className="text-gray-500"> • {profile.piece_count} parts • {profile.total_weight.toLocaleString('en-US')} kg</span>
           </div>
         </div>
       </div>
@@ -86,7 +99,7 @@ const ProfileItem = memo(({ profile, isSelected, onToggle }: ProfileItemProps) =
   )
 })
 
-export default function NestingReport({ filename, nestingReport: propNestingReport, onNestingReportChange, report, initialView }: NestingReportProps) {
+export default function NestingReport({ filename, nestingReport: propNestingReport, onNestingReportChange, report, initialView, onSettingsClick }: NestingReportProps) {
   // Use prop as source of truth, but maintain local state for updates
   const nestingReport = propNestingReport
   const [currentStep, setCurrentStep] = useState<Step>(initialView || 'select')
@@ -145,6 +158,13 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       setSelectedProfilesForDisplay(new Set(nestingReport.profiles.map(p => p.profile_name)))
     }
   }, [nestingReport])
+
+  // Expose settings handler to parent
+  useEffect(() => {
+    if (onSettingsClick) {
+      onSettingsClick(() => setShowSettingsModal(true))
+    }
+  }, [onSettingsClick])
   
   // Mark current tab as animated after animation completes
   useEffect(() => {
@@ -797,21 +817,51 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
 
         {/* Step 1: Profile Selection with Split Screen */}
         {currentStep === 'select' && (
-          <div className="flex-1 flex overflow-hidden">
-            {/* Left Panel - Profile List (max 30% width) */}
-            <div className="w-full max-w-[30%] border-r bg-white flex flex-col">
+          <div className="flex-1 flex justify-center overflow-hidden bg-gray-50">
+            <div className="w-full max-w-[1440px] flex overflow-hidden h-full">
+              {/* Left Panel - Profile List (max 30% width) */}
+              <div className="w-full max-w-[30%] border-r bg-white flex flex-col">
               {/* Header */}
               <div className="p-4 border-b bg-muted/50">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-lg font-bold">Select Profiles</h3>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => setShowSettingsModal(true)}
-                  >
-                    ⚙️ Settings
-                  </Button>
+                {/* Metric Cards */}
+                <div className="grid grid-cols-3 divide-x divide-gray-200 mb-4">
+                  {/* Profile Types Card */}
+                  <div className="flex flex-col items-center justify-center text-center py-4">
+                    <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#00817A15' }}>
+                      <img src="/Icons/Profile qty.svg" alt="Profile Types" className="h-6 w-6" style={{ filter: 'brightness(0) saturate(100%) invert(34%) sepia(46%) saturate(1234%) hue-rotate(141deg) brightness(94%) contrast(101%)' }} />
+                    </div>
+                    <p className="text-2xl font-bold text-primary mb-1">{selectedProfiles.size}</p>
+                    <p className="text-xs text-muted-foreground leading-tight">Profile Types</p>
+                  </div>
+
+                  {/* Weight Card */}
+                  <div className="flex flex-col items-center justify-center text-center py-4">
+                    <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#00817A15' }}>
+                      <img src="/Icons/pdf-Weight.svg" alt="Weight" className="h-6 w-6" style={{ filter: 'brightness(0) saturate(100%) invert(34%) sepia(46%) saturate(1234%) hue-rotate(141deg) brightness(94%) contrast(101%)' }} />
+                    </div>
+                    <p className="text-2xl font-bold text-primary mb-1">
+                      {(availableProfiles
+                        .filter(p => selectedProfiles.has(p.profile_name))
+                        .reduce((sum, p) => sum + p.total_weight, 0) / 1000).toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground leading-tight">Weight (t)</p>
+                  </div>
+
+                  {/* Cuts Quantity Card */}
+                  <div className="flex flex-col items-center justify-center text-center py-4">
+                    <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#00817A15' }}>
+                      <img src="/Icons/pdf-Cuttinqty.svg" alt="Cuts" className="h-6 w-6" style={{ filter: 'brightness(0) saturate(100%) invert(34%) sepia(46%) saturate(1234%) hue-rotate(141deg) brightness(94%) contrast(101%)' }} />
+                    </div>
+                    <p className="text-2xl font-bold text-primary mb-1">
+                      {availableProfiles
+                        .filter(p => selectedProfiles.has(p.profile_name))
+                        .reduce((sum, p) => sum + p.piece_count, 0)}
+                    </p>
+                    <p className="text-xs text-muted-foreground leading-tight">Cuts Quantity</p>
+                  </div>
                 </div>
+
+                {/* Select All Button */}
                 <Button
                   variant="outline"
                   className="w-full"
@@ -866,13 +916,14 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               </div>
             </div>
 
-            {/* Right Panel - IFC Viewer (70% width) */}
-            <div className="flex-1 bg-gray-100" style={{ willChange: 'transform', contain: 'layout style paint' }}>
-              <IFCViewerWebIFC 
-                filename={filename}
-                isVisible={true}
-                selectedProfiles={selectedProfiles}
-              />
+              {/* Right Panel - IFC Viewer (70% width) */}
+              <div className="flex-1 bg-gray-100" style={{ willChange: 'transform', contain: 'layout style paint' }}>
+                <IFCViewerWebIFC 
+                  filename={filename}
+                  isVisible={true}
+                  selectedProfiles={selectedProfiles}
+                />
+              </div>
             </div>
           </div>
         )}

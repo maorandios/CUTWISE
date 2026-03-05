@@ -87,6 +87,7 @@ function App() {
   })
   const [activeTab, setActiveTab] = useState<'model' | 'ifcm' | 'nesting' | 'dashboard' | 'profiles' | 'plates' | 'assemblies' | 'bolts' | 'fasteners' | 'plate-nesting' | 'shipment' | 'management'>(savedState?.activeTab || 'ifcm')
   const [nestingReport, setNestingReport] = useState<NestingReportType | null>(null)  // Always start with null
+  const [nestingSettingsHandler, setNestingSettingsHandler] = useState<(() => void) | null>(null)
   
   // Cache for tab data - loaded once and kept in memory
   const [tabDataCache, setTabDataCache] = useState<{
@@ -458,12 +459,14 @@ function App() {
             showBackButton={true}
             onBackClick={handleBackToDashboard}
             title={currentFile?.replace('.ifc', '') || 'Project'}
+            showNestingSettings={true}
+            onNestingSettingsClick={nestingSettingsHandler || undefined}
           />
           
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-hidden flex flex-col">
             {currentFile && (
-              <div className="min-h-full flex flex-col">
-                <div className="flex-1">
+              <>
+                <div className="flex-1 overflow-hidden">
                   <NestingReport 
                     key={`split-${currentFile}`}
                     filename={currentFile} 
@@ -471,10 +474,11 @@ function App() {
                     onNestingReportChange={handleNestingReportChange}
                     report={report}
                     initialView="select"
+                    onSettingsClick={(handler) => setNestingSettingsHandler(() => handler)}
                   />
                 </div>
                 <Footer />
-              </div>
+              </>
             )}
 
             {!currentFile && (
@@ -500,6 +504,8 @@ function App() {
             showBackButton={true}
             onBackClick={handleBackToDashboard}
             title={currentFile?.replace('.ifc', '') || 'Project'}
+            showNestingSettings={false}
+            onNestingSettingsClick={nestingSettingsHandler || undefined}
           />
           
           <div className="flex-1 overflow-y-auto">
@@ -513,6 +519,7 @@ function App() {
                     onNestingReportChange={handleNestingReportChange}
                     report={report}
                     initialView="results"
+                    onSettingsClick={(handler) => setNestingSettingsHandler(() => handler)}
                   />
                 </div>
                 <Footer />

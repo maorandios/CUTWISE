@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/Button';
+import { Wrench } from 'lucide-react';
 
 interface HeaderProps {
   onSettingsClick?: () => void;
@@ -8,6 +9,8 @@ interface HeaderProps {
   showUploadButton?: boolean;
   onUploadClick?: () => void;
   title?: string;
+  showNestingSettings?: boolean;
+  onNestingSettingsClick?: () => void;
 }
 
 export function Header({
@@ -18,6 +21,8 @@ export function Header({
   showUploadButton = false,
   onUploadClick,
   title,
+  showNestingSettings = false,
+  onNestingSettingsClick,
 }: HeaderProps) {
   return (
     <>
@@ -59,7 +64,7 @@ export function Header({
       {/* Back Button - Separate from header */}
       {showBackButton && onBackClick && (
         <div className="bg-[#11181C]">
-          <div className="max-w-[1440px] mx-auto px-6 py-2">
+          <div className="max-w-[1440px] mx-auto px-6 py-2 flex items-center justify-between">
             <Button
               variant="ghost"
               onClick={onBackClick}
@@ -71,6 +76,18 @@ export function Header({
               </svg>
               <span className="text-sm">Back to dashboard</span>
             </Button>
+            
+            {showNestingSettings && onNestingSettingsClick && (
+              <Button
+                variant="ghost"
+                onClick={onNestingSettingsClick}
+                title="Technical Settings"
+                className="text-white hover:text-white hover:bg-gray-700 flex items-center gap-2 px-3 py-1"
+              >
+                <Wrench className="w-5 h-5" />
+                <span className="text-sm">Technical Settings</span>
+              </Button>
+            )}
           </div>
         </div>
       )}
