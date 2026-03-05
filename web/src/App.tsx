@@ -470,7 +470,7 @@ function App() {
             showBackButton={true}
             onBackClick={handleBackToDashboard}
             title={currentFile?.replace('.ifc', '') || 'Project'}
-            showNestingSettings={true}
+            showNestingSettings={false}
             onNestingSettingsClick={nestingSettingsHandler || undefined}
           />
           

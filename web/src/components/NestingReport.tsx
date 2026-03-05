@@ -126,11 +126,26 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   const [showCuttingPlanModal, setShowCuttingPlanModal] = useState<boolean>(false) // Cutting Plan export modal visibility
   const [showConfirmNestingModal, setShowConfirmNestingModal] = useState<boolean>(false) // Confirm nesting modal visibility
   const [nestingApproved, setNestingApproved] = useState<boolean>(false) // User approval checkbox
-  const [activeReportTab, setActiveReportTab] = useState<'materials' | 'bom' | 'cutting'>('materials') // Active tab in report view
+  const [activeReportTab, setActiveReportTab] = useState<'materials' | 'bom' | 'cutting' | 'model'>('materials') // Active tab in report view
+  const [modelViewSelectedProfiles, setModelViewSelectedProfiles] = useState<Set<string>>(new Set()) // Selected profiles for model view tab
   const [animatedTabs, setAnimatedTabs] = useState<Set<string>>(new Set()) // Track which tabs have been animated
   const [bomProjectName, setBomProjectName] = useState<string>('')
+  
+  // Initialize project name when modal opens
+  useEffect(() => {
+    if (showBOMModal && !bomProjectName) {
+      setBomProjectName(filename.replace('.ifc', ''))
+    }
+  }, [showBOMModal, filename])
   const [bomSelectedProfiles, setBomSelectedProfiles] = useState<Set<string>>(new Set())
   const [cuttingPlanProjectName, setCuttingPlanProjectName] = useState<string>('')
+  
+  // Initialize cutting plan project name when modal opens
+  useEffect(() => {
+    if (showCuttingPlanModal && !cuttingPlanProjectName) {
+      setCuttingPlanProjectName(filename.replace('.ifc', ''))
+    }
+  }, [showCuttingPlanModal, filename])
   const [cuttingPlanSelectedProfiles, setCuttingPlanSelectedProfiles] = useState<Set<string>>(new Set())
   const [exportProgress, setExportProgress] = useState<{show: boolean, current: number, total: number}>({show: false, current: 0, total: 0})
   const [loadingMessage, setLoadingMessage] = useState<string>('')
@@ -963,11 +978,11 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         )}
 
         {currentStep === 'results' && nestingReport && (
-          <div className="flex-1 overflow-y-auto flex flex-col">
+          <div className={`flex-1 flex flex-col ${activeReportTab === 'model' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
             {/* Dark Header Section with Tab Buttons */}
             <div className="bg-[#11181C] pb-6">
               <div className="max-w-[1440px] mx-auto px-6 pt-8">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-center">
                   {/* Tab Buttons */}
                   <div className="flex gap-3">
                     <button
@@ -1036,6 +1051,28 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                       </div>
                       <span className="text-base font-medium whitespace-nowrap">Cutting Plan</span>
                     </button>
+                    <button
+                      onClick={() => setActiveReportTab('model')}
+                      className={`h-[70px] rounded-full flex items-center justify-center gap-3 transition-all cursor-pointer focus:outline-none focus-visible:outline-none active:outline-none ${
+                        activeReportTab === 'model'
+                          ? 'bg-[#008A67] border-[2.5px] border-transparent text-white pl-[7px] pr-6'
+                          : 'bg-transparent border-[2.5px] border-white/20 text-white hover:border-white/30 active:border-white/20 pl-[7px] pr-6'
+                      }`}
+                      style={{ WebkitTapHighlightColor: 'transparent' }}
+                    >
+                      <div className={`flex items-center justify-center flex-shrink-0 w-[55px] h-[55px] rounded-full ${
+                        activeReportTab === 'model' 
+                          ? 'bg-white' 
+                          : 'bg-white/0 border-[2.5px] border-white/10'
+                      }`}>
+                        <img 
+                          src="/Icons/ar.svg" 
+                          alt="Model" 
+                          className={`w-[34px] h-[34px] ${activeReportTab !== 'model' ? 'brightness-0 invert' : ''}`}
+                        />
+                      </div>
+                      <span className="text-base font-medium whitespace-nowrap">IFC Model</span>
+                    </button>
                   </div>
                   
                 </div>
@@ -1043,10 +1080,10 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-y-auto">
-              <div className="max-w-[1440px] mx-auto px-6 py-6">
+            <div className={`flex-1 ${activeReportTab === 'model' ? 'bg-gray-50 overflow-hidden' : 'overflow-y-auto'}`}>
+              <div className={activeReportTab === 'model' ? 'h-full' : 'max-w-[1440px] mx-auto px-6 py-6'}>
                 {/* Minimum width warning */}
-                {windowWidth < 900 && (
+                {windowWidth < 900 && activeReportTab !== 'model' && (
                   <div className="mb-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded">
                     <p className="font-semibold">Screen Width Too Small</p>
                     <p className="text-sm">Minimum screen width of 900px required for optimal visualization. Current width: {windowWidth}px</p>
@@ -1148,12 +1185,13 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               let avgWastePercent = 0
               let totalWasteM = 0
               let totalWasteTonnes = 0
+              let totalProjectWeight = 0
               
               if (chartFilterProfile === 'all' && chartFilterStockLength === 'all') {
                 // All profiles - use overall summary
                 avgWastePercent = nestingReport.summary.avg_waste_percentage
                 totalWasteM = nestingReport.summary.total_waste / 1000
-                // Calculate total waste tonnage from all profiles
+                // Calculate total waste tonnage and total project weight from all profiles
                 totalWasteTonnes = nestingReport.profiles.reduce((sum, profile) => {
                   const profileData = report?.profiles.find(p => p.profile_name === profile.profile_name)
                   if (profileData && profile.total_length > 0) {
@@ -1161,6 +1199,14 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                     const weightPerMeter = profileData.total_weight / totalLengthM
                     const wasteM = profile.total_waste / 1000
                     return sum + (wasteM * weightPerMeter) / 1000
+                  }
+                  return sum
+                }, 0)
+                // Calculate total project weight (selected profiles only)
+                totalProjectWeight = nestingReport.profiles.reduce((sum, profile) => {
+                  const profileData = report?.profiles.find(p => p.profile_name === profile.profile_name)
+                  if (profileData) {
+                    return sum + profileData.total_weight / 1000
                   }
                   return sum
                 }, 0)
@@ -1187,6 +1233,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                       const totalLengthM = profile.total_length / 1000
                       const weightPerMeter = profileData.total_weight / totalLengthM
                       totalWasteTonnes += (totalWaste / 1000 * weightPerMeter) / 1000
+                      // Add to total project weight
+                      totalProjectWeight += profileData.total_weight / 1000
                     }
                   }
                 })
@@ -1201,6 +1249,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                   avgWastePercent={avgWastePercent}
                   totalWasteM={totalWasteM}
                   totalWasteTonnes={totalWasteTonnes}
+                  totalProjectWeight={totalProjectWeight}
                   shouldAnimate={!animatedTabs.has('materials')}
                 />
                 
@@ -1563,13 +1612,13 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 )
               })()}
 
-              <div className="flex justify-end mb-4">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">Bill of Materials</h2>
                 <Button
-                  variant="secondary"
                   onClick={() => setShowBOMModal(true)}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 bg-[#00817A] hover:bg-[#00817A]/90 text-white"
                 >
-                  <img src="/Icons/export icon.svg" alt="Export" className="h-5 w-5" />
+                  <img src="/Icons/export icon.svg" alt="Export" className="h-5 w-5 brightness-0 invert" />
                   Export Bill of Materials
                 </Button>
               </div>
@@ -1578,15 +1627,15 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-primary hover:bg-primary h-16">
-                        <TableHead className="text-primary-foreground font-semibold h-16 text-base w-[20%] pl-6">Profile Name</TableHead>
-                        <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11.4%]">Stock Length (m)</TableHead>
-                        <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11.4%]">Quantity</TableHead>
-                        <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11.4%]">Weight (t)</TableHead>
-                        <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11.4%]">Cuts qty</TableHead>
-                        <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11.4%] bg-primary/70 pl-4">Waste (t)</TableHead>
-                        <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11.4%] bg-primary/70">Waste (m)</TableHead>
-                        <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11.4%] bg-primary/70 pr-6">Waste (%)</TableHead>
+                      <TableRow className="bg-gray-100 hover:bg-gray-100 h-16">
+                        <TableHead className="text-gray-700 font-semibold h-16 text-base w-[20%] pl-6">Profile Name</TableHead>
+                        <TableHead className="text-gray-700 text-right font-semibold h-16 text-base w-[11.4%]">Stock Length (m)</TableHead>
+                        <TableHead className="text-gray-700 text-right font-semibold h-16 text-base w-[11.4%]">Quantity</TableHead>
+                        <TableHead className="text-gray-700 text-right font-semibold h-16 text-base w-[11.4%]">Weight (t)</TableHead>
+                        <TableHead className="text-gray-700 text-right font-semibold h-16 text-base w-[11.4%]">Cuts qty</TableHead>
+                        <TableHead className="text-gray-700 text-right font-semibold h-16 text-base w-[11.4%] bg-gray-200 pl-4">Waste (t)</TableHead>
+                        <TableHead className="text-gray-700 text-right font-semibold h-16 text-base w-[11.4%] bg-gray-200">Waste (m)</TableHead>
+                        <TableHead className="text-gray-700 text-right font-semibold h-16 text-base w-[11.4%] bg-gray-200 pr-6">Waste (%)</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1800,39 +1849,36 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 <div className="mb-8 page-break-after">
                   <h2 className="text-2xl font-bold mb-4">Error Parts</h2>
                   
-                  <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+                  <div className="rounded-lg border overflow-hidden">
                     <div className="overflow-x-auto">
-                      <table className="min-w-full border-collapse">
-                        <thead>
-                          <tr className="bg-gray-800 text-white">
-                            <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Profile Type</th>
-                            <th className="border border-gray-300 px-4 py-3 text-left font-semibold">Part Name</th>
-                            <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Cut Length (mm)</th>
-                            <th className="border border-gray-300 px-4 py-3 text-right font-semibold">Quantity</th>
-                          </tr>
-                        </thead>
-                        <tbody>
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-gray-100 hover:bg-gray-100 h-16">
+                            <TableHead className="text-gray-700 font-semibold h-16 text-base w-[35%] pl-6">Profile Type</TableHead>
+                            <TableHead className="text-gray-700 font-semibold h-16 text-base w-[35%]">Part Name</TableHead>
+                            <TableHead className="text-gray-700 text-right font-semibold h-16 text-base w-[15%]">Cut Length (mm)</TableHead>
+                            <TableHead className="text-gray-700 text-right font-semibold h-16 text-base w-[15%] pr-6">Quantity</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {errorPartsList.map((part, idx) => (
-                            <tr 
-                              key={`${part.profile_name}-${part.reference}-${idx}`}
-                              className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
-                            >
-                              <td className="border border-gray-300 px-4 py-3 font-medium">
+                            <TableRow key={`${part.profile_name}-${part.reference}-${idx}`}>
+                              <TableCell className="font-medium pl-6">
                                 {part.profile_name}
-                              </td>
-                              <td className="border border-gray-300 px-4 py-3">
+                              </TableCell>
+                              <TableCell>
                                 {part.reference}
-                              </td>
-                              <td className="border border-gray-300 px-4 py-3 text-right">
+                              </TableCell>
+                              <TableCell className="text-right">
                                 {Math.round(part.length)}
-                              </td>
-                              <td className="border border-gray-300 px-4 py-3 text-right">
+                              </TableCell>
+                              <TableCell className="text-right pr-6">
                                 {part.quantity}
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
+                        </TableBody>
+                      </Table>
                     </div>
                   </div>
                 </div>
@@ -1992,11 +2038,10 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                     </div>
                     <div className="ml-auto">
                       <Button
-                        variant="secondary"
                         onClick={() => setShowCuttingPlanModal(true)}
-                        className="flex items-center gap-2"
+                        className="flex items-center gap-2 bg-[#00817A] hover:bg-[#00817A]/90 text-white"
                       >
-                        <img src="/Icons/export icon.svg" alt="Export" className="h-5 w-5" />
+                        <img src="/Icons/export icon.svg" alt="Export" className="h-5 w-5 brightness-0 invert" />
                         Export Cutting Plan
                       </Button>
                     </div>
@@ -4537,6 +4582,92 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                       </div>
                     )}
 
+                  {/* Tab 4: IFC Model View */}
+                  {activeReportTab === 'model' && (
+                    <div className="h-full flex justify-center" style={{ height: 'calc(100vh - 180px)' }}>
+                      <div className="flex divide-x divide-gray-200 h-full w-full max-w-[1440px]">
+                        {/* Left Panel - Profile List */}
+                        <div className="w-[350px] flex-shrink-0 flex flex-col h-full">
+                          <div className="p-4 flex-shrink-0">
+                            <Button
+                              variant="outline"
+                              className="w-full"
+                              onClick={() => {
+                                if (modelViewSelectedProfiles.size === nestingReport.profiles.length) {
+                                  setModelViewSelectedProfiles(new Set())
+                                } else {
+                                  setModelViewSelectedProfiles(new Set(nestingReport.profiles.map(p => p.profile_name)))
+                                }
+                              }}
+                            >
+                              {modelViewSelectedProfiles.size === nestingReport.profiles.length ? 'Deselect All' : 'Select All'}
+                            </Button>
+                          </div>
+                          <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
+                            {nestingReport.profiles.map((profile) => {
+                              const isSelected = modelViewSelectedProfiles.has(profile.profile_name)
+                              return (
+                                <label
+                                  key={profile.profile_name}
+                                  className={`block py-4 px-3 border rounded-xl cursor-pointer transition-colors ${
+                                    isSelected
+                                      ? 'border-[#00817A]'
+                                      : 'border-gray-200 hover:bg-white/50'
+                                  }`}
+                                  style={isSelected ? { backgroundColor: 'rgba(0, 129, 122, 0.08)' } : {}}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="relative flex-shrink-0 w-5 h-5">
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => {
+                                          const newSelection = new Set(modelViewSelectedProfiles)
+                                          if (isSelected) {
+                                            newSelection.delete(profile.profile_name)
+                                          } else {
+                                            newSelection.add(profile.profile_name)
+                                          }
+                                          setModelViewSelectedProfiles(newSelection)
+                                        }}
+                                        className="appearance-none w-5 h-5 border-2 border-gray-300 rounded-full cursor-pointer transition-all checked:bg-[#00817A] checked:border-[#00817A] focus:ring-2 focus:ring-[#00817A] focus:ring-offset-1"
+                                      />
+                                      {isSelected && (
+                                        <svg 
+                                          className="absolute inset-0 w-5 h-5 text-white pointer-events-none p-1"
+                                          fill="none" 
+                                          stroke="currentColor" 
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-sm font-semibold truncate">
+                                        {profile.profile_name}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </label>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Right Panel - IFC Viewer */}
+                        <div className="flex-1 overflow-hidden h-full">
+                          <IFCViewerWebIFC 
+                            filename={filename}
+                            isVisible={true}
+                            selectedProfiles={modelViewSelectedProfiles}
+                            backgroundColor="#F9FAFB"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                 </div> {/* End of nesting-report-pdf-content */}
               </div> {/* End of max-w-[1440px] container */}
             </div> {/* End of content area */}
@@ -5024,19 +5155,15 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                   size="sm"
                   onClick={() => {
                     if (nestingReport) {
-                      setBomSelectedProfiles(new Set(nestingReport.profiles.map(p => p.profile_name)))
+                      if (bomSelectedProfiles.size === nestingReport.profiles.length) {
+                        setBomSelectedProfiles(new Set())
+                      } else {
+                        setBomSelectedProfiles(new Set(nestingReport.profiles.map(p => p.profile_name)))
+                      }
                     }
                   }}
                 >
-                  Select All
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setBomSelectedProfiles(new Set())}
-                >
-                  Deselect All
+                  {bomSelectedProfiles.size === nestingReport?.profiles.length ? 'Deselect All' : 'Select All'}
                 </Button>
               </div>
             </div>
@@ -5186,19 +5313,15 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                   size="sm"
                   onClick={() => {
                     if (nestingReport) {
-                      setCuttingPlanSelectedProfiles(new Set(nestingReport.profiles.map(p => p.profile_name)))
+                      if (cuttingPlanSelectedProfiles.size === nestingReport.profiles.length) {
+                        setCuttingPlanSelectedProfiles(new Set())
+                      } else {
+                        setCuttingPlanSelectedProfiles(new Set(nestingReport.profiles.map(p => p.profile_name)))
+                      }
                     }
                   }}
                 >
-                  Select All
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCuttingPlanSelectedProfiles(new Set())}
-                >
-                  Deselect All
+                  {cuttingPlanSelectedProfiles.size === nestingReport?.profiles.length ? 'Deselect All' : 'Select All'}
                 </Button>
               </div>
             </div>

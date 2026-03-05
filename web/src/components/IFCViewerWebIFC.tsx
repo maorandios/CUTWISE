@@ -10,9 +10,10 @@ interface IFCViewerWebIFCProps {
   filename: string | null
   isVisible?: boolean
   selectedProfiles?: Set<string>
+  backgroundColor?: string
 }
 
-const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = true, selectedProfiles = new Set() }: IFCViewerWebIFCProps) {
+const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = true, selectedProfiles = new Set(), backgroundColor = '#F9FAFB' }: IFCViewerWebIFCProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
@@ -179,7 +180,7 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
 
     // Scene
     const scene = new THREE.Scene()
-    scene.background = new THREE.Color(0xF9FAFB) // Gray background matching app (bg-gray-50)
+    scene.background = new THREE.Color(backgroundColor) // Background color from props
     sceneRef.current = scene
 
     // Camera - Optimized for close-up viewing

@@ -4,6 +4,7 @@ interface AnimatedMetricCardsProps {
   avgWastePercent: number;
   totalWasteM: number;
   totalWasteTonnes: number;
+  totalProjectWeight: number;
   shouldAnimate?: boolean;
 }
 
@@ -11,21 +12,36 @@ export const AnimatedMetricCards = ({
   avgWastePercent, 
   totalWasteM, 
   totalWasteTonnes,
+  totalProjectWeight,
   shouldAnimate = true
 }: AnimatedMetricCardsProps) => {
   const animatedAvgWaste = useCountUp({ end: avgWastePercent, duration: 1500, decimals: 2, shouldAnimate });
   const animatedTotalWasteM = useCountUp({ end: totalWasteM, duration: 1500, decimals: 2, shouldAnimate });
   const animatedTotalWasteTonnes = useCountUp({ end: totalWasteTonnes, duration: 1500, decimals: 3, shouldAnimate });
+  const animatedTotalProjectWeight = useCountUp({ end: totalProjectWeight, duration: 1500, decimals: 3, shouldAnimate });
 
   return (
     <div className="bg-[#FAFAFA] py-8 mb-6 -mt-6" style={{ marginLeft: 'calc(-50vw + 50% + 24px)', marginRight: 'calc(-50vw + 50% + 24px)' }}>
       <div className="max-w-[1440px] mx-auto px-6">
-        <div className="grid grid-cols-3 divide-x divide-gray-200">
+        <div className="grid grid-cols-4 divide-x divide-gray-200">
+          <div className="flex flex-col items-center justify-center text-center py-9">
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <img 
+                src="/Icons/building-one.svg?v=2" 
+                alt="Project Weight" 
+                className="h-6 w-6"
+                style={{ filter: 'brightness(0) saturate(100%) invert(34%) sepia(46%) saturate(1234%) hue-rotate(141deg) brightness(94%) contrast(101%)' }}
+              />
+            </div>
+            <p className="text-3xl font-bold text-primary mb-2">{animatedTotalProjectWeight} <span className="text-xl">(t)</span></p>
+            <p className="text-sm text-muted-foreground">Project Weight</p>
+          </div>
+
           <div className="flex flex-col items-center justify-center text-center py-9">
             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
               <img src="/Icons/precentage icon.svg?v=2" alt="Percentage" className="h-8 w-8" />
             </div>
-            <p className="text-3xl font-bold text-primary mb-2">{animatedAvgWaste}%</p>
+            <p className="text-3xl font-bold text-primary mb-2">{animatedAvgWaste} <span className="text-xl">(%)</span></p>
             <p className="text-sm text-muted-foreground">Average Waste</p>
           </div>
           

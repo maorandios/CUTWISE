@@ -269,16 +269,16 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
                 <Table>
                 <TableHeader>
                   <TableRow className="bg-primary hover:bg-primary h-16">
-                    <TableHead className="text-primary-foreground font-semibold h-16 text-base w-[7%] pl-6">#</TableHead>
-                    <TableHead className="text-primary-foreground font-semibold h-16 text-base w-[20%]">Project Name</TableHead>
+                    <TableHead className="text-primary-foreground font-semibold h-16 text-base w-[6%] pl-6">#</TableHead>
+                    <TableHead className="text-primary-foreground font-semibold h-16 text-base w-[18%]">Project Name</TableHead>
                     <TableHead className="text-primary-foreground font-semibold h-16 text-base w-[10%]">Date</TableHead>
-                    <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[10%]">Project Weight (t)</TableHead>
+                    <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[12%] whitespace-nowrap">Project Weight (t)</TableHead>
                     <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[10%] bg-primary/70">Waste (%)</TableHead>
                     <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[10%] bg-primary/70">Waste (m)</TableHead>
                     <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[10%] bg-primary/70">Waste (t)</TableHead>
-                    <TableHead className="text-primary-foreground text-center font-semibold h-16 text-base w-[9%]">Status</TableHead>
-                    <TableHead className="text-primary-foreground text-center font-semibold h-16 text-base w-[7%] bg-primary/50">Preview</TableHead>
-                    <TableHead className="text-primary-foreground text-center font-semibold h-16 text-base w-[7%] bg-primary/50 pr-6">Delete</TableHead>
+                    <TableHead className="text-primary-foreground text-center font-semibold h-16 text-base w-[8%]">Status</TableHead>
+                    <TableHead className="text-primary-foreground text-center font-semibold h-16 text-base w-[8%] bg-primary/50">Preview</TableHead>
+                    <TableHead className="text-primary-foreground text-center font-semibold h-16 text-base w-[8%] bg-primary/50 pr-6">Delete</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
