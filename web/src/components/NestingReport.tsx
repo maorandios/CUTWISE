@@ -65,7 +65,7 @@ const ProfileItem = memo(({ profile, isSelected, onToggle }: ProfileItemProps) =
       className={`block py-4 px-3 border rounded-xl cursor-pointer transition-colors ${
         isSelected
           ? 'border-[#00817A]'
-          : 'bg-white border-gray-200 hover:bg-gray-50'
+          : 'border-gray-200 hover:bg-white/50'
       }`}
       style={isSelected ? { backgroundColor: 'rgba(0, 129, 122, 0.08)' } : {}}
     >
@@ -160,11 +160,15 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   }, [nestingReport])
 
   // Expose settings handler to parent
+  const handleOpenSettings = useCallback(() => {
+    setShowSettingsModal(true)
+  }, [])
+
   useEffect(() => {
     if (onSettingsClick) {
-      onSettingsClick(() => setShowSettingsModal(true))
+      onSettingsClick(handleOpenSettings)
     }
-  }, [onSettingsClick])
+  }, [onSettingsClick, handleOpenSettings])
   
   // Mark current tab as animated after animation completes
   useEffect(() => {
@@ -820,9 +824,9 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
           <div className="flex-1 flex justify-center overflow-hidden bg-gray-50">
             <div className="w-full max-w-[1440px] flex overflow-hidden h-full">
               {/* Left Panel - Profile List (max 30% width) */}
-              <div className="w-full max-w-[30%] border-r bg-white flex flex-col">
+              <div className="w-full max-w-[30%] border-r flex flex-col">
               {/* Header */}
-              <div className="p-4 border-b bg-muted/50">
+              <div className="p-4 border-b">
                 {/* Metric Cards */}
                 <div className="grid grid-cols-3 divide-x divide-gray-200 mb-4">
                   {/* Profile Types Card */}
@@ -892,18 +896,9 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               </div>
 
               {/* Summary and Generate Button */}
-              <div className="p-4 border-t bg-muted/50">
-                <div className="mb-3 text-sm">
-                  <div className="font-medium">
-                    {selectedProfiles.size} of {availableProfiles.length} profiles selected
-                  </div>
-                  {selectedProfiles.size > 0 && (
-                    <div className="text-muted-foreground mt-1">
-                      Total: {availableProfiles
-                        .filter(p => selectedProfiles.has(p.profile_name))
-                        .reduce((sum, p) => sum + p.piece_count, 0)} parts
-                    </div>
-                  )}
+              <div className="p-4 border-t">
+                <div className="mb-3 text-sm text-center text-gray-500">
+                  {selectedProfiles.size} of {availableProfiles.length} profiles selected
                 </div>
                 <Button
                   onClick={generateNesting}
@@ -917,7 +912,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
             </div>
 
               {/* Right Panel - IFC Viewer (70% width) */}
-              <div className="flex-1 bg-gray-100" style={{ willChange: 'transform', contain: 'layout style paint' }}>
+              <div className="flex-1" style={{ willChange: 'transform', contain: 'layout style paint' }}>
                 <IFCViewerWebIFC 
                   filename={filename}
                   isVisible={true}

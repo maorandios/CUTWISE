@@ -197,7 +197,7 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
 
     // Scene
     const scene = new THREE.Scene()
-    scene.background = new THREE.Color(0xffffff) // Pure white background
+    scene.background = new THREE.Color(0xF9FAFB) // Gray background matching app (bg-gray-50)
     sceneRef.current = scene
 
     // Camera - Optimized for close-up viewing
