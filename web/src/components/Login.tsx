@@ -3,6 +3,13 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { TermsContent, PrivacyContent, CookieContent } from './LegalContent'
 
 interface LoginProps {
   onLogin: (username: string, password: string) => void
@@ -12,6 +19,9 @@ interface LoginProps {
 const Login = ({ onLogin, onSwitchToSignup }: LoginProps) => {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [showTermsModal, setShowTermsModal] = useState(false)
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false)
+  const [showCookieModal, setShowCookieModal] = useState(false)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,57 +36,57 @@ const Login = ({ onLogin, onSwitchToSignup }: LoginProps) => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <img 
-            src="/Icons/cutwise - logo.svg" 
-            alt="Cutwise" 
-            className="h-12 mx-auto mb-4"
-          />
-          <h2 className="text-2xl font-bold text-gray-900">Welcome Back</h2>
-          <p className="text-gray-600 mt-2">Sign in to your account</p>
-        </div>
+    <div className="min-h-screen flex">
+      {/* Left Side - Login Form */}
+      <div className="w-1/2 flex items-center justify-center bg-white p-12">
+        <div className="w-full max-w-md">
+          {/* Logo */}
+          <div className="mb-12 text-center">
+            <img 
+              src="/Icons/Cutwise for pdf main.svg" 
+              alt="Cutwise" 
+              className="h-20 mx-auto"
+            />
+          </div>
 
-        {/* Login Card */}
-        <Card>
-          <CardContent className="pt-8">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Username Input */}
-              <div className="space-y-2">
-                <Label htmlFor="username">Username or Email</Label>
-                <Input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter your username"
-                  required
-                />
-              </div>
+          {/* Login Form */}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Email Input */}
+            <div className="space-y-2">
+              <Label htmlFor="username">Email</Label>
+              <Input
+                id="username"
+                type="email"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter your email"
+                required
+                className="h-12 rounded-full"
+              />
+            </div>
 
-              {/* Password Input */}
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  required
-                />
-              </div>
+            {/* Password Input */}
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                required
+                className="h-12 rounded-full"
+              />
+            </div>
 
-              {/* Login Button */}
-              <Button type="submit" className="w-full">
-                Log In
-              </Button>
-            </form>
+            {/* Login Button */}
+            <Button type="submit" className="w-full h-12 text-base rounded-full">
+              Log In
+            </Button>
+          </form>
 
           {/* Divider */}
-          <div className="relative my-6">
+          <div className="relative my-8">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300"></div>
             </div>
@@ -90,9 +100,9 @@ const Login = ({ onLogin, onSwitchToSignup }: LoginProps) => {
             type="button"
             variant="outline"
             onClick={handleGoogleLogin}
-            className="w-full"
+            className="w-full h-12 rounded-full"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -114,20 +124,87 @@ const Login = ({ onLogin, onSwitchToSignup }: LoginProps) => {
           </Button>
 
           {/* Signup Link */}
-          <div className="mt-6 text-center text-sm text-muted-foreground">
+          <div className="mt-8 text-center text-sm text-gray-600">
             Don't have an account?{' '}
-            <Button
+            <button
               type="button"
-              variant="link"
               onClick={onSwitchToSignup}
-              className="p-0 h-auto font-medium"
+              className="text-primary font-semibold hover:underline"
             >
               Sign up
-            </Button>
+            </button>
           </div>
-          </CardContent>
-        </Card>
+
+          {/* Footer */}
+          <div className="mt-12 text-center">
+            <p className="text-xs text-gray-500 mb-3">© 2026 Cutwise. All rights reserved.</p>
+            <div className="flex items-center justify-center gap-4 text-xs">
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(true)}
+                className="text-gray-500 hover:text-primary hover:underline"
+              >
+                Terms of Service
+              </button>
+              <span className="text-gray-300">|</span>
+              <button
+                type="button"
+                onClick={() => setShowPrivacyModal(true)}
+                className="text-gray-500 hover:text-primary hover:underline"
+              >
+                Privacy Policy
+              </button>
+              <span className="text-gray-300">|</span>
+              <button
+                type="button"
+                onClick={() => setShowCookieModal(true)}
+                className="text-gray-500 hover:text-primary hover:underline"
+              >
+                Cookie Policy
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Right Side - Image */}
+      <div className="w-1/2 bg-gray-100">
+        <img 
+          src="/path-to-your-image.jpg" 
+          alt="Cutwise" 
+          className="w-full h-full object-cover"
+        />
+      </div>
+
+      {/* Terms of Service Modal */}
+      <Dialog open={showTermsModal} onOpenChange={setShowTermsModal}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Terms and Conditions</DialogTitle>
+          </DialogHeader>
+          <TermsContent />
+        </DialogContent>
+      </Dialog>
+
+      {/* Privacy Policy Modal */}
+      <Dialog open={showPrivacyModal} onOpenChange={setShowPrivacyModal}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Privacy Policy</DialogTitle>
+          </DialogHeader>
+          <PrivacyContent />
+        </DialogContent>
+      </Dialog>
+
+      {/* Cookie Policy Modal */}
+      <Dialog open={showCookieModal} onOpenChange={setShowCookieModal}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Cookie Policy</DialogTitle>
+          </DialogHeader>
+          <CookieContent />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

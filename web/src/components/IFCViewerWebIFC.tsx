@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import * as WebIFC from 'web-ifc'
 import { ContextMenu } from './IFCViewer/components'
 import { ContextMenuState, ElementData, SelectionMode } from './IFCViewer/types'
+import { LottieLoader } from './LottieLoader'
 
 interface IFCViewerWebIFCProps {
   filename: string | null
@@ -51,6 +52,13 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
     error: null
   })
   const [selectedElement, setSelectedElement] = useState<THREE.Mesh | null>(null)
+
+  // Preload the animation on component mount
+  useEffect(() => {
+    fetch('/animations/Abstract Isometric Loader.json')
+      .then(response => response.json())
+      .catch(error => console.error('Error preloading animation:', error))
+  }, [])
 
   // Helper function to build mesh lookup cache (called once after model loads)
   const buildMeshLookup = (modelGroup: THREE.Group) => {
@@ -491,7 +499,7 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
       const startTime = performance.now()
       setIsLoading(true)
       setLoadError(null)
-      setLoadingStatus('Initializing web-ifc...')
+      setLoadingStatus('We are loading up your IFC model')
 
       try {
         // Initialize web-ifc API
@@ -508,7 +516,6 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
         const ifcApi = ifcApiRef.current
 
         // Fetch IFC file
-        setLoadingStatus('Downloading IFC file...')
         const response = await fetch(`/api/ifc/${encodeURIComponent(filename)}`)
         if (!response.ok) {
           throw new Error(`Failed to fetch IFC file: ${response.statusText}`)
@@ -518,14 +525,12 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
         const ifcData = new Uint8Array(data)
 
         // Open model
-        setLoadingStatus('Parsing IFC structure...')
         const modelID = ifcApi.OpenModel(ifcData, {
           COORDINATE_TO_ORIGIN: true,
           USE_FAST_BOOLS: true
         })
 
         // Load all geometry
-        setLoadingStatus('Loading geometry...')
         const ifcMeshes = ifcApi.LoadAllGeometry(modelID)
 
         // Create Three.js group for the model
@@ -695,11 +700,7 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
           }
 
           // Update progress
-          if (i % 50 === 0) {
-            if (i % 50 === 0) {
-              setLoadingStatus(`Loading geometry... ${i}/${ifcMeshes.size()}`)
-            }
-          }
+          // Keep the same loading message throughout
         }
 
         // Make sure model group is visible
@@ -750,6 +751,17 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
         const endTime = performance.now()
         const totalTime = ((endTime - startTime) / 1000).toFixed(2)
         console.log(`[IFCM] ✅ Model loaded: ${meshCount} meshes in ${totalTime}s`)
+        
+        // Ensure minimum 5 seconds of loading display
+        const elapsedTime = endTime - startTime
+        const minimumLoadTime = 5000 // 5 seconds in milliseconds
+        const remainingTime = Math.max(0, minimumLoadTime - elapsedTime)
+        
+        if (remainingTime > 0) {
+          console.log(`[IFCM] Waiting ${(remainingTime / 1000).toFixed(2)}s to meet minimum load time`)
+          await new Promise(resolve => setTimeout(resolve, remainingTime))
+        }
+        
         setLoadingStatus('')
         setIsLoading(false)
         isLoadingRef.current = false
@@ -1117,11 +1129,14 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
 
       {/* Loading Overlay */}
       {isLoading && (
-        <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center z-10 pointer-events-none">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-lg font-medium text-gray-900">{loadingStatus}</p>
-          </div>
+        <div className="absolute inset-0 bg-gray-50 flex flex-col items-center justify-center z-10 pointer-events-none">
+          <LottieLoader 
+            animationPath="/animations/Abstract Isometric Loader.json"
+            width={600}
+            height={600}
+            overlay={false}
+          />
+          <p className="text-lg font-medium text-gray-500 -mt-16">{loadingStatus}</p>
         </div>
       )}
 

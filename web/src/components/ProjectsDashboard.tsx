@@ -269,15 +269,16 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
                 <Table>
                 <TableHeader>
                   <TableRow className="bg-primary hover:bg-primary h-16">
-                    <TableHead className="text-primary-foreground font-semibold h-16 text-base w-[8%] pl-6">#</TableHead>
-                    <TableHead className="text-primary-foreground font-semibold h-16 text-base w-[22%]">Project Name</TableHead>
-                    <TableHead className="text-primary-foreground font-semibold h-16 text-base w-[11%]">Date</TableHead>
-                    <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11%]">Project Weight (t)</TableHead>
-                    <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11%] bg-primary/70">Waste (%)</TableHead>
-                    <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11%] bg-primary/70">Waste (m)</TableHead>
-                    <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[11%] bg-primary/70">Waste (t)</TableHead>
-                    <TableHead className="text-primary-foreground text-center font-semibold h-16 text-base w-[7.5%] bg-primary/50">Preview</TableHead>
-                    <TableHead className="text-primary-foreground text-center font-semibold h-16 text-base w-[7.5%] bg-primary/50 pr-6">Delete</TableHead>
+                    <TableHead className="text-primary-foreground font-semibold h-16 text-base w-[7%] pl-6">#</TableHead>
+                    <TableHead className="text-primary-foreground font-semibold h-16 text-base w-[20%]">Project Name</TableHead>
+                    <TableHead className="text-primary-foreground font-semibold h-16 text-base w-[10%]">Date</TableHead>
+                    <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[10%]">Project Weight (t)</TableHead>
+                    <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[10%] bg-primary/70">Waste (%)</TableHead>
+                    <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[10%] bg-primary/70">Waste (m)</TableHead>
+                    <TableHead className="text-primary-foreground text-right font-semibold h-16 text-base w-[10%] bg-primary/70">Waste (t)</TableHead>
+                    <TableHead className="text-primary-foreground text-center font-semibold h-16 text-base w-[9%]">Status</TableHead>
+                    <TableHead className="text-primary-foreground text-center font-semibold h-16 text-base w-[7%] bg-primary/50">Preview</TableHead>
+                    <TableHead className="text-primary-foreground text-center font-semibold h-16 text-base w-[7%] bg-primary/50 pr-6">Delete</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -309,6 +310,16 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
                         </TableCell>
                         <TableCell className="text-right h-12 bg-gray-50/50">
                           {wasteTonnage.toFixed(3)}
+                        </TableCell>
+                        <TableCell className="text-center h-12">
+                          <div className="flex items-center justify-center">
+                            <div 
+                              className={`w-2.5 h-2.5 rounded-full ${
+                                project.nestingReport ? 'bg-green-500' : 'bg-orange-500'
+                              }`}
+                              title={project.nestingReport ? 'Complete' : 'Pending'}
+                            />
+                          </div>
                         </TableCell>
                         <TableCell className="text-center h-12 bg-gray-100/70">
                           <Button

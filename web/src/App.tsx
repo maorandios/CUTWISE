@@ -105,9 +105,12 @@ function App() {
   useEffect(() => {
     const user = ProjectStorage.getCurrentUser()
     if (user) {
-      setUserName(user.userName)
+      // Try to get company name first, fallback to user name
+      const companyDetails = ProjectStorage.getCompanyDetails()
+      const displayName = companyDetails?.companyName || user.userName
+      setUserName(displayName)
       setIsAuthenticated(true)
-      console.log('[App] Restored user session:', user.userName)
+      console.log('[App] Restored user session:', displayName)
       
       // Check if onboarding is needed
       const hasOnboarded = ProjectStorage.hasCompletedOnboarding()
@@ -260,7 +263,10 @@ function App() {
     const userId = `user_${Date.now()}`
     ProjectStorage.setCurrentUser(userId, username)
     
-    setUserName(username)
+    // Try to get company name, fallback to username
+    const companyDetails = ProjectStorage.getCompanyDetails()
+    const displayName = companyDetails?.companyName || username
+    setUserName(displayName)
     setIsAuthenticated(true)
     setCurrentView('dashboard')
   }
@@ -273,7 +279,10 @@ function App() {
     const userId = `user_${Date.now()}`
     ProjectStorage.setCurrentUser(userId, fullName, email)
     
-    setUserName(fullName)
+    // Try to get company name, fallback to fullName
+    const companyDetails = ProjectStorage.getCompanyDetails()
+    const displayName = companyDetails?.companyName || fullName
+    setUserName(displayName)
     setIsAuthenticated(true)
     
     // Check if user needs onboarding (first time signup)
@@ -289,6 +298,8 @@ function App() {
     ProjectStorage.saveCompanyDetails(details)
     setNeedsOnboarding(false)
     setCurrentView('dashboard')
+    // Update display name to company name
+    setUserName(details.companyName)
     console.log('[App] Onboarding completed')
   }
   
