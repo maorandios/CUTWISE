@@ -44,6 +44,7 @@ interface NestingReportProps {
   report: SteelReport | null  // Report data to get available profiles
   initialView?: 'select' | 'results' // Control which view to show initially
   onSettingsClick?: (handler: () => void) => void // Callback to expose settings handler to parent
+  onModelReady?: () => void // Callback when IFC model is loaded and ready
 }
 
 type Step = 'select' | 'results'
@@ -99,12 +100,13 @@ const ProfileItem = memo(({ profile, isSelected, onToggle }: ProfileItemProps) =
   )
 })
 
-export default function NestingReport({ filename, nestingReport: propNestingReport, onNestingReportChange, report, initialView, onSettingsClick }: NestingReportProps) {
+export default function NestingReport({ filename, nestingReport: propNestingReport, onNestingReportChange, report, initialView, onSettingsClick, onModelReady }: NestingReportProps) {
   // Use prop as source of truth, but maintain local state for updates
   const nestingReport = propNestingReport
   const [currentStep, setCurrentStep] = useState<Step>(initialView || 'select')
   const [selectedProfiles, setSelectedProfiles] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
+  const [loadingProgress, setLoadingProgress] = useState<number>(0)
   const [error, setError] = useState<string | null>(null)
   const [expandedProfiles, setExpandedProfiles] = useState<Set<string>>(new Set())
   const [selectedProfilesForDisplay, setSelectedProfilesForDisplay] = useState<Set<string>>(new Set())
@@ -433,15 +435,18 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
     setShowBOMModal(false)
 
     try {
-      // Show Lottie loader
-      setLoadingMessage('Generating Bill of Materials PDF...')
-      setExportProgress({ show: true, current: 0, total: 1 })
+      // Show Lottie loader with progress
+      setLoadingMessage('Generating Bill of materials document')
+      setExportProgress({ show: true, current: 10, total: 100 })
+      await new Promise(resolve => setTimeout(resolve, 100))
       
       // Filter nesting report to only include selected profiles
       const filteredNestingReport = {
         ...nestingReport,
         profiles: nestingReport.profiles.filter(p => bomSelectedProfiles.has(p.profile_name))
       }
+      
+      setExportProgress({ show: true, current: 20, total: 100 })
       
       // Load company details from storage
       const companyDetails = ProjectStorage.getCompanyDetails() || {
@@ -469,6 +474,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       console.log('[BOM Export] Current user:', currentUser)
       console.log('[BOM Export] User email:', userEmail)
       
+      setExportProgress({ show: true, current: 40, total: 100 })
+      
       // Load icons as base64
       const iconPaths = {
         check: '/Icons/check-circle.svg',
@@ -485,6 +492,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       for (const [key, path] of Object.entries(iconPaths)) {
         icons[key] = await loadIconAsBase64(path)
       }
+      
+      setExportProgress({ show: true, current: 60, total: 100 })
       
       // Call backend to generate PDF
       const response = await fetch(`${getBackendUrl()}/api/generate-bom-pdf`, {
@@ -511,6 +520,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         throw new Error(`Server returned ${response.status}: ${errorText}`)
       }
       
+      setExportProgress({ show: true, current: 80, total: 100 })
+      
       // Download the PDF
       const blob = await response.blob()
       const url = URL.createObjectURL(blob)
@@ -524,6 +535,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       link.click()
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
+      
+      setExportProgress({ show: true, current: 100, total: 100 })
       
       // Ensure minimum 3 seconds display time
       const elapsedTime = Date.now() - startTime
@@ -587,6 +600,11 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
     setShowCuttingPlanModal(false)
 
     try {
+      // Show Lottie loader with progress
+      setLoadingMessage('Generating optimized cutting plan')
+      setExportProgress({ show: true, current: 10, total: 100 })
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       // Filter nesting report to only include selected profiles
       const filteredNestingReport = {
         ...nestingReport,
@@ -600,13 +618,13 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       })
       setExpandedProfiles(newExpanded)
       
-      // Show Lottie loader
-      setLoadingMessage('Generating Cutting Plan PDF...')
-      setExportProgress({ show: true, current: 0, total: 1 })
+      setExportProgress({ show: true, current: 20, total: 100 })
       
       // Wait for fonts to load and React to render
       await document.fonts.ready
       await new Promise(resolve => setTimeout(resolve, 800))
+      
+      setExportProgress({ show: true, current: 40, total: 100 })
       
       // Extract SVG polygon data from DOM
       const stockbarSvgData: Array<{
@@ -715,6 +733,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       // Load company details for footer
       const companyDetails = ProjectStorage.getCompanyDetails() || {}
       
+      setExportProgress({ show: true, current: 70, total: 100 })
+      
       // Calculate total weight from original report data
       const totalWeight = nestingReport && report ?
         nestingReport.profiles
@@ -749,8 +769,12 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         throw new Error(`Server returned ${response.status}: ${response.statusText}`)
       }
       
+      setExportProgress({ show: true, current: 85, total: 100 })
+      
       // Get PDF blob
       const blob = await response.blob()
+      
+      setExportProgress({ show: true, current: 95, total: 100 })
       
       // Trigger download
       const url = URL.createObjectURL(blob)
@@ -764,6 +788,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       link.click()
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
+      
+      setExportProgress({ show: true, current: 100, total: 100 })
       
       // Ensure minimum 3 seconds display time
       const elapsedTime = Date.now() - startTime
@@ -800,7 +826,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
 
     const startTime = Date.now()
     setLoading(true)
-    setLoadingMessage('Optimizing nesting patterns...')
+    setLoadingProgress(0)
+    setLoadingMessage('Generating optimized materials plan')
     setError(null)
 
     try {
@@ -814,14 +841,33 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       })
       const url = `/api/nesting/${encodedFilename}?${params.toString()}`
 
+      // Simulate progress while waiting for response
+      setLoadingProgress(10)
+      await new Promise(resolve => setTimeout(resolve, 100))
+      setLoadingProgress(20)
+      
+      const progressInterval = setInterval(() => {
+        setLoadingProgress(prev => {
+          if (prev < 90) {
+            return prev + 5
+          }
+          return prev
+        })
+      }, 500)
+
       const response = await apiRequest(url)
+      clearInterval(progressInterval)
+      
       if (!response.ok) {
         const errorText = await response.text()
         console.error('Backend error response:', errorText)
         throw new Error(`Failed to generate nesting: ${response.status} ${response.statusText}\n\n${errorText}`)
       }
 
+      setLoadingProgress(95)
       const data: NestingReportType = await response.json()
+      
+      setLoadingProgress(100)
       onNestingReportChange(data)
       setCurrentStep('results')
       setAnimatedTabs(new Set()) // Reset animation flags for new nesting results
@@ -841,6 +887,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
     } finally {
       setLoading(false)
       setLoadingMessage('')
+      setLoadingProgress(0)
     }
   }
 
@@ -963,6 +1010,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                   filename={filename}
                   isVisible={true}
                   selectedProfiles={selectedProfiles}
+                  onModelReady={onModelReady}
                 />
               </div>
             </div>
@@ -987,14 +1035,14 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                   <div className="flex gap-3">
                     <button
                       onClick={() => setActiveReportTab('materials')}
-                      className={`h-[70px] rounded-full flex items-center justify-center gap-3 transition-all cursor-pointer focus:outline-none focus-visible:outline-none active:outline-none ${
+                      className={`h-[56px] rounded-full flex items-center justify-center gap-3 transition-all cursor-pointer focus:outline-none focus-visible:outline-none active:outline-none ${
                         activeReportTab === 'materials'
-                          ? 'bg-[#008A67] border-[2.5px] border-transparent text-white pl-[7px] pr-6'
-                          : 'bg-transparent border-[2.5px] border-white/20 text-white hover:border-white/30 active:border-white/20 pl-[7px] pr-6'
+                          ? 'bg-[#008A67] border-[2.5px] border-transparent text-white pl-[6px] pr-5'
+                          : 'bg-transparent border-[2.5px] border-white/20 text-white hover:border-white/30 active:border-white/20 pl-[6px] pr-5'
                       }`}
                       style={{ WebkitTapHighlightColor: 'transparent' }}
                     >
-                      <div className={`flex items-center justify-center flex-shrink-0 w-[55px] h-[55px] rounded-full ${
+                      <div className={`flex items-center justify-center flex-shrink-0 w-[44px] h-[44px] rounded-full ${
                         activeReportTab === 'materials' 
                           ? 'bg-white' 
                           : 'bg-white/0 border-[2.5px] border-white/10'
@@ -1002,21 +1050,21 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                         <img 
                           src="/Icons/materials analys logo.svg" 
                           alt="Materials" 
-                          className={`w-[34px] h-[34px] ${activeReportTab !== 'materials' ? 'brightness-0 invert' : ''}`}
+                          className={`w-[27px] h-[27px] ${activeReportTab !== 'materials' ? 'brightness-0 invert' : ''}`}
                         />
                       </div>
-                      <span className="text-base font-medium whitespace-nowrap">Materials Analysis</span>
+                      <span className="text-sm font-medium whitespace-nowrap">Materials Analysis</span>
                     </button>
                     <button
                       onClick={() => setActiveReportTab('bom')}
-                      className={`h-[70px] rounded-full flex items-center justify-center gap-3 transition-all cursor-pointer focus:outline-none focus-visible:outline-none active:outline-none ${
+                      className={`h-[56px] rounded-full flex items-center justify-center gap-3 transition-all cursor-pointer focus:outline-none focus-visible:outline-none active:outline-none ${
                         activeReportTab === 'bom'
-                          ? 'bg-[#008A67] border-[2.5px] border-transparent text-white pl-[7px] pr-6'
-                          : 'bg-transparent border-[2.5px] border-white/20 text-white hover:border-white/30 active:border-white/20 pl-[7px] pr-6'
+                          ? 'bg-[#008A67] border-[2.5px] border-transparent text-white pl-[6px] pr-5'
+                          : 'bg-transparent border-[2.5px] border-white/20 text-white hover:border-white/30 active:border-white/20 pl-[6px] pr-5'
                       }`}
                       style={{ WebkitTapHighlightColor: 'transparent' }}
                     >
-                      <div className={`flex items-center justify-center flex-shrink-0 w-[55px] h-[55px] rounded-full ${
+                      <div className={`flex items-center justify-center flex-shrink-0 w-[44px] h-[44px] rounded-full ${
                         activeReportTab === 'bom' 
                           ? 'bg-white' 
                           : 'bg-white/0 border-[2.5px] border-white/10'
@@ -1024,21 +1072,21 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                         <img 
                           src="/Icons/bom icon.svg" 
                           alt="BOM" 
-                          className={`w-[34px] h-[34px] ${activeReportTab !== 'bom' ? 'brightness-0 invert' : ''}`}
+                          className={`w-[27px] h-[27px] ${activeReportTab !== 'bom' ? 'brightness-0 invert' : ''}`}
                         />
                       </div>
-                      <span className="text-base font-medium whitespace-nowrap">Bill of Materials</span>
+                      <span className="text-sm font-medium whitespace-nowrap">Bill of Materials</span>
                     </button>
                     <button
                       onClick={() => setActiveReportTab('cutting')}
-                      className={`h-[70px] rounded-full flex items-center justify-center gap-3 transition-all cursor-pointer focus:outline-none focus-visible:outline-none active:outline-none ${
+                      className={`h-[56px] rounded-full flex items-center justify-center gap-3 transition-all cursor-pointer focus:outline-none focus-visible:outline-none active:outline-none ${
                         activeReportTab === 'cutting'
-                          ? 'bg-[#008A67] border-[2.5px] border-transparent text-white pl-[7px] pr-6'
-                          : 'bg-transparent border-[2.5px] border-white/20 text-white hover:border-white/30 active:border-white/20 pl-[7px] pr-6'
+                          ? 'bg-[#008A67] border-[2.5px] border-transparent text-white pl-[6px] pr-5'
+                          : 'bg-transparent border-[2.5px] border-white/20 text-white hover:border-white/30 active:border-white/20 pl-[6px] pr-5'
                       }`}
                       style={{ WebkitTapHighlightColor: 'transparent' }}
                     >
-                      <div className={`flex items-center justify-center flex-shrink-0 w-[55px] h-[55px] rounded-full ${
+                      <div className={`flex items-center justify-center flex-shrink-0 w-[44px] h-[44px] rounded-full ${
                         activeReportTab === 'cutting' 
                           ? 'bg-white' 
                           : 'bg-white/0 border-[2.5px] border-white/10'
@@ -1046,21 +1094,21 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                         <img 
                           src="/Icons/cutting list icon.svg" 
                           alt="Cutting" 
-                          className={`w-[34px] h-[34px] ${activeReportTab !== 'cutting' ? 'brightness-0 invert' : ''}`}
+                          className={`w-[27px] h-[27px] ${activeReportTab !== 'cutting' ? 'brightness-0 invert' : ''}`}
                         />
                       </div>
-                      <span className="text-base font-medium whitespace-nowrap">Cutting Plan</span>
+                      <span className="text-sm font-medium whitespace-nowrap">Cutting Plan</span>
                     </button>
                     <button
                       onClick={() => setActiveReportTab('model')}
-                      className={`h-[70px] rounded-full flex items-center justify-center gap-3 transition-all cursor-pointer focus:outline-none focus-visible:outline-none active:outline-none ${
+                      className={`h-[56px] rounded-full flex items-center justify-center gap-3 transition-all cursor-pointer focus:outline-none focus-visible:outline-none active:outline-none ${
                         activeReportTab === 'model'
-                          ? 'bg-[#008A67] border-[2.5px] border-transparent text-white pl-[7px] pr-6'
-                          : 'bg-transparent border-[2.5px] border-white/20 text-white hover:border-white/30 active:border-white/20 pl-[7px] pr-6'
+                          ? 'bg-[#008A67] border-[2.5px] border-transparent text-white pl-[6px] pr-5'
+                          : 'bg-transparent border-[2.5px] border-white/20 text-white hover:border-white/30 active:border-white/20 pl-[6px] pr-5'
                       }`}
                       style={{ WebkitTapHighlightColor: 'transparent' }}
                     >
-                      <div className={`flex items-center justify-center flex-shrink-0 w-[55px] h-[55px] rounded-full ${
+                      <div className={`flex items-center justify-center flex-shrink-0 w-[44px] h-[44px] rounded-full ${
                         activeReportTab === 'model' 
                           ? 'bg-white' 
                           : 'bg-white/0 border-[2.5px] border-white/10'
@@ -1068,10 +1116,10 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                         <img 
                           src="/Icons/ar.svg" 
                           alt="Model" 
-                          className={`w-[34px] h-[34px] ${activeReportTab !== 'model' ? 'brightness-0 invert' : ''}`}
+                          className={`w-[27px] h-[27px] ${activeReportTab !== 'model' ? 'brightness-0 invert' : ''}`}
                         />
                       </div>
-                      <span className="text-base font-medium whitespace-nowrap">IFC Model</span>
+                      <span className="text-sm font-medium whitespace-nowrap">Preview 3D model</span>
                     </button>
                   </div>
                   
@@ -5344,8 +5392,24 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         </Dialog>
 
         {/* Lottie Loading Animation */}
-        {exportProgress.show && <LottieLoader message={loadingMessage} size={250} />}
-        {loading && <LottieLoader message={loadingMessage} size={250} />}
+        {exportProgress.show && (
+          <LottieLoader 
+            message={loadingMessage} 
+            animationPath="/animations/Loading.json"
+            size={250}
+            showProgress={true}
+            progress={(exportProgress.current / exportProgress.total) * 100}
+          />
+        )}
+        {loading && (
+          <LottieLoader 
+            message={loadingMessage} 
+            animationPath="/animations/Data visualization.json"
+            size={600}
+            showProgress={true}
+            progress={loadingProgress}
+          />
+        )}
 
         {/* Shadcn-styled tooltip for stockbar parts */}
         {tooltip && (

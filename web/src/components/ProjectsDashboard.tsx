@@ -12,7 +12,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { AnimatedDashboardCards } from './AnimatedDashboardCards'
+import { toast } from 'sonner'
 
 interface ProjectsDashboardProps {
   onSelectProject: (project: ProjectData) => void
@@ -30,6 +39,8 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
   const [filterMonth, setFilterMonth] = useState<string>('all')
   const [filterYear, setFilterYear] = useState<string>('all')
   const [hasAnimated, setHasAnimated] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null)
 
   // Load projects from storage (reload when refreshTrigger changes)
   useEffect(() => {
@@ -55,12 +66,35 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
 
   const handleDeleteProject = (projectId: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    if (confirm('Are you sure you want to delete this project?')) {
-      const success = ProjectStorage.deleteProject(projectId)
-      if (success) {
-        loadProjects() // Reload projects
-      }
+    
+    // Find project name for the dialog
+    const project = projects.find(p => p.id === projectId)
+    const projectName = project?.name || 'Project'
+    
+    // Open confirmation dialog
+    setProjectToDelete({ id: projectId, name: projectName })
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = () => {
+    if (!projectToDelete) return
+    
+    const success = ProjectStorage.deleteProject(projectToDelete.id)
+    if (success) {
+      toast.success(`${projectToDelete.name} deleted successfully`)
+      loadProjects() // Reload projects
+    } else {
+      toast.error('Failed to delete project')
     }
+    
+    // Close dialog and reset state
+    setDeleteDialogOpen(false)
+    setProjectToDelete(null)
+  }
+
+  const cancelDelete = () => {
+    setDeleteDialogOpen(false)
+    setProjectToDelete(null)
   }
 
   const formatDate = (dateString: string) => {
@@ -119,19 +153,22 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
       }
     }
 
+    // Only include projects with nesting reports (completed projects)
+    const completedProjects = projects.filter(project => project.nestingReport !== null)
+
     let totalWeight = 0
     let totalWasteMeters = 0
     let totalWasteTonnage = 0
     let totalWastePercentage = 0
 
-    projects.forEach(project => {
+    completedProjects.forEach(project => {
       totalWeight += project.stats?.totalTonnage || 0
       totalWasteMeters += project.stats?.totalWasteMeters || 0
       totalWasteTonnage += project.stats?.totalWasteTonnage || 0
       totalWastePercentage += project.stats?.avgWastePercentage || 0
     })
 
-    const avgWastePercentage = projects.length > 0 ? totalWastePercentage / projects.length : 0
+    const avgWastePercentage = completedProjects.length > 0 ? totalWastePercentage / completedProjects.length : 0
 
     return {
       totalProjects: projects.length,
@@ -145,7 +182,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
   const metrics = calculateAggregateMetrics()
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <Header
         onSettingsClick={onOpenSettings}
         onLogout={onLogout}
@@ -185,7 +222,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
       </div>
 
       {/* Main Content */}
-      <main className="max-w-[1440px] mx-auto px-6 -mt-[100px]">
+      <main className="w-full max-w-[1440px] mx-auto px-6 -mt-[100px] flex-1 flex flex-col">
         {/* Metric Cards - Full width with dividers */}
         <AnimatedDashboardCards
           totalProjects={metrics.totalProjects}
@@ -262,6 +299,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
         )}
 
         {/* Projects Table */}
+        <div className="flex-1 flex flex-col">
         {filteredProjects.length > 0 ? (
           <>
             <div className="rounded-lg border overflow-hidden mb-6">
@@ -397,10 +435,37 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
             </Button>
           </div>
         )}
+        </div>
       </main>
       
       {/* Footer */}
       <Footer />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Project</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{projectToDelete?.name}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={cancelDelete}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

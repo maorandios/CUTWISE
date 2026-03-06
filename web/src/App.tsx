@@ -80,6 +80,8 @@ function App() {
   const [gltfAvailable, setGltfAvailable] = useState<boolean>(false)
   const [loading, setLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState<string>('')
+  const [uploadProgress, setUploadProgress] = useState<number>(0)
+  const [modelReady, setModelReady] = useState(false)
   const [filters, setFilters] = useState<FilterState>(savedState?.filters || {
     profileTypes: new Set<string>(),
     plateThicknesses: new Set<string>(),
@@ -169,9 +171,10 @@ function App() {
   }
   
   const handleUploadWithName = async (projectName: string, file: File) => {
-    const startTime = Date.now()
     setLoading(true)
-    setLoadingMessage('Uploading and processing project...')
+    setUploadProgress(0)
+    setModelReady(false)
+    setLoadingMessage('Uploading IFC file')
 
     // Close modal immediately so Lottie loader is visible
     setShowUploadModal(false)
@@ -180,6 +183,12 @@ function App() {
       // Upload file to backend
       const formData = new FormData()
       formData.append('file', file)
+
+      // Smooth progress: 0-20% for upload
+      setUploadProgress(5)
+      await new Promise(resolve => setTimeout(resolve, 100))
+      setUploadProgress(10)
+      setLoadingMessage('Uploading IFC file')
 
       const response = await apiRequest('/api/upload', {
         method: 'POST',
@@ -190,7 +199,19 @@ function App() {
         throw new Error(`Upload failed: ${response.status} ${response.statusText}`)
       }
 
+      setUploadProgress(20)
+      await new Promise(resolve => setTimeout(resolve, 100))
+      setLoadingMessage('Analyzing IFC file')
+
       const data = await response.json()
+
+      // Smooth progress: 20-50% for analysis
+      setUploadProgress(30)
+      await new Promise(resolve => setTimeout(resolve, 100))
+      setUploadProgress(40)
+      await new Promise(resolve => setTimeout(resolve, 100))
+      setUploadProgress(50)
+      await new Promise(resolve => setTimeout(resolve, 100))
 
       // Create project with custom name
       setNestingReport(null)
@@ -212,25 +233,49 @@ function App() {
       ProjectStorage.updateProject(project.id, { name: projectName })
       setCurrentProjectId(project.id)
 
-      // Ensure minimum 3 seconds display time
-      const elapsedTime = Date.now() - startTime
-      const remainingTime = Math.max(0, 3000 - elapsedTime)
-      await new Promise(resolve => setTimeout(resolve, remainingTime))
+      setUploadProgress(60)
+      await new Promise(resolve => setTimeout(resolve, 100))
+      setUploadProgress(70)
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Switch to split screen to trigger model loading (but loading overlay stays visible)
       setCurrentView('split')
+      
+      setUploadProgress(75)
+      setLoadingMessage('Analyzing IFC file')
+      
+      // Wait for model ready signal with timeout
+      const maxWaitTime = 30000 // 30 seconds max
+      const startWaitTime = Date.now()
+      const startProgress = 75
+      const endProgress = 95
+      
+      while (!modelReady && (Date.now() - startWaitTime) < maxWaitTime) {
+        await new Promise(resolve => setTimeout(resolve, 200))
+        // Gradually increase progress
+        const elapsed = Date.now() - startWaitTime
+        const progressIncrease = (endProgress - startProgress) * (elapsed / maxWaitTime)
+        setUploadProgress(Math.min(endProgress, startProgress + progressIncrease))
+      }
+
+      setUploadProgress(98)
+      await new Promise(resolve => setTimeout(resolve, 100))
+      setUploadProgress(100)
+      setLoadingMessage('Ready!')
+      
+      // Small delay to show 100%
+      await new Promise(resolve => setTimeout(resolve, 300))
       
     } catch (error) {
       console.error('Upload error:', error)
-      
-      // Ensure minimum 3 seconds display time even on error
-      const elapsedTime = Date.now() - startTime
-      const remainingTime = Math.max(0, 3000 - elapsedTime)
-      await new Promise(resolve => setTimeout(resolve, remainingTime))
-      
       alert('Failed to upload file. Please try again.')
       setShowUploadModal(true) // Reopen modal on error
+      setCurrentView('dashboard')
     } finally {
       setLoading(false)
       setLoadingMessage('')
+      setUploadProgress(0)
+      setModelReady(false)
     }
   }
 
@@ -430,7 +475,15 @@ function App() {
             ProjectStorage.saveCompanyDetails(details)
           }}
         />
-        {loading && <LottieLoader message={loadingMessage} size={250} />}
+        {loading && (
+          <LottieLoader 
+            message={loadingMessage} 
+            animationPath="/animations/Abstract Isometric Loader.json"
+            size={600}
+            showProgress={true}
+            progress={uploadProgress}
+          />
+        )}
         <Toaster position="top-right" />
       </>
     )
@@ -454,7 +507,15 @@ function App() {
           onUpload={handleUploadWithName}
           loading={loading}
         />
-        {loading && <LottieLoader message={loadingMessage} size={250} />}
+        {loading && (
+          <LottieLoader 
+            message={loadingMessage} 
+            animationPath="/animations/Abstract Isometric Loader.json"
+            size={600}
+            showProgress={true}
+            progress={uploadProgress}
+          />
+        )}
         <Toaster position="top-right" />
       </>
     )
@@ -486,6 +547,7 @@ function App() {
                     report={report}
                     initialView="select"
                     onSettingsClick={(handler) => setNestingSettingsHandler(() => handler)}
+                    onModelReady={() => setModelReady(true)}
                   />
                 </div>
                 <Footer />
@@ -499,7 +561,15 @@ function App() {
             )}
           </div>
         </div>
-        {loading && <LottieLoader message={loadingMessage} size={250} />}
+        {loading && (
+          <LottieLoader 
+            message={loadingMessage} 
+            animationPath="/animations/Abstract Isometric Loader.json"
+            size={600}
+            showProgress={true}
+            progress={uploadProgress}
+          />
+        )}
         <Toaster position="top-right" />
       </>
     )

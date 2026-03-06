@@ -11,9 +11,10 @@ interface IFCViewerWebIFCProps {
   isVisible?: boolean
   selectedProfiles?: Set<string>
   backgroundColor?: string
+  onModelReady?: () => void
 }
 
-const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = true, selectedProfiles = new Set(), backgroundColor = '#F9FAFB' }: IFCViewerWebIFCProps) {
+const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = true, selectedProfiles = new Set(), backgroundColor = '#F9FAFB', onModelReady }: IFCViewerWebIFCProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
@@ -552,9 +553,19 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
         }
 
         let meshCount = 0
+        const totalMeshes = ifcMeshes.size()
+        const CHUNK_SIZE = 10 // Process 10 meshes at a time to keep UI responsive
 
-        // Process each mesh
-        for (let i = 0; i < ifcMeshes.size(); i++) {
+        // Process meshes in chunks to avoid blocking the UI
+        for (let i = 0; i < totalMeshes; i++) {
+          // Yield to browser every CHUNK_SIZE meshes to keep animation smooth
+          if (i > 0 && i % CHUNK_SIZE === 0) {
+            await new Promise(resolve => setTimeout(resolve, 0))
+            // Update loading status with progress
+            const progress = Math.round((i / totalMeshes) * 100)
+            setLoadingStatus(`Loading model: ${progress}%`)
+          }
+
           const ifcMesh = ifcMeshes.get(i)
           const expressID = ifcMesh.expressID
 
@@ -766,6 +777,11 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
         setLoadingStatus('')
         setIsLoading(false)
         isLoadingRef.current = false
+
+        // Notify parent that model is ready
+        if (onModelReady) {
+          onModelReady()
+        }
 
       } catch (error) {
         console.error('[IFCM] Error:', error)
@@ -1130,14 +1146,15 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
 
       {/* Loading Overlay */}
       {isLoading && (
-        <div className="absolute inset-0 bg-gray-50 flex flex-col items-center justify-center z-10 pointer-events-none">
+        <div className="absolute inset-0 bg-gray-50 flex flex-col items-center justify-center z-[100]">
           <LottieLoader 
             animationPath="/animations/Abstract Isometric Loader.json"
             width={600}
             height={600}
             overlay={false}
           />
-          <p className="text-lg font-medium text-gray-500 -mt-16">{loadingStatus}</p>
+          <p className="text-lg font-medium text-gray-700 -mt-16">{loadingStatus}</p>
+          <p className="text-center mt-4 text-xs text-gray-500">This usually takes a few seconds. For larger projects, it may take a few minutes.</p>
         </div>
       )}
 

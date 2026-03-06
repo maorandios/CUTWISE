@@ -46,6 +46,36 @@ export interface CompanyDetails {
 }
 
 /**
+ * Clear all projects from storage (useful when quota is exceeded)
+ */
+export const clearAllProjects = (): void => {
+  localStorage.removeItem(PROJECTS_KEY)
+  console.log('[ProjectStorage] All projects cleared')
+}
+
+/**
+ * Get storage usage information
+ */
+export const getStorageInfo = (): { used: number; available: number; percentage: number } => {
+  let used = 0
+  for (const key in localStorage) {
+    if (localStorage.hasOwnProperty(key)) {
+      used += localStorage[key].length + key.length
+    }
+  }
+  
+  // Approximate localStorage limit (5MB in most browsers)
+  const available = 5 * 1024 * 1024
+  const percentage = (used / available) * 100
+  
+  return {
+    used: Math.round(used / 1024), // KB
+    available: Math.round(available / 1024), // KB
+    percentage: Math.round(percentage)
+  }
+}
+
+/**
  * Migrate old project format to new format
  */
 const migrateOldProject = (oldProject: any): ProjectData => {
@@ -147,10 +177,28 @@ export const createProject = (
   // Save to storage
   const projects = getAllProjects()
   projects.unshift(project) // Add to beginning
-  localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects))
   
-  console.log('[ProjectStorage] Created project:', project.id)
-  return project
+  try {
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects))
+    console.log('[ProjectStorage] Created project:', project.id)
+    return project
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+      console.error('[ProjectStorage] Storage quota exceeded. Attempting cleanup...')
+      
+      // Remove oldest projects until we have space (keep only last 5)
+      const trimmedProjects = projects.slice(0, 5)
+      try {
+        localStorage.setItem(PROJECTS_KEY, JSON.stringify(trimmedProjects))
+        console.log('[ProjectStorage] Cleaned up old projects, retrying...')
+        return project
+      } catch (retryError) {
+        console.error('[ProjectStorage] Still not enough space after cleanup')
+        throw new Error('Storage quota exceeded. Please clear some projects from the dashboard.')
+      }
+    }
+    throw error
+  }
 }
 
 /**
@@ -269,14 +317,6 @@ export const deleteProject = (projectId: string): boolean => {
     console.error('Error deleting project:', e)
     return false
   }
-}
-
-/**
- * Clear all projects (for testing)
- */
-export const clearAllProjects = (): void => {
-  localStorage.removeItem(PROJECTS_KEY)
-  console.log('[ProjectStorage] Cleared all projects')
 }
 
 /**
