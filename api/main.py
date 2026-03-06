@@ -873,17 +873,26 @@ async def upload_ifc(file: UploadFile = File(...)):
     """Upload an IFC file."""
     import time
     upload_start = time.time()
-    print("=" * 60)
-    print(f"[UPLOAD] ===== UPLOAD ENDPOINT CALLED at {time.strftime('%H:%M:%S')} =====")
-    print(f"[UPLOAD] File: {file.filename}")
-    print("=" * 60)
+    
+    # Safe print function for Windows console (handles Hebrew/Unicode)
+    def safe_print(msg):
+        try:
+            print(msg)
+        except UnicodeEncodeError:
+            # Fallback: replace non-ASCII characters with '?'
+            print(msg.encode('ascii', 'replace').decode('ascii'))
+    
+    safe_print("=" * 60)
+    safe_print(f"[UPLOAD] ===== UPLOAD ENDPOINT CALLED at {time.strftime('%H:%M:%S')} =====")
+    safe_print(f"[UPLOAD] File: {file.filename}")
+    safe_print("=" * 60)
     try:
         if not file.filename or not file.filename.endswith((".ifc", ".IFC")):
             raise HTTPException(status_code=400, detail="File must be an IFC file")
         
         # Sanitize filename for Windows compatibility
         safe_filename = sanitize_filename(file.filename)
-        print(f"[UPLOAD] Received upload request: {file.filename} -> sanitized to: {safe_filename}")
+        safe_print(f"[UPLOAD] Received upload request: {file.filename} -> sanitized to: {safe_filename}")
         
         file_path = IFC_DIR / safe_filename
         report_path = REPORTS_DIR / f"{safe_filename}.json"
@@ -900,21 +909,21 @@ async def upload_ifc(file: UploadFile = File(...)):
         if file_path.exists() and report_path.exists():
             existing_size = file_path.stat().st_size
             if existing_size == len(content):
-                print(f"[UPLOAD-CACHE] CACHE HIT! File already processed: {safe_filename}")
-                print(f"[UPLOAD-CACHE] File size: {existing_size} bytes (matches upload)")
-                print(f"[UPLOAD-CACHE] Loading cached report from: {report_path}")
-                print(f"[UPLOAD-CACHE] Using IFCM viewer (no GLTF needed)")
+                safe_print(f"[UPLOAD-CACHE] CACHE HIT! File already processed: {safe_filename}")
+                safe_print(f"[UPLOAD-CACHE] File size: {existing_size} bytes (matches upload)")
+                safe_print(f"[UPLOAD-CACHE] Loading cached report from: {report_path}")
+                safe_print(f"[UPLOAD-CACHE] Using IFCM viewer (no GLTF needed)")
                 use_cache = True
             else:
-                print(f"[UPLOAD-CACHE] File exists but size differs (old: {existing_size}, new: {len(content)})")
-                print(f"[UPLOAD-CACHE] Will reprocess...")
+                safe_print(f"[UPLOAD-CACHE] File exists but size differs (old: {existing_size}, new: {len(content)})")
+                safe_print(f"[UPLOAD-CACHE] Will reprocess...")
         else:
             missing = []
             if not file_path.exists():
                 missing.append("IFC file")
             if not report_path.exists():
                 missing.append("report")
-            print(f"[UPLOAD-CACHE] CACHE MISS - Missing: {', '.join(missing)}")
+            safe_print(f"[UPLOAD-CACHE] CACHE MISS - Missing: {', '.join(missing)}")
         
         if use_cache:
             # Load cached report
@@ -930,32 +939,32 @@ async def upload_ifc(file: UploadFile = File(...)):
                 "from_cache": True
             }
             
-            print(f"[UPLOAD-CACHE] Returned cached data in {time.time() - upload_start:.2f}s")
-            print(f"[UPLOAD-CACHE] GLTF disabled - using IFCM viewer")
-            print(f"[UPLOAD] ===== UPLOAD COMPLETE (FROM CACHE) =====")
+            safe_print(f"[UPLOAD-CACHE] Returned cached data in {time.time() - upload_start:.2f}s")
+            safe_print(f"[UPLOAD-CACHE] GLTF disabled - using IFCM viewer")
+            safe_print(f"[UPLOAD] ===== UPLOAD COMPLETE (FROM CACHE) =====")
             return JSONResponse(response_data)
-        
+
         # ===== NOT CACHED: Process the file =====
-        print(f"[UPLOAD] About to write file: {file_path}")
-        print(f"[UPLOAD] File path type: {type(file_path)}, exists: {file_path.parent.exists()}")
+        safe_print(f"[UPLOAD] About to write file: {file_path}")
+        safe_print(f"[UPLOAD] File path type: {type(file_path)}, exists: {file_path.parent.exists()}")
         try:
             with open(file_path, "wb") as f:
                 f.write(content)
-            print(f"[UPLOAD] File saved successfully: {file_path}, size: {len(content)} bytes")
+            safe_print(f"[UPLOAD] File saved successfully: {file_path}, size: {len(content)} bytes")
         except Exception as write_error:
-            print(f"[UPLOAD] ERROR writing file: {write_error}")
-            print(f"[UPLOAD] Error type: {type(write_error)}")
+            safe_print(f"[UPLOAD] ERROR writing file: {write_error}")
+            safe_print(f"[UPLOAD] Error type: {type(write_error)}")
             import traceback
             traceback.print_exc()
             raise
         
         # Analyze IFC
-        print(f"[UPLOAD] About to call analyze_ifc for: {file_path}")
+        safe_print(f"[UPLOAD] About to call analyze_ifc for: {file_path}")
         analyze_start = time.time()
         try:
             report = analyze_ifc(file_path)
-            print(f"[UPLOAD-TIMING] Analysis took {time.time() - analyze_start:.2f}s")
-            print(f"[UPLOAD] analyze_ifc completed successfully. Report has {len(report.get('profiles', []))} profiles")
+            safe_print(f"[UPLOAD-TIMING] Analysis took {time.time() - analyze_start:.2f}s")
+            safe_print(f"[UPLOAD] analyze_ifc completed successfully. Report has {len(report.get('profiles', []))} profiles")
             
             # Save report
             report_path = REPORTS_DIR / f"{safe_filename}.json"
@@ -963,10 +972,10 @@ async def upload_ifc(file: UploadFile = File(...)):
             try:
                 with open(report_path, "w", encoding='utf-8') as f:
                     json.dump(report, f, indent=2)
-                print(f"[UPLOAD] Report saved successfully: {report_path}")
+                safe_print(f"[UPLOAD] Report saved successfully: {report_path}")
             except Exception as report_error:
-                print(f"[UPLOAD] ERROR saving report: {report_error}")
-                print(f"[UPLOAD] Error type: {type(report_error)}")
+                safe_print(f"[UPLOAD] ERROR saving report: {report_error}")
+                safe_print(f"[UPLOAD] Error type: {type(report_error)}")
                 import traceback
                 traceback.print_exc()
                 raise
@@ -974,7 +983,7 @@ async def upload_ifc(file: UploadFile = File(...)):
             # Generate assembly mapping cache for faster subsequent loads
             try:
                 mapping_cache_path = REPORTS_DIR / f"{safe_filename}.mapping.json"
-                print(f"[UPLOAD] Generating assembly mapping cache...")
+                safe_print(f"[UPLOAD] Generating assembly mapping cache...")
                 mapping_start = time.time()
                 
                 ifc_file_for_mapping = ifcopenshell.open(str(file_path.resolve()))
@@ -1010,9 +1019,9 @@ async def upload_ifc(file: UploadFile = File(...)):
                 
                 with open(mapping_cache_path, "w", encoding='utf-8') as f:
                     json.dump(mapping, f)
-                print(f"[UPLOAD-TIMING] Assembly mapping cached in {time.time() - mapping_start:.2f}s ({len(mapping)} products)")
+                safe_print(f"[UPLOAD-TIMING] Assembly mapping cached in {time.time() - mapping_start:.2f}s ({len(mapping)} products)")
             except Exception as e:
-                print(f"[UPLOAD] Warning: Failed to generate mapping cache: {e}")
+                safe_print(f"[UPLOAD] Warning: Failed to generate mapping cache: {e}")
             
             # Convert to glTF synchronously (for now, to catch errors)
             gltf_available = False
@@ -1026,10 +1035,10 @@ async def upload_ifc(file: UploadFile = File(...)):
                 # Try conversion, but don't block upload if it fails
                 try:
                     gltf_start = time.time()
-                    print(f"[UPLOAD] Starting glTF conversion for {safe_filename} (STRUCTURE layer only)...")
+                    safe_print(f"[UPLOAD] Starting glTF conversion for {safe_filename} (STRUCTURE layer only)...")
                     # Generate structure layer only (fastest - beams, columns, members)
                     convert_ifc_to_gltf(file_path, gltf_path, layer="structure")
-                    print(f"[UPLOAD-TIMING] glTF conversion (structure) took {time.time() - gltf_start:.2f}s")
+                    safe_print(f"[UPLOAD-TIMING] glTF conversion (structure) took {time.time() - gltf_start:.2f}s")
                     gltf_available = gltf_path.exists()
                     if gltf_available:
                         print(f"[UPLOAD] glTF conversion completed: {gltf_path}")
@@ -4879,11 +4888,15 @@ async def generate_cutting_plan_pdf(request: Request):
             Path(temp_file).unlink(missing_ok=True)
             Path(output_file).unlink(missing_ok=True)
             
+            # Use URL encoding for filename to support international characters
+            from urllib.parse import quote
+            safe_filename = quote(f"{project_name}_cutting_plan.pdf")
+            
             return Response(
                 content=pdf_bytes,
                 media_type='application/pdf',
                 headers={
-                    'Content-Disposition': f'attachment; filename="{project_name}_cutting_plan.pdf"'
+                    'Content-Disposition': f"attachment; filename*=UTF-8''{safe_filename}"
                 }
             )
             
@@ -4962,11 +4975,15 @@ async def generate_bom_pdf(request: Request):
             Path(temp_file).unlink(missing_ok=True)
             Path(pdf_path).unlink(missing_ok=True)
             
+            # Use URL encoding for filename to support international characters
+            from urllib.parse import quote
+            safe_filename = quote(f"{project_name}_BOM.pdf")
+            
             return Response(
                 content=pdf_bytes,
                 media_type='application/pdf',
                 headers={
-                    'Content-Disposition': f'attachment; filename="{project_name}_BOM.pdf"'
+                    'Content-Disposition': f"attachment; filename*=UTF-8''{safe_filename}"
                 }
             )
         except subprocess.TimeoutExpired:
