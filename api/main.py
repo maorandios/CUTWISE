@@ -127,6 +127,19 @@ def nesting_log(*args, **kwargs):
             pass
 
 
+def safe_print(msg):
+    """Print messages safely, handling Unicode characters for Windows console."""
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        # Fallback: replace non-ASCII characters with '?'
+        try:
+            print(msg.encode('ascii', 'replace').decode('ascii'))
+        except Exception:
+            # Ultimate fallback: just don't print
+            pass
+
+
 def sanitize_filename(filename: str) -> str:
     """Sanitize filename for Windows compatibility while preserving Unicode characters.
 
@@ -723,14 +736,14 @@ def is_plate_like(product) -> bool:
 
 def analyze_ifc(file_path: Path) -> Dict[str, Any]:
     """Analyze IFC file and extract steel information."""
-    print(f"[ANALYZE] ===== STARTING ANALYSIS FOR {file_path.name} =====")
+    safe_print(f"[ANALYZE] ===== STARTING ANALYSIS FOR {file_path.name} =====")
     try:
         # Resolve path to absolute for Windows compatibility
         resolved_path = file_path.resolve()
         ifc_file = ifcopenshell.open(str(resolved_path))
-        print(f"[ANALYZE] IFC file opened successfully")
+        safe_print(f"[ANALYZE] IFC file opened successfully")
     except Exception as e:
-        print(f"[ANALYZE] ERROR: Failed to open IFC file: {e}")
+        safe_print(f"[ANALYZE] ERROR: Failed to open IFC file: {e}")
         raise Exception(f"Failed to open IFC file: {str(e)}")
     
     assemblies: Dict[str, Dict[str, Any]] = {}
@@ -850,14 +863,14 @@ def analyze_ifc(file_path: Path) -> Dict[str, Any]:
     plate_list = list(plates.values())
     
     # Debug: Log merged profiles
-    print(f"[ANALYZE] ===== ANALYSIS COMPLETE =====")
-    print(f"[ANALYZE] Total profiles after merging: {len(profile_list)}")
+    safe_print(f"[ANALYZE] ===== ANALYSIS COMPLETE =====")
+    safe_print(f"[ANALYZE] Total profiles after merging: {len(profile_list)}")
     for profile in profile_list:
         element_type_display = profile.get('element_type', 'N/A')
         if element_type_display == "mixed":
             element_type_display = "MIXED (merged)"
-        print(f"[ANALYZE] Profile: {profile['profile_name']}, type: {element_type_display}, pieces: {profile['piece_count']}")
-    print(f"[ANALYZE] ===== END ANALYSIS =====")
+        safe_print(f"[ANALYZE] Profile: {profile['profile_name']}, type: {element_type_display}, pieces: {profile['piece_count']}")
+    safe_print(f"[ANALYZE] ===== END ANALYSIS =====")
     
     return {
         "total_tonnage": round(total_weight / 1000.0, 2),  # Convert kg to tonnes
@@ -873,14 +886,6 @@ async def upload_ifc(file: UploadFile = File(...)):
     """Upload an IFC file."""
     import time
     upload_start = time.time()
-    
-    # Safe print function for Windows console (handles Hebrew/Unicode)
-    def safe_print(msg):
-        try:
-            print(msg)
-        except UnicodeEncodeError:
-            # Fallback: replace non-ASCII characters with '?'
-            print(msg.encode('ascii', 'replace').decode('ascii'))
     
     safe_print("=" * 60)
     safe_print(f"[UPLOAD] ===== UPLOAD ENDPOINT CALLED at {time.strftime('%H:%M:%S')} =====")
@@ -968,7 +973,7 @@ async def upload_ifc(file: UploadFile = File(...)):
             
             # Save report
             report_path = REPORTS_DIR / f"{safe_filename}.json"
-            print(f"[UPLOAD] About to save report: {report_path}")
+            safe_print(f"[UPLOAD] About to save report: {report_path}")
             try:
                 with open(report_path, "w", encoding='utf-8') as f:
                     json.dump(report, f, indent=2)
@@ -1041,24 +1046,24 @@ async def upload_ifc(file: UploadFile = File(...)):
                     safe_print(f"[UPLOAD-TIMING] glTF conversion (structure) took {time.time() - gltf_start:.2f}s")
                     gltf_available = gltf_path.exists()
                     if gltf_available:
-                        print(f"[UPLOAD] glTF conversion completed: {gltf_path}")
+                        safe_print(f"[UPLOAD] glTF conversion completed: {gltf_path}")
                     else:
-                        print(f"[UPLOAD] WARNING: glTF conversion completed but file not found: {gltf_path}")
+                        safe_print(f"[UPLOAD] WARNING: glTF conversion completed but file not found: {gltf_path}")
                 except Exception as e:
                     conversion_error = str(e)
-                    print(f"[UPLOAD] ERROR: glTF conversion failed: {e}")
+                    safe_print(f"[UPLOAD] ERROR: glTF conversion failed: {e}")
                     import traceback
                     traceback.print_exc()
                     # Don't fail the upload, just log the error
             else:
-                print(f"[UPLOAD] ===== glTF conversion SKIPPED (ENABLE_GLTF_CONVERSION=False) =====")
-                print(f"[UPLOAD] Using IFCM viewer instead - no conversion needed!")
-                print(f"[UPLOAD] This saves significant processing time on upload")
-            
+                safe_print(f"[UPLOAD] ===== glTF conversion SKIPPED (ENABLE_GLTF_CONVERSION=False) =====")
+                safe_print(f"[UPLOAD] Using IFCM viewer instead - no conversion needed!")
+                safe_print(f"[UPLOAD] This saves significant processing time on upload")
+
             # Log profiles in the report being returned
-            print(f"[UPLOAD] Report contains {len(report.get('profiles', []))} profiles:")
+            safe_print(f"[UPLOAD] Report contains {len(report.get('profiles', []))} profiles:")
             for profile in report.get('profiles', []):
-                print(f"[UPLOAD]   - {profile.get('profile_name')} (type: {profile.get('element_type', 'N/A')}, pieces: {profile.get('piece_count', 0)})")
+                safe_print(f"[UPLOAD]   - {profile.get('profile_name')} (type: {profile.get('element_type', 'N/A')}, pieces: {profile.get('piece_count', 0)})")
             
             response_data = {
                 "filename": safe_filename,  # Return sanitized filename
@@ -1071,8 +1076,8 @@ async def upload_ifc(file: UploadFile = File(...)):
             if conversion_error:
                 response_data["conversion_error"] = str(conversion_error)
             
-            print(f"[UPLOAD-TIMING] TOTAL upload time: {time.time() - upload_start:.2f}s")
-            print(f"[UPLOAD] ===== UPLOAD COMPLETE =====")
+            safe_print(f"[UPLOAD-TIMING] TOTAL upload time: {time.time() - upload_start:.2f}s")
+            safe_print(f"[UPLOAD] ===== UPLOAD COMPLETE =====")
             
             return JSONResponse(response_data)
         except Exception as e:
@@ -1080,18 +1085,18 @@ async def upload_ifc(file: UploadFile = File(...)):
             if file_path.exists():
                 file_path.unlink()
             error_msg = f"Error analyzing IFC: {str(e)}"
-            print(f"[UPLOAD] {error_msg}")
+            safe_print(f"[UPLOAD] {error_msg}")
             import traceback
-            print(f"[UPLOAD] Full traceback:")
+            safe_print(f"[UPLOAD] Full traceback:")
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"Failed to analyze IFC: {str(e)}")
     except HTTPException:
         raise
     except Exception as e:
         error_msg = f"Upload failed: {str(e)}"
-        print(f"[UPLOAD] {error_msg}")
+        safe_print(f"[UPLOAD] {error_msg}")
         import traceback
-        print(f"[UPLOAD] Full traceback:")
+        safe_print(f"[UPLOAD] Full traceback:")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
