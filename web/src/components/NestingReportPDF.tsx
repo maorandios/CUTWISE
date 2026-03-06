@@ -1,6 +1,25 @@
 import React from 'react'
-import { Document, Page, Text, View, StyleSheet, Image, Svg, Line, Path, Polygon } from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet, Image, Svg, Line, Path, Polygon, Font } from '@react-pdf/renderer'
 import { NestingReport as NestingReportType, SteelReport, CuttingPattern } from '../types'
+
+// Register Noto Sans font with support for Hebrew, Arabic, Cyrillic, and all Latin scripts
+Font.register({
+  family: 'NotoSans',
+  fonts: [
+    { 
+      src: 'https://fonts.gstatic.com/s/notosans/v36/o-0mIpQlx3QUlC5A4PNB6Ryti20_6n1iPHjcz6L1SoM-jCpoiyD9A-9a6Vc.ttf',
+      fontWeight: 400,
+    },
+    { 
+      src: 'https://fonts.gstatic.com/s/notosans/v36/o-0mIpQlx3QUlC5A4PNB6Ryti20_6n1iPHjcz6L1SoM-jCpoiyBxA-9a6Vc.ttf',
+      fontWeight: 600,
+    },
+    { 
+      src: 'https://fonts.gstatic.com/s/notosans/v36/o-0mIpQlx3QUlC5A4PNB6Ryti20_6n1iPHjcz6L1SoM-jCpoiyBMA-9a6Vc.ttf',
+      fontWeight: 700,
+    },
+  ],
+})
 
 interface NestingReportPDFProps {
   nestingReport: NestingReportType
@@ -13,7 +32,7 @@ const styles = StyleSheet.create({
   page: {
     padding: 30,
     fontSize: 10,
-    fontFamily: 'Helvetica'
+    fontFamily: 'NotoSans'
   },
   title: {
     fontSize: 18,

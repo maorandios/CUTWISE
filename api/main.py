@@ -128,25 +128,27 @@ def nesting_log(*args, **kwargs):
 
 
 def sanitize_filename(filename: str) -> str:
-    """Sanitize filename for Windows compatibility.
-    
-    Removes or replaces characters that are invalid on Windows filesystems.
+    """Sanitize filename for Windows compatibility while preserving Unicode characters.
+
+    Removes or replaces characters that are invalid on Windows filesystems,
+    but preserves Unicode characters (Hebrew, Arabic, Cyrillic, Chinese, etc.).
     """
-    # Remove or replace invalid characters for Windows
+    # Remove or replace ONLY invalid characters for Windows
     # Invalid chars: < > : " / \ | ? *
+    # Note: We do NOT remove Unicode characters - they are valid on modern Windows
     invalid_chars = r'[<>:"/\\|?*]'
     sanitized = re.sub(invalid_chars, '_', filename)
-    
+
     # Remove leading/trailing spaces and dots (Windows doesn't allow these)
     sanitized = sanitized.strip(' .')
-    
+
     # Replace multiple spaces/underscores with single underscore
     sanitized = re.sub(r'[_\s]+', '_', sanitized)
-    
+
     # Ensure filename is not empty
     if not sanitized:
         sanitized = "uploaded_file"
-    
+
     # Ensure it still has .ifc extension
     if not sanitized.endswith(('.ifc', '.IFC')):
         # Try to preserve original extension
@@ -155,7 +157,7 @@ def sanitize_filename(filename: str) -> str:
             sanitized = sanitized + original_ext
         else:
             sanitized = sanitized + '.ifc'
-    
+
     return sanitized
 
 
@@ -1095,7 +1097,7 @@ async def get_report(filename: str):
     if not report_path.exists():
         raise HTTPException(status_code=404, detail="Report not found")
     
-    with open(report_path, "r") as f:
+    with open(report_path, "r", encoding='utf-8') as f:
         report = json.load(f)
     
     # Debug: Log profiles in the report
@@ -1194,7 +1196,9 @@ async def get_refined_geometry(filename: str, request: Request):
 @app.head("/api/ifc/{filename}")
 async def get_ifc_file(filename: str):
     """Serve IFC file for viewer."""
-    file_path = IFC_DIR / filename
+    from urllib.parse import unquote
+    decoded_filename = unquote(filename)
+    file_path = IFC_DIR / decoded_filename
     
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="IFC file not found")
@@ -1202,22 +1206,25 @@ async def get_ifc_file(filename: str):
     return FileResponse(
         file_path,
         media_type="application/octet-stream",
-        filename=filename
+        filename=decoded_filename
     )
 
 
 @app.get("/api/export/{filename}/{report_type}")
 async def export_report(filename: str, report_type: str):
     """Export report as CSV."""
+    from urllib.parse import unquote
+    decoded_filename = unquote(filename)
+    
     if report_type not in ["assemblies", "profiles", "plates"]:
         raise HTTPException(status_code=400, detail="Invalid report type")
     
-    report_path = REPORTS_DIR / f"{filename}.json"
+    report_path = REPORTS_DIR / f"{decoded_filename}.json"
     
     if not report_path.exists():
         raise HTTPException(status_code=404, detail="Report not found")
     
-    with open(report_path, "r") as f:
+    with open(report_path, "r", encoding='utf-8') as f:
         report = json.load(f)
     
     import csv
@@ -2093,7 +2100,10 @@ async def generate_nesting(
         trim: Trim amount in mm (material removed from stock bar ends, default: 5.0mm)
         stock_tolerance: Safety tolerance in mm (stock bars have 10-50mm excess, default: 0.0 = disabled)
     """
+    from urllib.parse import unquote
     import sys
+    
+    decoded_filename = unquote(filename)
     
     # Force output to be flushed immediately
     sys.stdout.flush()
@@ -2101,7 +2111,7 @@ async def generate_nesting(
     
     nesting_log("=" * 60, flush=True)
     nesting_log("[NESTING] ===== NESTING REQUEST RECEIVED =====", flush=True)
-    nesting_log(f"[NESTING] Filename: {filename}", flush=True)
+    nesting_log(f"[NESTING] Filename: {decoded_filename}", flush=True)
     nesting_log(f"[NESTING] Stock lengths: {stock_lengths}", flush=True)
     nesting_log(f"[NESTING] Profiles: {profiles}", flush=True)
     nesting_log(f"[NESTING] Kerf: {kerf}mm", flush=True)
@@ -2110,10 +2120,8 @@ async def generate_nesting(
     nesting_log("=" * 60, flush=True)
     
     try:
-        from urllib.parse import unquote
         from nesting import create_nesting_report, export_to_json
         
-        decoded_filename = unquote(filename)
         file_path = IFC_DIR / decoded_filename
         
         if not file_path.exists():

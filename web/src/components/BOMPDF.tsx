@@ -1,20 +1,20 @@
 import { Document, Page, Text, View, StyleSheet, Svg, Path, Circle, Font } from '@react-pdf/renderer'
 import { NestingReport, SteelReport } from '../types'
 
-// Register Manrope font with separate files for each weight
+// Register Noto Sans font with support for Hebrew, Arabic, Cyrillic, and all Latin scripts
 Font.register({
-  family: 'Manrope',
+  family: 'NotoSans',
   fonts: [
     { 
-      src: '/fonts/Manrope-Regular.ttf',
+      src: 'https://fonts.gstatic.com/s/notosans/v36/o-0mIpQlx3QUlC5A4PNB6Ryti20_6n1iPHjcz6L1SoM-jCpoiyD9A-9a6Vc.ttf',
       fontWeight: 400,
     },
     { 
-      src: '/fonts/Manrope-SemiBold.ttf',
+      src: 'https://fonts.gstatic.com/s/notosans/v36/o-0mIpQlx3QUlC5A4PNB6Ryti20_6n1iPHjcz6L1SoM-jCpoiyBxA-9a6Vc.ttf',
       fontWeight: 600,
     },
     { 
-      src: '/fonts/Manrope-Bold.ttf',
+      src: 'https://fonts.gstatic.com/s/notosans/v36/o-0mIpQlx3QUlC5A4PNB6Ryti20_6n1iPHjcz6L1SoM-jCpoiyBMA-9a6Vc.ttf',
       fontWeight: 700,
     },
   ],
@@ -33,7 +33,7 @@ const styles = StyleSheet.create({
     padding: 40,
     paddingBottom: 80,
     fontSize: 10,
-    fontFamily: 'Manrope',
+    fontFamily: 'NotoSans',
     backgroundColor: '#FFFFFF',
   },
   // Header Section with Company Info
