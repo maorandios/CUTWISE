@@ -65,7 +65,8 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
   // Helper function to build mesh lookup cache (called once after model loads)
   const buildMeshLookup = (modelGroup: THREE.Group) => {
     const lookup = new Map<string, THREE.Mesh[]>()
-    
+    let meshesWithoutProfile = 0
+
     modelGroup.traverse((child) => {
       if (child instanceof THREE.Mesh && !child.userData.isEdge) {
         const profileName = child.userData.profile_name
@@ -74,11 +75,17 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
             lookup.set(profileName, [])
           }
           lookup.get(profileName)!.push(child)
+        } else {
+          meshesWithoutProfile++
         }
       }
     })
-    
+
     console.log(`[CACHE] Built mesh lookup: ${lookup.size} profiles, ${Array.from(lookup.values()).reduce((sum, arr) => sum + arr.length, 0)} meshes`)
+    console.log(`[CACHE] Profile names in lookup:`, Array.from(lookup.keys()))
+    if (meshesWithoutProfile > 0) {
+      console.warn(`[CACHE] ${meshesWithoutProfile} meshes without profile_name`)
+    }
     return lookup
   }
 
@@ -91,11 +98,14 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
     const added = new Set([...selectedProfiles].filter(p => !previousProfiles.has(p)))
     const removed = new Set([...previousProfiles].filter(p => !selectedProfiles.has(p)))
     
+    console.log(`[MATERIALS] updateProfileMaterials - added:`, Array.from(added), 'removed:', Array.from(removed))
+    
     let updatedMeshes = 0
     
     // Update newly selected profiles (wireframe -> solid with color)
     added.forEach(profileName => {
       const meshes = meshLookup.get(profileName)
+      console.log(`[MATERIALS] Processing added profile "${profileName}": found ${meshes?.length || 0} meshes`)
       if (meshes) {
         meshes.forEach(mesh => {
           if (mesh.userData.originalMaterial) {
@@ -105,6 +115,8 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
               mesh.userData.edgeLine.visible = false // Hide edges when selected
             }
             updatedMeshes++
+          } else {
+            console.warn(`[MATERIALS] Mesh for profile "${profileName}" missing originalMaterial`)
           }
         })
       }
@@ -134,6 +146,9 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
     const meshLookup = meshLookupRef.current
     if (meshLookup.size === 0) return
     
+    console.log(`[MATERIALS] applyInitialMaterials called with ${selectedProfiles.size} selected profiles:`, Array.from(selectedProfiles))
+    console.log(`[MATERIALS] Mesh lookup has ${meshLookup.size} profiles:`, Array.from(meshLookup.keys()))
+    
     let coloredMeshes = 0
     let wireframeMeshes = 0
     
@@ -144,6 +159,9 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
       meshes.forEach(mesh => {
         if (isSelected) {
           // Selected: show solid with color, hide edges
+          if (!mesh.userData.originalMaterial) {
+            console.warn(`[MATERIALS] Mesh missing originalMaterial for profile ${profileName}`)
+          }
           mesh.material = mesh.userData.originalMaterial
           mesh.visible = true
           if (mesh.userData.edgeLine) {

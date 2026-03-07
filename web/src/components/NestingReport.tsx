@@ -753,10 +753,10 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         body: JSON.stringify({
           nestingReport: filteredNestingReport,
           projectName: cuttingPlanProjectName || filename.replace('.ifc', ''),
-          tolerance: stockToleranceValue,
-          toleranceEnabled: stockToleranceEnabled,
-          trim: trimValue,
-          kerf: kerfValue,
+          tolerance: nestingReport.settings?.stock_tolerance ?? 0,
+          toleranceEnabled: (nestingReport.settings?.stock_tolerance ?? 0) > 0,
+          trim: nestingReport.settings?.trim ?? 5.0,
+          kerf: nestingReport.settings?.kerf ?? 3.0,
           selectedProfiles: Array.from(cuttingPlanSelectedProfiles),
           stockbarSvgData: stockbarSvgData,
           totalWeight: totalWeight,
@@ -1962,10 +1962,10 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 
                 return (
                   <AnimatedCuttingMetricCards 
-                    stockToleranceEnabled={stockToleranceEnabled}
-                    stockToleranceValue={stockToleranceValue}
-                    trimValue={trimValue}
-                    kerfValue={kerfValue}
+                    stockToleranceEnabled={(nestingReport.settings?.stock_tolerance ?? 0) > 0}
+                    stockToleranceValue={nestingReport.settings?.stock_tolerance ?? 0}
+                    trimValue={nestingReport.settings?.trim ?? 5.0}
+                    kerfValue={nestingReport.settings?.kerf ?? 3.0}
                     totalCutsQty={totalCutsQty}
                     shouldAnimate={!animatedTabs.has('cutting')}
                   />
@@ -2166,11 +2166,11 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                             <div className="w-px h-4 bg-border"></div>
                             
                             {/* Tolerance */}
-                            {stockToleranceEnabled && (
+                            {((nestingReport.settings?.stock_tolerance ?? 0) > 0) && (
                               <>
                                 <div className="flex items-center gap-1.5">
                                   <img src="/Icons/tolerance for section.svg" alt="Tolerance" className="w-4 h-4" />
-                                  <span className="text-sm font-medium">{stockToleranceValue.toFixed(0)}mm</span>
+                                  <span className="text-sm font-medium">{(nestingReport.settings?.stock_tolerance ?? 0).toFixed(0)}mm</span>
                                 </div>
                                 <div className="w-px h-4 bg-border"></div>
                               </>
@@ -2179,7 +2179,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                             {/* Trim */}
                             <div className="flex items-center gap-1.5">
                               <img src="/Icons/trim for section.svg" alt="Trim" className="w-4 h-4" />
-                              <span className="text-sm font-medium">{trimValue.toFixed(0)}mm</span>
+                              <span className="text-sm font-medium">{(nestingReport.settings?.trim ?? 5.0).toFixed(0)}mm</span>
                             </div>
                             
                             <div className="w-px h-4 bg-border"></div>
@@ -2187,7 +2187,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                             {/* Kerf */}
                             <div className="flex items-center gap-1.5">
                               <img src="/Icons/kerf for section.svg" alt="Kerf" className="w-4 h-4" />
-                              <span className="text-sm font-medium">{kerfValue.toFixed(0)}mm</span>
+                              <span className="text-sm font-medium">{(nestingReport.settings?.kerf ?? 3.0).toFixed(0)}mm</span>
                             </div>
                           </div>
                           

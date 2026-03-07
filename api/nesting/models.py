@@ -383,6 +383,12 @@ class NestingReport:
     kerf: float = 3.0
     """Kerf width (cutting blade width) in millimeters."""
     
+    trim: float = 5.0
+    """Trim amount (material removed from stock bar ends) in millimeters."""
+    
+    stock_tolerance: float = 0.0
+    """Safety tolerance in millimeters (0 = disabled)."""
+    
     stock_lengths: List[float] = field(default_factory=list)
     """Available stock lengths in millimeters."""
     
@@ -392,6 +398,8 @@ class NestingReport:
             "filename": self.filename,
             "profiles": [profile.to_dict() for profile in self.profiles],
             "kerf": self.kerf,
+            "trim": self.trim,
+            "stock_tolerance": self.stock_tolerance,
             "stock_lengths": self.stock_lengths
         }
 

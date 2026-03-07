@@ -102,6 +102,8 @@ export interface NestingReport {
   settings: {
     stock_lengths: number[]  // in mm
     kerf: number  // Kerf in mm (saw blade cutting width)
+    trim: number  // Trim in mm (material removed from stock bar ends)
+    stock_tolerance: number  // Safety tolerance in mm (0 = disabled)
   }
 }
 

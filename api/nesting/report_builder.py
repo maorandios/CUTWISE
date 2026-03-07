@@ -89,18 +89,22 @@ def build_profile_dict(profile: ProfileNesting) -> Dict[str, Any]:
 def build_report_dict(report: NestingReport) -> Dict[str, Any]:
     """
     Build a dictionary representation of a complete nesting report.
-    
+
     Args:
         report: NestingReport object
-    
+
     Returns:
         Dictionary suitable for JSON serialization
     """
     return {
         "filename": report.filename,
         "profiles": [build_profile_dict(p) for p in report.profiles],
-        "kerf": report.kerf,
-        "stock_lengths": report.stock_lengths,
+        "settings": {
+            "stock_lengths": report.stock_lengths,
+            "kerf": report.kerf,
+            "trim": report.trim,
+            "stock_tolerance": report.stock_tolerance
+        },
         "summary": build_report_summary(report)
     }
 

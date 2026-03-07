@@ -326,6 +326,8 @@ class NestingOrchestrator:
             filename=filename,
             profiles=profile_nestings,
             kerf=self.kerf,
+            trim=self.trim,
+            stock_tolerance=self.stock_tolerance,
             stock_lengths=self.original_stock_lengths  # Use original stock lengths for display
         )
         
