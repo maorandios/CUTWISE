@@ -30,10 +30,19 @@ import * as ProjectStorage from './utils/projectStorage'
 import type { CompanyDetails } from './utils/projectStorage'
 import type { ProjectData } from './utils/projectStorage'
 import { apiRequest } from './utils/api'
+import { useAuth } from './hooks/useAuth'
+import { useProjects } from './hooks/useProjects'
+import { useCompany } from './hooks/useCompany'
+import { toast } from 'sonner'
+import { migrateLocalStorageToSupabase, hasLocalStorageData, clearLocalStorageAfterMigration } from './utils/migrateToSupabase'
 
 function App() {
+  // Supabase hooks
+  const { user, loading: authLoading, signOut } = useAuth()
+  const { projects, createProject, updateProject, deleteProject, getProject, fetchProjects } = useProjects()
+  const { company, saveCompany } = useCompany()
+  
   // Auth state
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [authView, setAuthView] = useState<'login' | 'signup'>('login')
   const [userName, setUserName] = useState('User')
   const [needsOnboarding, setNeedsOnboarding] = useState(false)
@@ -103,25 +112,45 @@ function App() {
     dashboardDetails?: any
   }>({})
 
-  // Check for existing user session on mount
+  // Check authentication and set user display name
   useEffect(() => {
-    const user = ProjectStorage.getCurrentUser()
     if (user) {
-      // Try to get company name first, fallback to user name
-      const companyDetails = ProjectStorage.getCompanyDetails()
-      const displayName = companyDetails?.companyName || user.userName
+      // Get display name from company or user metadata
+      const displayName = company?.companyName || user.user_metadata?.full_name || user.email || 'User'
       setUserName(displayName)
-      setIsAuthenticated(true)
-      console.log('[App] Restored user session:', displayName)
+      console.log('[App] User authenticated:', displayName)
       
-      // Check if onboarding is needed
-      const hasOnboarded = ProjectStorage.hasCompletedOnboarding()
-      if (!hasOnboarded) {
+      // Check if onboarding is needed (no company details)
+      if (!company) {
         setNeedsOnboarding(true)
         console.log('[App] User needs onboarding')
+      } else {
+        setNeedsOnboarding(false)
+      }
+
+      // Check for localStorage data to migrate
+      if (hasLocalStorageData()) {
+        console.log('[App] Found localStorage data, prompting migration')
+        toast.info('Would you like to migrate your existing projects to the cloud?', {
+          duration: 10000,
+          action: {
+            label: 'Migrate',
+            onClick: async () => {
+              const result = await migrateLocalStorageToSupabase()
+              if (result.success) {
+                toast.success(`Successfully migrated ${result.migratedProjects} project(s)`)
+                clearLocalStorageAfterMigration()
+                await fetchProjects()
+                setDashboardRefresh(prev => prev + 1)
+              } else {
+                toast.error(`Migration completed with errors: ${result.errors.join(', ')}`)
+              }
+            }
+          }
+        })
       }
     }
-  }, [])
+  }, [user, company])
 
   // Save to localStorage whenever state changes (but only save filters and activeTab, not file data)
   useEffect(() => {
@@ -142,7 +171,7 @@ function App() {
     }
   }, [filters, activeTab])
 
-  const handleFileUploaded = (filename: string, reportData: SteelReport, gltfPath?: string, gltfAvailable?: boolean) => {
+  const handleFileUploaded = async (filename: string, reportData: SteelReport, gltfPath?: string, gltfAvailable?: boolean) => {
     // Always clear nesting report when new file is uploaded
     setNestingReport(null)
     
@@ -160,11 +189,16 @@ function App() {
     
     // Clear tab data cache when new file is uploaded
     setTabDataCache({})
-    
-    // Save project with full data using new storage system
-    const project = ProjectStorage.createProject(filename, reportData)
-    setCurrentProjectId(project.id)
-    
+
+    // Save project to Supabase
+    const project = await createProject(filename, filename, reportData)
+    if (project) {
+      setCurrentProjectId(project.id)
+      toast.success('Project created successfully')
+    } else {
+      toast.error('Failed to save project')
+    }
+
     // Close modal and switch to split screen view
     setShowUploadModal(false)
     setCurrentView('split')
@@ -227,11 +261,13 @@ function App() {
       setActiveTab('ifcm')
       setTabDataCache({})
 
-      // Create project with custom name
-      const project = ProjectStorage.createProject(data.filename, data.report)
-      // Update project name to custom name
-      ProjectStorage.updateProject(project.id, { name: projectName })
-      setCurrentProjectId(project.id)
+      // Create project with custom name in Supabase
+      const project = await createProject(projectName, data.filename, data.report)
+      if (project) {
+        setCurrentProjectId(project.id)
+      } else {
+        toast.error('Failed to save project')
+      }
 
       setUploadProgress(60)
       await new Promise(resolve => setTimeout(resolve, 100))
@@ -279,7 +315,7 @@ function App() {
     }
   }
 
-  const handleNestingReportChange = (report: NestingReportType | null) => {
+  const handleNestingReportChange = async (report: NestingReportType | null) => {
     console.log('[App] handleNestingReportChange called:', {
       hasReport: !!report,
       currentProjectId: currentProjectId,
@@ -287,85 +323,124 @@ function App() {
     })
     
     setNestingReport(report)
-    
+
     // Update project with nesting data and switch to report view
     if (report && currentProjectId) {
-      const updatedProject = ProjectStorage.updateProjectNesting(currentProjectId, report)
-      console.log('[App] Updated project in storage:', {
+      // Get existing project to access steel report for weight calculations
+      const existingProject = await getProject(currentProjectId)
+      if (!existingProject) {
+        toast.error('Failed to load project data')
+        return
+      }
+
+      // Calculate nesting stats
+      const stockBarsUsed = report.profiles.reduce(
+        (sum, profile) => sum + profile.cutting_patterns.length,
+        0
+      )
+      
+      let totalWasteMeters = 0
+      let totalWasteTonnage = 0
+      let totalTonnage = 0 // Weight of selected profiles only
+      
+      report.profiles.forEach(profile => {
+        // Sum waste from all cutting patterns
+        const wasteForProfile = profile.cutting_patterns.reduce((sum, pattern) => {
+          return sum + (pattern.waste || 0)
+        }, 0)
+        
+        // Convert waste from mm to meters
+        totalWasteMeters += wasteForProfile / 1000.0
+        
+        // Calculate waste tonnage and total tonnage using steel report data
+        const steelProfile = existingProject.steelReport?.profiles?.find(
+          p => p.profile_name === profile.profile_name
+        )
+        
+        if (steelProfile) {
+          // Add weight of this profile to total tonnage (kg to tonnes)
+          totalTonnage += steelProfile.total_weight / 1000.0
+          
+          if (profile.total_length > 0) {
+            // weight_per_meter = total_weight_kg / (total_length_mm / 1000)
+            const totalLengthM = profile.total_length / 1000.0
+            const weightPerMeter = steelProfile.total_weight / totalLengthM
+            const wasteM = wasteForProfile / 1000.0
+            totalWasteTonnage += (wasteM * weightPerMeter) / 1000.0
+          }
+        }
+      })
+
+      const updatedProject = await updateProject(currentProjectId, {
+        nestingReport: report,
+        stats: {
+          totalProfiles: report.summary.total_profiles,
+          totalTonnage: totalTonnage, // Weight from selected profiles only
+          stockBarsUsed: stockBarsUsed,
+          totalParts: report.summary.total_parts,
+          avgWastePercentage: report.summary.avg_waste_percentage,
+          totalWasteTonnage: totalWasteTonnage,
+          totalWasteMeters: totalWasteMeters
+        },
+        status: 'nested'
+      })
+      
+      console.log('[App] Updated project in database:', {
         success: !!updatedProject,
         hasNesting: !!updatedProject?.nestingReport
       })
-      setCurrentView('report') // Navigate to report view after generation
+      if (updatedProject) {
+        setCurrentView('report')
+      } else {
+        toast.error('Failed to save nesting report')
+      }
     }
   }
 
   // Auth handlers
-  const handleLogin = (username: string, password: string) => {
-    // TODO: Implement actual authentication with backend
-    console.log('Login:', username, password)
-    
-    // For now, just set user in localStorage
-    const userId = `user_${Date.now()}`
-    ProjectStorage.setCurrentUser(userId, username)
-    
-    // Try to get company name, fallback to username
-    const companyDetails = ProjectStorage.getCompanyDetails()
-    const displayName = companyDetails?.companyName || username
-    setUserName(displayName)
-    setIsAuthenticated(true)
-    setCurrentView('dashboard')
+  const handleLoginSuccess = () => {
+    console.log('[App] Login successful')
+    // User state will be updated by useAuth hook
+    // Check if onboarding needed will be handled by useEffect
   }
 
-  const handleSignup = (fullName: string, email: string, password: string) => {
-    // TODO: Implement actual signup with backend
-    console.log('Signup:', fullName, email, password)
-    
-    // For now, just set user in localStorage with email
-    const userId = `user_${Date.now()}`
-    ProjectStorage.setCurrentUser(userId, fullName, email)
-    
-    // Try to get company name, fallback to fullName
-    const companyDetails = ProjectStorage.getCompanyDetails()
-    const displayName = companyDetails?.companyName || fullName
-    setUserName(displayName)
-    setIsAuthenticated(true)
-    
-    // Check if user needs onboarding (first time signup)
-    const hasOnboarded = ProjectStorage.hasCompletedOnboarding()
-    if (!hasOnboarded) {
-      setNeedsOnboarding(true)
-    } else {
+  const handleSignupSuccess = () => {
+    console.log('[App] Signup successful')
+    // User state will be updated by useAuth hook
+    // Will trigger onboarding check in useEffect
+  }
+  
+  const handleOnboardingComplete = async (details: CompanyDetails) => {
+    const success = await saveCompany(details)
+    if (success) {
+      setNeedsOnboarding(false)
       setCurrentView('dashboard')
+      setUserName(details.companyName)
+      toast.success('Company details saved successfully')
+      console.log('[App] Onboarding completed')
+    } else {
+      toast.error('Failed to save company details')
     }
   }
-  
-  const handleOnboardingComplete = (details: CompanyDetails) => {
-    ProjectStorage.saveCompanyDetails(details)
-    setNeedsOnboarding(false)
-    setCurrentView('dashboard')
-    // Update display name to company name
-    setUserName(details.companyName)
-    console.log('[App] Onboarding completed')
-  }
-  
-  const handleLogout = () => {
-    ProjectStorage.clearCurrentUser()
-    setIsAuthenticated(false)
+
+  const handleLogout = async () => {
+    await signOut()
     setCurrentView('dashboard')
     setCurrentFile(null)
     setReport(null)
     setNestingReport(null)
+    toast.success('Logged out successfully')
   }
   
-  const handleSelectProject = (projectData: ProjectData) => {
+  const handleSelectProject = async (projectData: ProjectData) => {
     console.log('[App] handleSelectProject called with:', {
       id: projectData.id,
       name: projectData.name,
       hasNestingInParam: !!projectData.nestingReport
     })
-    
-    // Load complete project data from storage
-    const fullProject = ProjectStorage.getProject(projectData.id)
+
+    // Load complete project data from Supabase
+    const fullProject = await getProject(projectData.id)
     
     if (fullProject) {
       console.log('[App] Loaded project from storage:', {
@@ -427,19 +502,32 @@ function App() {
   // Data is now loaded on-demand when each tab is opened
   // This saves ~23 seconds on file upload and only loads what's needed
 
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LottieLoader
+          message="Loading..."
+          animationPath="/animations/Abstract Isometric Loader.json"
+          size={300}
+        />
+      </div>
+    )
+  }
+
   // Show auth screens if not authenticated
-  if (!isAuthenticated) {
+  if (!user) {
     if (authView === 'login') {
       return (
         <>
-          <Login onLogin={handleLogin} onSwitchToSignup={() => setAuthView('signup')} />
+          <Login onLoginSuccess={handleLoginSuccess} onSwitchToSignup={() => setAuthView('signup')} />
           <Toaster position="top-right" />
         </>
       )
     } else {
       return (
         <>
-          <Signup onSignup={handleSignup} onSwitchToLogin={() => setAuthView('login')} />
+          <Signup onSignupSuccess={handleSignupSuccess} onSwitchToLogin={() => setAuthView('login')} />
           <Toaster position="top-right" />
         </>
       )

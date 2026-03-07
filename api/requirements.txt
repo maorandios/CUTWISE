@@ -10,3 +10,6 @@ rectpack
 shapely
 playwright
 jinja2
+pyjwt
+python-jose[cryptography]
+python-dotenv

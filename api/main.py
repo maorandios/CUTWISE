@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.exceptions import RequestValidationError
@@ -7,13 +7,21 @@ from pathlib import Path
 import ifcopenshell
 import ifcopenshell.util.element
 import json
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import os
 import asyncio
 import re
 import traceback
 import multiprocessing
 import sys
+
+# Import auth module (optional authentication)
+try:
+    from auth import optional_auth, get_current_user
+    AUTH_AVAILABLE = True
+except ImportError:
+    AUTH_AVAILABLE = False
+    print("WARNING: Auth module not available, running without authentication")
 
 # Fix for Windows Playwright subprocess issue
 # Must be set before any asyncio operations

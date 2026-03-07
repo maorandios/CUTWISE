@@ -10,23 +10,27 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { TermsContent, PrivacyContent, CookieContent } from './LegalContent'
+import { useAuth } from '../hooks/useAuth'
+import { toast } from 'sonner'
 
 interface SignupProps {
-  onSignup: (fullName: string, email: string, password: string) => void
+  onSignupSuccess: () => void
   onSwitchToLogin: () => void
 }
 
-const Signup = ({ onSignup, onSwitchToLogin }: SignupProps) => {
+const Signup = ({ onSignupSuccess, onSwitchToLogin }: SignupProps) => {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showTermsModal, setShowTermsModal] = useState(false)
   const [showPrivacyModal, setShowPrivacyModal] = useState(false)
   const [showCookieModal, setShowCookieModal] = useState(false)
+  const { signUp, signInWithGoogle } = useAuth()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
@@ -40,14 +44,43 @@ const Signup = ({ onSignup, onSwitchToLogin }: SignupProps) => {
       return
     }
 
-    if (fullName && email && password) {
-      onSignup(fullName, email, password)
+    if (!fullName || !email || !password) return
+
+    setLoading(true)
+    try {
+      const { data, error } = await signUp(email, password, fullName)
+      
+      if (error) {
+        setError(error.message || 'Failed to create account')
+        toast.error(error.message || 'Failed to create account')
+        return
+      }
+
+      if (data.user) {
+        toast.success('Account created successfully! Please check your email to verify your account.')
+        onSignupSuccess()
+      }
+    } catch (err) {
+      const errorMsg = 'An unexpected error occurred'
+      setError(errorMsg)
+      toast.error(errorMsg)
+      console.error('Signup error:', err)
+    } finally {
+      setLoading(false)
     }
   }
 
-  const handleGoogleSignup = () => {
-    // UI only - no implementation yet
-    console.log('Google signup clicked')
+  const handleGoogleSignup = async () => {
+    try {
+      const { error } = await signInWithGoogle()
+      
+      if (error) {
+        toast.error(error.message || 'Failed to sign up with Google')
+      }
+    } catch (err) {
+      toast.error('An unexpected error occurred')
+      console.error('Google signup error:', err)
+    }
   }
 
   return (
@@ -76,6 +109,7 @@ const Signup = ({ onSignup, onSwitchToLogin }: SignupProps) => {
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Enter your full name"
                 required
+                disabled={loading}
                 className="h-12 rounded-full"
               />
             </div>
@@ -90,6 +124,7 @@ const Signup = ({ onSignup, onSwitchToLogin }: SignupProps) => {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
                 required
+                disabled={loading}
                 className="h-12 rounded-full"
               />
             </div>
@@ -102,8 +137,9 @@ const Signup = ({ onSignup, onSwitchToLogin }: SignupProps) => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Create a password"
+                placeholder="Create a password (min 6 characters)"
                 required
+                disabled={loading}
                 className="h-12 rounded-full"
               />
             </div>
@@ -118,6 +154,7 @@ const Signup = ({ onSignup, onSwitchToLogin }: SignupProps) => {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Confirm your password"
                 required
+                disabled={loading}
                 className="h-12 rounded-full"
               />
             </div>
@@ -130,8 +167,8 @@ const Signup = ({ onSignup, onSwitchToLogin }: SignupProps) => {
             )}
 
             {/* Signup Button */}
-            <Button type="submit" className="w-full h-12 text-base rounded-full">
-              Create Account
+            <Button type="submit" disabled={loading} className="w-full h-12 text-base rounded-full">
+              {loading ? 'Creating Account...' : 'Create Account'}
             </Button>
           </form>
 
@@ -150,6 +187,7 @@ const Signup = ({ onSignup, onSwitchToLogin }: SignupProps) => {
             type="button"
             variant="outline"
             onClick={handleGoogleSignup}
+            disabled={loading}
             className="w-full h-12 rounded-full"
           >
             <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">

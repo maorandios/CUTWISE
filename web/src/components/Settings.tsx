@@ -13,6 +13,8 @@ import { Header } from './Header'
 import { Footer } from './Footer'
 import { toast } from 'sonner'
 import { Settings as SettingsIcon, User, Wrench, FileText, Lock, CreditCard } from 'lucide-react'
+import { useAuth } from '../hooks/useAuth'
+import { useCompany } from '../hooks/useCompany'
 
 interface CompanyDetails {
   companyName: string
@@ -50,31 +52,24 @@ const Settings = ({
   nestingSettings,
   onSaveNestingSettings
 }: SettingsProps) => {
+  const { user } = useAuth()
+  const { company, saveCompany } = useCompany()
+  
   const [activeTab, setActiveTab] = useState<SettingsTab>('general')
   const [generalDetails, setGeneralDetails] = useState<CompanyDetails>(companyDetails)
 
-  // Account tab state - get email from current user
-  const currentUser = (() => {
-    try {
-      const data = localStorage.getItem('cutwise_current_user')
-      return data ? JSON.parse(data) : null
-    } catch {
-      return null
-    }
-  })()
-  
-  // Check if userName is an email (for backwards compatibility)
-  const getUserEmail = () => {
-    if (currentUser?.email) return currentUser.email
-    if (currentUser?.userName && currentUser.userName.includes('@')) return currentUser.userName
-    if (companyDetails.email) return companyDetails.email
-    return 'user@example.com'
-  }
-  
-  const [email, setEmail] = useState(getUserEmail())
+  // Account tab state
+  const [email, setEmail] = useState(user?.email || '')
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  
+  // Update email when user changes
+  useEffect(() => {
+    if (user?.email) {
+      setEmail(user.email)
+    }
+  }, [user])
 
   // Technical tab state
   const [technicalSettings, setTechnicalSettings] = useState<NestingSettings>(
@@ -132,14 +127,19 @@ const Settings = ({
     }
   }, [])
 
-  const handleSaveGeneral = () => {
+  const handleSaveGeneral = async () => {
     if (!generalDetails.companyName.trim()) {
       toast.error('Company name is required')
       return
     }
-    
-    onSaveCompanyDetails({ ...generalDetails, email })
-    toast.success('General settings saved successfully!')
+
+    const success = await saveCompany({ ...generalDetails, email })
+    if (success) {
+      onSaveCompanyDetails({ ...generalDetails, email })
+      toast.success('General settings saved successfully!')
+    } else {
+      toast.error('Failed to save settings')
+    }
   }
 
   const handleSaveTechnical = () => {

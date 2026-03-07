@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dialog'
 import { AnimatedDashboardCards } from './AnimatedDashboardCards'
 import { toast } from 'sonner'
+import { useProjects } from '../hooks/useProjects'
 
 interface ProjectsDashboardProps {
   onSelectProject: (project: ProjectData) => void
@@ -33,7 +34,7 @@ interface ProjectsDashboardProps {
 }
 
 const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 'User', refreshTrigger, onOpenSettings }: ProjectsDashboardProps) => {
-  const [projects, setProjects] = useState<ProjectData[]>([])
+  const { projects: supabaseProjects, loading: projectsLoading, deleteProject: deleteSupabaseProject, fetchProjects } = useProjects()
   const [displayCount, setDisplayCount] = useState(20)
   const [searchText, setSearchText] = useState('')
   const [filterMonth, setFilterMonth] = useState<string>('all')
@@ -42,9 +43,12 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null)
 
-  // Load projects from storage (reload when refreshTrigger changes)
+  // Use Supabase projects
+  const projects = supabaseProjects
+
+  // Reload projects when refreshTrigger changes
   useEffect(() => {
-    loadProjects()
+    fetchProjects()
   }, [refreshTrigger])
 
   // Trigger animation on first mount
@@ -52,17 +56,10 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
     if (!hasAnimated && projects.length > 0) {
       const timer = setTimeout(() => {
         setHasAnimated(true)
-      }, 1600) // Slightly longer than animation duration
+      }, 1600)
       return () => clearTimeout(timer)
     }
   }, [hasAnimated, projects.length])
-
-  const loadProjects = () => {
-    const allProjects = ProjectStorage.getAllProjects()
-    setProjects(allProjects)
-    setDisplayCount(20) // Reset to 20 when projects are reloaded
-    console.log('[Dashboard] Loaded', allProjects.length, 'projects')
-  }
 
   const handleDeleteProject = (projectId: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -76,13 +73,13 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
     setDeleteDialogOpen(true)
   }
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!projectToDelete) return
     
-    const success = ProjectStorage.deleteProject(projectToDelete.id)
+    const success = await deleteSupabaseProject(projectToDelete.id)
     if (success) {
       toast.success(`${projectToDelete.name} deleted successfully`)
-      loadProjects() // Reload projects
+      await fetchProjects()
     } else {
       toast.error('Failed to delete project')
     }
@@ -162,7 +159,19 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
     let totalWastePercentage = 0
 
     completedProjects.forEach(project => {
-      totalWeight += project.stats?.totalTonnage || 0
+      // Calculate weight from nesting report (selected profiles only)
+      if (project.nestingReport && project.steelReport) {
+        project.nestingReport.profiles.forEach(nestingProfile => {
+          const steelProfile = project.steelReport?.profiles?.find(
+            p => p.profile_name === nestingProfile.profile_name
+          )
+          if (steelProfile) {
+            // Add weight of this profile in tonnes
+            totalWeight += steelProfile.total_weight / 1000.0
+          }
+        })
+      }
+      
       totalWasteMeters += project.stats?.totalWasteMeters || 0
       totalWasteTonnage += project.stats?.totalWasteTonnage || 0
       totalWastePercentage += project.stats?.avgWastePercentage || 0
@@ -172,7 +181,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
 
     return {
       totalProjects: projects.length,
-      totalWeight: Math.round(totalWeight * 1000), // Convert tonnes to kg
+      totalWeight: Math.round(totalWeight * 1000) / 1000, // Round to 3 decimals
       totalWasteMeters: Math.round(totalWasteMeters * 10) / 10,
       totalWasteTonnage: Math.round(totalWasteTonnage * 1000) / 1000,
       avgWastePercentage: Math.round(avgWastePercentage * 10) / 10
@@ -226,7 +235,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
         {/* Metric Cards - Full width with dividers */}
         <AnimatedDashboardCards
           totalProjects={metrics.totalProjects}
-          totalWeightT={(metrics.totalWeight / 1000)}
+          totalWeightT={metrics.totalWeight}
           totalWasteMeters={metrics.totalWasteMeters}
           totalWasteTonnage={metrics.totalWasteTonnage}
           avgWastePercentage={metrics.avgWastePercentage}
@@ -321,7 +330,19 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
                 </TableHeader>
                 <TableBody>
                   {filteredProjects.slice(0, displayCount).map((project, index) => {
-                    const totalWeight = project.stats?.totalTonnage || 0
+                    // Calculate weight from nesting report (selected profiles only)
+                    let totalWeight = 0
+                    if (project.nestingReport && project.steelReport) {
+                      project.nestingReport.profiles.forEach(nestingProfile => {
+                        const steelProfile = project.steelReport?.profiles?.find(
+                          p => p.profile_name === nestingProfile.profile_name
+                        )
+                        if (steelProfile) {
+                          totalWeight += steelProfile.total_weight / 1000.0 // Convert kg to tonnes
+                        }
+                      })
+                    }
+                    
                     const wastePercentage = project.stats?.avgWastePercentage || 0
                     const wasteTonnage = project.stats?.totalWasteTonnage || 0
                     const wasteMeters = project.stats?.totalWasteMeters || 0
@@ -338,7 +359,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
                           {formatDate(project.dateCreated)}
                         </TableCell>
                         <TableCell className="text-right h-12">
-                          {totalWeight.toFixed(3)}
+                          {project.nestingReport ? totalWeight.toFixed(3) : '0.000'}
                         </TableCell>
                         <TableCell className="text-right h-12 bg-gray-50/50">
                           {wastePercentage.toFixed(2)}%

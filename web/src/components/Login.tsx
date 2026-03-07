@@ -10,29 +10,59 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { TermsContent, PrivacyContent, CookieContent } from './LegalContent'
+import { useAuth } from '../hooks/useAuth'
+import { toast } from 'sonner'
 
 interface LoginProps {
-  onLogin: (username: string, password: string) => void
+  onLoginSuccess: () => void
   onSwitchToSignup: () => void
 }
 
-const Login = ({ onLogin, onSwitchToSignup }: LoginProps) => {
-  const [username, setUsername] = useState('')
+const Login = ({ onLoginSuccess, onSwitchToSignup }: LoginProps) => {
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
   const [showTermsModal, setShowTermsModal] = useState(false)
   const [showPrivacyModal, setShowPrivacyModal] = useState(false)
   const [showCookieModal, setShowCookieModal] = useState(false)
+  const { signIn, signInWithGoogle } = useAuth()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (username && password) {
-      onLogin(username, password)
+    if (!email || !password) return
+
+    setLoading(true)
+    try {
+      const { data, error } = await signIn(email, password)
+      
+      if (error) {
+        toast.error(error.message || 'Failed to log in')
+        return
+      }
+
+      if (data.user) {
+        toast.success('Welcome back!')
+        onLoginSuccess()
+      }
+    } catch (err) {
+      toast.error('An unexpected error occurred')
+      console.error('Login error:', err)
+    } finally {
+      setLoading(false)
     }
   }
 
-  const handleGoogleLogin = () => {
-    // UI only - no implementation yet
-    console.log('Google login clicked')
+  const handleGoogleLogin = async () => {
+    try {
+      const { error } = await signInWithGoogle()
+      
+      if (error) {
+        toast.error(error.message || 'Failed to log in with Google')
+      }
+    } catch (err) {
+      toast.error('An unexpected error occurred')
+      console.error('Google login error:', err)
+    }
   }
 
   return (
@@ -53,14 +83,15 @@ const Login = ({ onLogin, onSwitchToSignup }: LoginProps) => {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email Input */}
             <div className="space-y-2">
-              <Label htmlFor="username">Email</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="username"
+                id="email"
                 type="email"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
                 required
+                disabled={loading}
                 className="h-12 rounded-full"
               />
             </div>
@@ -75,13 +106,14 @@ const Login = ({ onLogin, onSwitchToSignup }: LoginProps) => {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
                 required
+                disabled={loading}
                 className="h-12 rounded-full"
               />
             </div>
 
             {/* Login Button */}
-            <Button type="submit" className="w-full h-12 text-base rounded-full">
-              Log In
+            <Button type="submit" disabled={loading} className="w-full h-12 text-base rounded-full">
+              {loading ? 'Logging in...' : 'Log In'}
             </Button>
           </form>
 
