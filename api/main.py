@@ -155,8 +155,11 @@ def sanitize_filename(filename: str) -> str:
     # Remove leading/trailing spaces and dots (Windows doesn't allow these)
     sanitized = sanitized.strip(' .')
 
-    # Replace multiple spaces/underscores with single underscore
-    sanitized = re.sub(r'[_\s]+', '_', sanitized)
+    # Replace multiple consecutive spaces with single space (preserve spaces, don't convert to underscores)
+    sanitized = re.sub(r'\s+', ' ', sanitized)
+    
+    # Replace multiple consecutive underscores with single underscore
+    sanitized = re.sub(r'_+', '_', sanitized)
 
     # Ensure filename is not empty
     if not sanitized:
