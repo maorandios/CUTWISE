@@ -52,11 +52,14 @@ const Settings = ({
   nestingSettings,
   onSaveNestingSettings
 }: SettingsProps) => {
-  const { user } = useAuth()
+  const { user, verifyPassword, updatePassword } = useAuth()
   const { company, saveCompany } = useCompany()
   
   const [activeTab, setActiveTab] = useState<SettingsTab>('general')
   const [generalDetails, setGeneralDetails] = useState<CompanyDetails>(companyDetails)
+
+  // Check if user signed up with OAuth (Google)
+  const isOAuthUser = user?.app_metadata?.provider !== 'email'
 
   // Account tab state
   const [email, setEmail] = useState(user?.email || '')
@@ -167,6 +170,61 @@ const Settings = ({
     }
     
     toast.success('Technical settings saved successfully!')
+  }
+
+  const handleSavePassword = async () => {
+    // Validation
+    if (!currentPassword.trim()) {
+      toast.error('Please enter your current password')
+      return
+    }
+
+    if (!newPassword.trim()) {
+      toast.error('Please enter a new password')
+      return
+    }
+
+    if (newPassword.length < 6) {
+      toast.error('New password must be at least 6 characters')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error('New passwords do not match')
+      return
+    }
+
+    if (currentPassword === newPassword) {
+      toast.error('New password must be different from current password')
+      return
+    }
+
+    try {
+      // First, verify the current password
+      const { error: verifyError } = await verifyPassword(currentPassword)
+
+      if (verifyError) {
+        toast.error('Current password is incorrect')
+        return
+      }
+
+      // If verification succeeds, update to new password
+      const { error } = await updatePassword(newPassword)
+
+      if (error) {
+        toast.error(error.message || 'Failed to update password')
+        return
+      }
+
+      // Success - clear fields and show success message
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      toast.success('Password updated successfully! A confirmation email has been sent.')
+    } catch (err) {
+      toast.error('An error occurred while updating password')
+      console.error('Password update error:', err)
+    }
   }
 
   const menuItems = [
@@ -337,54 +395,80 @@ const Settings = ({
                     />
                   </div>
 
-                  <div className="border-t border-border pt-6 mt-6">
-                    <h3 className="text-lg font-semibold mb-4">Change Password</h3>
-                    
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="currentPassword">Current Password</Label>
-                        <Input
-                          id="currentPassword"
-                          type="password"
-                          value={currentPassword}
-                          onChange={(e) => setCurrentPassword(e.target.value)}
-                          placeholder="Enter current password"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="newPassword">New Password</Label>
-                        <Input
-                          id="newPassword"
-                          type="password"
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="Enter new password"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                        <Input
-                          id="confirmPassword"
-                          type="password"
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="Confirm new password"
-                        />
+                  {isOAuthUser ? (
+                    // OAuth users - show message about Google-managed password
+                    <div className="border-t border-border pt-6 mt-6">
+                      <h3 className="text-lg font-semibold mb-4">Password</h3>
+                      <div className="bg-muted/50 p-4 rounded-lg">
+                        <p className="text-sm text-muted-foreground">
+                          You signed in with Google. Your password is managed through your Google account.
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          To change your password, please visit your{' '}
+                          <a 
+                            href="https://myaccount.google.com/security" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline"
+                          >
+                            Google Account Security settings
+                          </a>.
+                        </p>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    // Email users - show password change form
+                    <div className="border-t border-border pt-6 mt-6">
+                      <h3 className="text-lg font-semibold mb-4">Change Password</h3>
+                      
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="currentPassword">Current Password</Label>
+                          <Input
+                            id="currentPassword"
+                            type="password"
+                            value={currentPassword}
+                            onChange={(e) => setCurrentPassword(e.target.value)}
+                            placeholder="Enter current password"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="newPassword">New Password</Label>
+                          <Input
+                            id="newPassword"
+                            type="password"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            placeholder="Enter new password"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                          <Input
+                            id="confirmPassword"
+                            type="password"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            placeholder="Confirm new password"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex justify-end gap-3">
-                  <Button variant="outline" onClick={onBack}>
-                    Cancel
-                  </Button>
-                  <Button onClick={() => console.log('Save account settings')}>
-                    Save Changes
-                  </Button>
-                </div>
+                {!isOAuthUser && (
+                  <div className="flex justify-end gap-3">
+                    <Button variant="outline" onClick={onBack}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleSavePassword}>
+                      Save Changes
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 

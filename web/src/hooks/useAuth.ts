@@ -82,6 +82,37 @@ export const useAuth = () => {
     return { data, error }
   }
 
+  const signInWithMagicLink = async (email: string) => {
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/`,
+        shouldCreateUser: false // Only allow existing users to use magic link
+      }
+    })
+    return { data, error }
+  }
+
+  const verifyPassword = async (password: string) => {
+    if (!authState.user?.email) {
+      return { error: { message: 'No user email found' } }
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: authState.user.email,
+      password: password
+    })
+    
+    return { error }
+  }
+
+  const updatePassword = async (newPassword: string) => {
+    const { data, error } = await supabase.auth.updateUser({
+      password: newPassword
+    })
+    return { data, error }
+  }
+
   return {
     user: authState.user,
     session: authState.session,
@@ -89,7 +120,10 @@ export const useAuth = () => {
     signUp,
     signIn,
     signInWithGoogle,
+    signInWithMagicLink,
     signOut,
-    resetPassword
+    resetPassword,
+    verifyPassword,
+    updatePassword
   }
 }

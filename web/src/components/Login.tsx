@@ -22,10 +22,11 @@ const Login = ({ onLoginSuccess, onSwitchToSignup }: LoginProps) => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [magicLinkLoading, setMagicLinkLoading] = useState(false)
   const [showTermsModal, setShowTermsModal] = useState(false)
   const [showPrivacyModal, setShowPrivacyModal] = useState(false)
   const [showCookieModal, setShowCookieModal] = useState(false)
-  const { signIn, signInWithGoogle } = useAuth()
+  const { signIn, signInWithGoogle, signInWithMagicLink } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -62,6 +63,30 @@ const Login = ({ onLoginSuccess, onSwitchToSignup }: LoginProps) => {
     } catch (err) {
       toast.error('An unexpected error occurred')
       console.error('Google login error:', err)
+    }
+  }
+
+  const handleMagicLinkLogin = async () => {
+    if (!email) {
+      toast.error('Please enter your email address')
+      return
+    }
+
+    setMagicLinkLoading(true)
+    try {
+      const { error } = await signInWithMagicLink(email)
+      
+      if (error) {
+        toast.error(error.message || 'Failed to send magic link')
+        return
+      }
+
+      toast.success('Check your email! We sent you a magic link to log in.')
+    } catch (err) {
+      toast.error('An unexpected error occurred')
+      console.error('Magic link error:', err)
+    } finally {
+      setMagicLinkLoading(false)
     }
   }
 
@@ -116,6 +141,22 @@ const Login = ({ onLoginSuccess, onSwitchToSignup }: LoginProps) => {
               {loading ? 'Logging in...' : 'Log In'}
             </Button>
           </form>
+
+          {/* Magic Link Button */}
+          <div className="mt-4">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleMagicLinkLogin}
+              disabled={magicLinkLoading || !email}
+              className="w-full h-12 text-base rounded-full border border-gray-300"
+            >
+              {magicLinkLoading ? 'Sending...' : 'Send Magic Link Instead'}
+            </Button>
+            <p className="text-xs text-gray-500 text-center mt-2">
+              No password needed - we'll email you a login link
+            </p>
+          </div>
 
           {/* Divider */}
           <div className="relative my-8">

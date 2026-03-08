@@ -440,7 +440,7 @@ function App() {
       setCurrentView('dashboard')
       setUserName(details.companyName)
       
-      // Show loading screen for new signups after onboarding
+      // Show loading screen for new signups after onboarding (only from onboarding)
       setShowLoginLoadingScreen(true)
       setTimeout(() => {
         setShowLoginLoadingScreen(false)
@@ -567,7 +567,8 @@ function App() {
   }
   
   // Show loading screen overlay while checking (keeps login screen in background)
-  if (showLoginLoadingScreen || (user && companyLoading && !isNewSignup)) {
+  // Only show during initial login, not when updating settings
+  if (showLoginLoadingScreen || (user && companyLoading && !isNewSignup && currentView !== 'settings')) {
     return (
       <>
         {/* Keep login screen in background */}
