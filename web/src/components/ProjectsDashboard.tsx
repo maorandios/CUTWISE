@@ -23,6 +23,7 @@ import {
 import { AnimatedDashboardCards } from './AnimatedDashboardCards'
 import { toast } from 'sonner'
 import { useProjects } from '../hooks/useProjects'
+import { LottieLoader } from './LottieLoader'
 
 interface ProjectsDashboardProps {
   onSelectProject: (project: ProjectData) => void
@@ -46,9 +47,11 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
   // Use Supabase projects
   const projects = supabaseProjects
 
-  // Reload projects when refreshTrigger changes
+  // Reload projects when refreshTrigger changes (force reload)
   useEffect(() => {
-    fetchProjects()
+    if (refreshTrigger > 0) {
+      fetchProjects(true)
+    }
   }, [refreshTrigger])
 
   // Trigger animation on first mount
@@ -79,7 +82,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
     const success = await deleteSupabaseProject(projectToDelete.id)
     if (success) {
       toast.success(`${projectToDelete.name} deleted successfully`)
-      await fetchProjects()
+      await fetchProjects(true) // Force reload after delete
     } else {
       toast.error('Failed to delete project')
     }
@@ -309,7 +312,17 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
 
         {/* Projects Table */}
         <div className="flex-1 flex flex-col">
-        {filteredProjects.length > 0 ? (
+        {projectsLoading ? (
+          // Loading State
+          <div className="flex flex-col items-center justify-center py-20 mb-12">
+            <LottieLoader 
+              message="Loading your projects list"
+              size={300}
+              animationPath="/animations/Free Searching Animation.json"
+              overlay={false}
+            />
+          </div>
+        ) : filteredProjects.length > 0 ? (
           <>
             <div className="rounded-lg border overflow-hidden mb-6">
               <div className="overflow-x-auto">

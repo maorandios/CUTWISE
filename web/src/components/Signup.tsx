@@ -51,13 +51,32 @@ const Signup = ({ onSignupSuccess, onSwitchToLogin }: SignupProps) => {
       const { data, error } = await signUp(email, password, fullName)
       
       if (error) {
-        setError(error.message || 'Failed to create account')
-        toast.error(error.message || 'Failed to create account')
+        // Check for specific error messages
+        let errorMsg = error.message || 'Failed to create account'
+        
+        if (error.message?.includes('already registered') || error.message?.includes('already exists')) {
+          errorMsg = 'This email is already registered. Please log in instead.'
+        } else if (error.message?.includes('User already registered')) {
+          errorMsg = 'This email is already registered. Please log in instead.'
+        }
+        
+        setError(errorMsg)
+        toast.error(errorMsg)
         return
       }
 
       if (data.user) {
-        toast.success('Account created successfully! Please check your email to verify your account.')
+        // Check if this is a new user or existing user
+        // Supabase returns identities array - if empty, user already existed
+        if (data.user.identities && data.user.identities.length === 0) {
+          // User already exists
+          const errorMsg = 'This email is already registered. Please log in instead.'
+          setError(errorMsg)
+          toast.error(errorMsg)
+          return
+        }
+        
+        toast.success('Account created successfully! Please check your email at hello@cutwise.pro to verify your account.')
         onSignupSuccess()
       }
     } catch (err) {

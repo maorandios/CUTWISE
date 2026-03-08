@@ -28,11 +28,18 @@ export const useProjects = () => {
   const [projects, setProjects] = useState<ProjectData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false)
 
-  const fetchProjects = async () => {
+  const fetchProjects = async (force: boolean = false) => {
     if (!user) {
       setProjects([])
       setLoading(false)
+      return
+    }
+
+    // Skip loading if already loaded and not forced
+    if (hasInitiallyLoaded && !force) {
+      console.log('[useProjects] Projects already loaded, skipping fetch')
       return
     }
 
@@ -69,6 +76,7 @@ export const useProjects = () => {
 
       setProjects(transformedProjects)
       setError(null)
+      setHasInitiallyLoaded(true)
     } catch (err) {
       console.error('Error fetching projects:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch projects')
@@ -78,7 +86,19 @@ export const useProjects = () => {
   }
 
   useEffect(() => {
-    fetchProjects()
+    if (user && !hasInitiallyLoaded) {
+      console.log('[useProjects] Initial fetch for user:', user.id)
+      fetchProjects()
+    }
+  }, [user])
+  
+  // Reset when user logs out
+  useEffect(() => {
+    if (!user) {
+      setHasInitiallyLoaded(false)
+      setProjects([])
+      setLoading(false)
+    }
   }, [user])
 
   const createProject = async (

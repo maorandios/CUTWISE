@@ -39,12 +39,15 @@ function App() {
   // Supabase hooks
   const { user, loading: authLoading, signOut } = useAuth()
   const { projects, createProject, updateProject, deleteProject, getProject, fetchProjects } = useProjects()
-  const { company, saveCompany } = useCompany()
+  const { company, loading: companyLoading, saveCompany } = useCompany()
   
   // Auth state
   const [authView, setAuthView] = useState<'login' | 'signup'>('login')
   const [userName, setUserName] = useState('User')
   const [needsOnboarding, setNeedsOnboarding] = useState(false)
+  const [isNewSignup, setIsNewSignup] = useState(false)
+  const [showLoginLoadingScreen, setShowLoginLoadingScreen] = useState(false)
+  const [hasCheckedOnboarding, setHasCheckedOnboarding] = useState(false)
   
   // View state
   const [currentView, setCurrentView] = useState<'dashboard' | 'split' | 'report' | 'settings'>('dashboard')
@@ -118,16 +121,55 @@ function App() {
       const displayName = company?.companyName || user.user_metadata?.full_name || user.email || 'User'
       setUserName(displayName)
       console.log('[App] User authenticated:', displayName)
+      console.log('[App] Company loading:', companyLoading, 'Company exists:', !!company, 'Has checked:', hasCheckedOnboarding, 'isNewSignup:', isNewSignup, 'showLoadingScreen:', showLoginLoadingScreen)
       
-      // Check if onboarding is needed (no company details)
-      if (!company) {
-        setNeedsOnboarding(true)
-        console.log('[App] User needs onboarding')
-      } else {
-        setNeedsOnboarding(false)
+      // Check onboarding after company data has finished loading AND loading screen is done
+      if (!companyLoading && !showLoginLoadingScreen) {
+        if (!hasCheckedOnboarding) {
+          setHasCheckedOnboarding(true)
+        }
+        
+        // Always update onboarding state based on company existence
+        if (!company) {
+          setNeedsOnboarding(true)
+          console.log('[App] User needs onboarding (no company details)')
+        } else {
+          setNeedsOnboarding(false)
+          console.log('[App] User has company details, skipping onboarding')
+        }
+      }
+    } else {
+      // Reset when user logs out
+      setHasCheckedOnboarding(false)
+      setNeedsOnboarding(false)
+      setIsNewSignup(false)
+    }
+  }, [user, company, companyLoading, hasCheckedOnboarding, isNewSignup, showLoginLoadingScreen])
+  
+  // Handle login loading screen with minimum 4 seconds
+  useEffect(() => {
+    if (showLoginLoadingScreen) {
+      console.log('[App] Loading screen is active, setting 4 second timer')
+      const timer = setTimeout(() => {
+        console.log('[App] 4 seconds elapsed, clearing loading screen')
+        setShowLoginLoadingScreen(false)
+      }, 4000)
+      
+      return () => {
+        console.log('[App] Cleaning up timer')
+        clearTimeout(timer)
       }
     }
-  }, [user, company])
+  }, [showLoginLoadingScreen])
+  
+  // Trigger loading screen on login
+  useEffect(() => {
+    if (user && !authLoading && !isNewSignup && !hasCheckedOnboarding) {
+      // User just logged in (not a new signup) - show loading screen immediately
+      console.log('[App] User logged in, showing loading screen')
+      setShowLoginLoadingScreen(true)
+    }
+  }, [user, authLoading, isNewSignup, hasCheckedOnboarding])
 
   // Save to localStorage whenever state changes (but only save filters and activeTab, not file data)
   useEffect(() => {
@@ -377,26 +419,39 @@ function App() {
   // Auth handlers
   const handleLoginSuccess = () => {
     console.log('[App] Login successful')
+    setIsNewSignup(false) // Existing user logging in
     // User state will be updated by useAuth hook
-    // Check if onboarding needed will be handled by useEffect
   }
 
   const handleSignupSuccess = () => {
     console.log('[App] Signup successful')
+    setIsNewSignup(true) // New user signing up - needs onboarding
     // User state will be updated by useAuth hook
     // Will trigger onboarding check in useEffect
   }
   
   const handleOnboardingComplete = async (details: CompanyDetails) => {
+    console.log('[App] handleOnboardingComplete called with:', details)
     const success = await saveCompany(details)
+    console.log('[App] saveCompany result:', success)
+    
     if (success) {
       setNeedsOnboarding(false)
       setCurrentView('dashboard')
       setUserName(details.companyName)
+      
+      // Show loading screen for new signups after onboarding
+      setShowLoginLoadingScreen(true)
+      setTimeout(() => {
+        setShowLoginLoadingScreen(false)
+        setIsNewSignup(false)
+      }, 4000)
+      
       toast.success('Company details saved successfully')
-      console.log('[App] Onboarding completed')
+      console.log('[App] Onboarding completed successfully')
     } else {
       toast.error('Failed to save company details')
+      console.error('[App] Onboarding failed to save')
     }
   }
 
@@ -511,11 +566,39 @@ function App() {
     }
   }
   
+  // Show loading screen overlay while checking (keeps login screen in background)
+  if (showLoginLoadingScreen || (user && companyLoading && !isNewSignup)) {
+    return (
+      <>
+        {/* Keep login screen in background */}
+        {authView === 'login' ? (
+          <Login onLoginSuccess={handleLoginSuccess} onSwitchToSignup={() => setAuthView('signup')} />
+        ) : (
+          <Signup onSignupSuccess={handleSignupSuccess} onSwitchToLogin={() => setAuthView('login')} />
+        )}
+        
+        {/* Loading overlay on top */}
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-lg flex items-center justify-center z-[9999]">
+          <div className="flex flex-col items-center gap-6">
+            <LottieLoader 
+              message=""
+              size={400}
+              animationPath="/animations/Rocket in Space.json"
+              overlay={false}
+            />
+            <p className="text-white text-xl font-medium">We are setting things up</p>
+          </div>
+        </div>
+        <Toaster position="top-right" />
+      </>
+    )
+  }
+  
   // Show onboarding if user just signed up and hasn't completed it
   if (needsOnboarding) {
     return (
       <>
-        <Onboarding onComplete={handleOnboardingComplete} />
+        <Onboarding onComplete={handleOnboardingComplete} showWelcome={isNewSignup} />
         <Toaster position="top-right" />
       </>
     )
@@ -528,7 +611,7 @@ function App() {
         <Settings
           onBack={handleBackToDashboard}
           onLogout={handleLogout}
-          companyDetails={ProjectStorage.getCompanyDetails() || {
+          companyDetails={company || {
             companyName: '',
             address: '',
             country: '',
@@ -536,8 +619,13 @@ function App() {
             companySize: '',
             email: ''
           }}
-          onSaveCompanyDetails={(details) => {
-            ProjectStorage.saveCompanyDetails(details)
+          onSaveCompanyDetails={async (details) => {
+            const success = await saveCompany(details)
+            if (success) {
+              toast.success('Company details updated successfully')
+            } else {
+              toast.error('Failed to update company details')
+            }
           }}
         />
         {loading && (
