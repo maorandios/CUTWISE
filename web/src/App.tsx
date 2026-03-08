@@ -34,7 +34,6 @@ import { useAuth } from './hooks/useAuth'
 import { useProjects } from './hooks/useProjects'
 import { useCompany } from './hooks/useCompany'
 import { toast } from 'sonner'
-import { migrateLocalStorageToSupabase, hasLocalStorageData, clearLocalStorageAfterMigration } from './utils/migrateToSupabase'
 
 function App() {
   // Supabase hooks
@@ -126,28 +125,6 @@ function App() {
         console.log('[App] User needs onboarding')
       } else {
         setNeedsOnboarding(false)
-      }
-
-      // Check for localStorage data to migrate
-      if (hasLocalStorageData()) {
-        console.log('[App] Found localStorage data, prompting migration')
-        toast.info('Would you like to migrate your existing projects to the cloud?', {
-          duration: 10000,
-          action: {
-            label: 'Migrate',
-            onClick: async () => {
-              const result = await migrateLocalStorageToSupabase()
-              if (result.success) {
-                toast.success(`Successfully migrated ${result.migratedProjects} project(s)`)
-                clearLocalStorageAfterMigration()
-                await fetchProjects()
-                setDashboardRefresh(prev => prev + 1)
-              } else {
-                toast.error(`Migration completed with errors: ${result.errors.join(', ')}`)
-              }
-            }
-          }
-        })
       }
     }
   }, [user, company])
