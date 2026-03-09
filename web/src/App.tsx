@@ -566,9 +566,8 @@ function App() {
     }
   }
   
-  // Show loading screen overlay while checking (keeps login screen in background)
-  // Only show during initial login, not when updating settings
-  if (showLoginLoadingScreen || (user && companyLoading && !isNewSignup && currentView !== 'settings')) {
+  // Show loading screen overlay only when explicitly triggered (not on page refresh)
+  if (showLoginLoadingScreen) {
     return (
       <>
         {/* Keep login screen in background */}
