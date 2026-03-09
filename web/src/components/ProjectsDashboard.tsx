@@ -32,9 +32,10 @@ interface ProjectsDashboardProps {
   userName?: string
   refreshTrigger?: number
   onOpenSettings?: () => void
+  credits?: number
 }
 
-const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 'User', refreshTrigger, onOpenSettings }: ProjectsDashboardProps) => {
+const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 'User', refreshTrigger, onOpenSettings, credits }: ProjectsDashboardProps) => {
   const { projects: supabaseProjects, loading: projectsLoading, deleteProject: deleteSupabaseProject, fetchProjects } = useProjects()
   const [displayCount, setDisplayCount] = useState(20)
   const [searchText, setSearchText] = useState('')
@@ -200,6 +201,8 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
         onLogout={onLogout}
         showUploadButton={false}
         title="My Projects"
+        showCredits={true}
+        credits={credits}
       />
 
       {/* Dark Header Background - matches top menu, extends to middle of cards */}

@@ -10,6 +10,8 @@ rectpack
 shapely
 playwright
 jinja2
-pyjwt
+pyjwt[crypto]
 python-jose[cryptography]
 python-dotenv
+paypalrestsdk
+requests

@@ -23,6 +23,14 @@ except ImportError:
     AUTH_AVAILABLE = False
     print("WARNING: Auth module not available, running without authentication")
 
+# Import payments router
+try:
+    from payments import router as payments_router
+    PAYMENTS_AVAILABLE = True
+except ImportError:
+    PAYMENTS_AVAILABLE = False
+    print("WARNING: Payments module not available, running without payment features")
+
 # Fix for Windows Playwright subprocess issue
 # Must be set before any asyncio operations
 if sys.platform == 'win32':
@@ -97,6 +105,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+if PAYMENTS_AVAILABLE:
+    app.include_router(payments_router)
+    print("[INFO] Payments router loaded")
+
+@app.on_event("startup")
+async def startup_event():
+    """Test JWKS fetching on startup"""
+    if AUTH_AVAILABLE:
+        try:
+            from auth import get_jwks
+            print("[Startup] Testing JWKS fetch...")
+            jwks = get_jwks()
+            if jwks:
+                print(f"[Startup] JWKS loaded successfully with {len(jwks.get('keys', []))} keys")
+            else:
+                print("[Startup] WARNING: JWKS fetch returned None")
+        except Exception as e:
+            print(f"[Startup] ERROR testing JWKS: {e}")
+            import traceback
+            traceback.print_exc()
 
 # Storage paths
 STORAGE_DIR = Path(__file__).parent.parent / "storage"

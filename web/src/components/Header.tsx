@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/Button';
-import { Wrench } from 'lucide-react';
+import { Wrench, CreditCard } from 'lucide-react';
 
 interface HeaderProps {
   onSettingsClick?: () => void;
@@ -11,6 +11,8 @@ interface HeaderProps {
   title?: string;
   showNestingSettings?: boolean;
   onNestingSettingsClick?: () => void;
+  credits?: number;
+  showCredits?: boolean;
 }
 
 export function Header({
@@ -23,6 +25,8 @@ export function Header({
   title,
   showNestingSettings = false,
   onNestingSettingsClick,
+  credits,
+  showCredits = false,
 }: HeaderProps) {
   return (
     <>
@@ -31,9 +35,16 @@ export function Header({
           <img
             src="/Icons/cutwise manu logo.svg"
             alt="Cutwise"
-            className="h-10"
+            className="h-10 -ml-1"
           />
           <div className="flex items-center gap-3">
+            {showCredits && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-[#0A5048] rounded-lg">
+                <CreditCard className="w-4 h-4 text-white" />
+                <span className="text-white font-semibold">{credits !== undefined ? credits : '...'}</span>
+                <span className="text-white/80 text-sm">credits</span>
+              </div>
+            )}
             {showUploadButton && onUploadClick && (
               <Button onClick={onUploadClick} className="bg-blue-600 hover:bg-blue-700 text-white">
                 Upload New Project

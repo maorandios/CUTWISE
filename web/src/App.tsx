@@ -11,6 +11,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { LottieLoader } from './components/LottieLoader'
 
 import UploadProjectModal from './components/UploadProjectModal'
+import { PaymentModal } from './components/PaymentModal'
 import FileUpload from './components/FileUpload'
 import IFCViewer from './components/IFCViewer'
 import IFCViewerWebIFC from './components/IFCViewerWebIFC'
@@ -33,6 +34,7 @@ import { apiRequest } from './utils/api'
 import { useAuth } from './hooks/useAuth'
 import { useProjects } from './hooks/useProjects'
 import { useCompany } from './hooks/useCompany'
+import { useCredits } from './hooks/useCredits'
 import { toast } from 'sonner'
 
 function App() {
@@ -40,6 +42,7 @@ function App() {
   const { user, loading: authLoading, signOut } = useAuth()
   const { projects, createProject, updateProject, deleteProject, getProject, fetchProjects } = useProjects()
   const { company, loading: companyLoading, saveCompany } = useCompany()
+  const { credits, hasCredits, deductCredit } = useCredits()
   
   // Auth state
   const [authView, setAuthView] = useState<'login' | 'signup'>('login')
@@ -54,6 +57,7 @@ function App() {
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
   const [dashboardRefresh, setDashboardRefresh] = useState(0)
   const [showUploadModal, setShowUploadModal] = useState(false)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
   
   // Load from localStorage on mount (but NOT currentFile or nesting data - always start fresh)
   const loadFromStorage = () => {
@@ -409,6 +413,10 @@ function App() {
         hasNesting: !!updatedProject?.nestingReport
       })
       if (updatedProject) {
+        // Deduct credit after successful nesting report generation
+        const projectName = updatedProject.name || currentFile?.replace('.ifc', '') || 'Unknown Project'
+        await deductCredit(currentProjectId, projectName)
+        
         setCurrentView('report')
       } else {
         toast.error('Failed to save nesting report')
@@ -509,6 +517,12 @@ function App() {
   }
   
   const handleUploadNew = () => {
+    // Check if user has credits
+    if (!hasCredits()) {
+      setShowPaymentModal(true)
+      toast.error('You need credits to upload a new project')
+      return
+    }
     setShowUploadModal(true)
   }
   
@@ -640,12 +654,18 @@ function App() {
           userName={userName}
           refreshTrigger={dashboardRefresh}
           onOpenSettings={handleOpenSettings}
+          credits={credits}
         />
         <UploadProjectModal
           isOpen={showUploadModal}
           onClose={() => setShowUploadModal(false)}
           onUpload={handleUploadWithName}
           loading={loading}
+        />
+        <PaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          credits={credits}
         />
         {loading && (
           <LottieLoader 
