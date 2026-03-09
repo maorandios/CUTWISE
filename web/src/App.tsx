@@ -534,20 +534,7 @@ function App() {
   // Data is now loaded on-demand when each tab is opened
   // This saves ~23 seconds on file upload and only loads what's needed
 
-  // Show loading while checking auth
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LottieLoader
-          message="Loading..."
-          animationPath="/animations/Abstract Isometric Loader.json"
-          size={300}
-        />
-      </div>
-    )
-  }
-
-  // Show auth screens if not authenticated
+  // Show auth screens if not authenticated (including during initial auth check)
   if (!user) {
     if (authView === 'login') {
       return (
