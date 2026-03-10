@@ -45,6 +45,13 @@ interface NestingReportProps {
   initialView?: 'select' | 'results' // Control which view to show initially
   onSettingsClick?: (handler: () => void) => void // Callback to expose settings handler to parent
   onModelReady?: () => void // Callback when IFC model is loaded and ready
+  companyDetails?: {
+    companyName: string
+    address: string
+    country: string
+    phoneNumber: string
+    email: string
+  }
 }
 
 type Step = 'select' | 'results'
@@ -100,7 +107,7 @@ const ProfileItem = memo(({ profile, isSelected, onToggle }: ProfileItemProps) =
   )
 })
 
-export default function NestingReport({ filename, nestingReport: propNestingReport, onNestingReportChange, report, initialView, onSettingsClick, onModelReady }: NestingReportProps) {
+export default function NestingReport({ filename, nestingReport: propNestingReport, onNestingReportChange, report, initialView, onSettingsClick, onModelReady, companyDetails }: NestingReportProps) {
   // Use prop as source of truth, but maintain local state for updates
   const nestingReport = propNestingReport
   const [currentStep, setCurrentStep] = useState<Step>(initialView || 'select')
@@ -448,31 +455,16 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       
       setExportProgress({ show: true, current: 20, total: 100 })
       
-      // Load company details from storage
-      const companyDetails = ProjectStorage.getCompanyDetails() || {
+      // Use company details from props (from Supabase) or fallback to localStorage
+      const finalCompanyDetails = companyDetails || ProjectStorage.getCompanyDetails() || {
         companyName: 'Your Company Name',
         address: 'Company Address',
         country: '',
         phoneNumber: 'Company Phone Number',
-        companySize: ''
+        email: ''
       }
       
-      // Get user email from current user (stored during signup)
-      const currentUser = ProjectStorage.getCurrentUser()
-      
-      // Check if userName is an email address (for backwards compatibility)
-      let userEmail = ''
-      if (currentUser?.email) {
-        userEmail = currentUser.email
-      } else if (currentUser?.userName && currentUser.userName.includes('@')) {
-        userEmail = currentUser.userName // Username is actually an email
-      } else if (companyDetails.email) {
-        userEmail = companyDetails.email
-      }
-      
-      console.log('[BOM Export] Company details:', companyDetails)
-      console.log('[BOM Export] Current user:', currentUser)
-      console.log('[BOM Export] User email:', userEmail)
+      console.log('[BOM Export] Company details:', finalCompanyDetails)
       
       setExportProgress({ show: true, current: 40, total: 100 })
       
@@ -506,10 +498,10 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
           report: report,
           projectName: bomProjectName || filename.replace('.ifc', ''),
           companyDetails: {
-            companyName: companyDetails.companyName,
-            address: companyDetails.address,
-            email: userEmail,
-            phoneNumber: companyDetails.phoneNumber
+            companyName: finalCompanyDetails.companyName,
+            address: finalCompanyDetails.address,
+            email: finalCompanyDetails.email,
+            phoneNumber: finalCompanyDetails.phoneNumber
           },
           icons: icons
         }),
@@ -730,8 +722,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         waste: await loadIconAsBase64('/Icons/Waste icon.svg'),
       }
       
-      // Load company details for footer
-      const companyDetails = ProjectStorage.getCompanyDetails() || {}
+      // Use company details from props (from Supabase) or fallback to localStorage
+      const finalCompanyDetails = companyDetails || ProjectStorage.getCompanyDetails() || {}
       
       setExportProgress({ show: true, current: 70, total: 100 })
       
@@ -743,6 +735,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
             const profileData = report.profiles.find(p => p.profile_name === profile.profile_name)
             return sum + (profileData ? profileData.total_weight / 1000 : 0)
           }, 0) : 0
+      
+      console.log('[Cutting Plan Export] Company details:', finalCompanyDetails)
       
       // Call backend API with extracted SVG data
       const response = await fetch(`${getBackendUrl()}/api/generate-cutting-plan-pdf`, {
@@ -760,7 +754,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
           selectedProfiles: Array.from(cuttingPlanSelectedProfiles),
           stockbarSvgData: stockbarSvgData,
           totalWeight: totalWeight,
-          companyDetails: companyDetails,
+          companyDetails: finalCompanyDetails,
           icons: icons
         })
       })

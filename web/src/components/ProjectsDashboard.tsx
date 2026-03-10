@@ -201,7 +201,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
         onLogout={onLogout}
         showUploadButton={false}
         title="My Projects"
-        showCredits={true}
+        showCredits={false}
         credits={credits}
       />
 
@@ -218,20 +218,29 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
             </div>
             
             {/* Upload New Project Button */}
-            <button
-              onClick={onUploadNew}
-              className="relative bg-[#008A67] text-white pl-6 pr-2 py-2 rounded-full flex items-center gap-4 transition-all hover:shadow-lg overflow-hidden group"
-            >
-              {/* Expanding white background on hover - expands from right to left */}
-              <div className="absolute inset-0 bg-white rounded-full transform scale-x-0 origin-right transition-transform duration-300 ease-out group-hover:scale-x-100"></div>
+            <div className="flex flex-col items-center gap-2">
+              <button
+                onClick={onUploadNew}
+                className="relative bg-[#008A67] text-white pl-5 pr-2 py-2 rounded-full flex items-center gap-3 transition-all hover:shadow-lg overflow-hidden group"
+              >
+                {/* Expanding white background on hover - expands from right to left */}
+                <div className="absolute inset-0 bg-white rounded-full transform scale-x-0 origin-right transition-transform duration-300 ease-out group-hover:scale-x-100"></div>
+
+                <span className="text-base font-medium relative z-10 transition-colors duration-300 group-hover:text-[#008A67]">Upload new project</span>
+                <div className="h-[48px] w-[48px] bg-white rounded-full flex items-center justify-center flex-shrink-0 relative z-10">
+                  <svg className="w-5 h-5 text-[#008A67] rotate-45" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                  </svg>
+                </div>
+              </button>
               
-              <span className="text-lg font-medium relative z-10 transition-colors duration-300 group-hover:text-[#008A67]">Upload new project</span>
-              <div className="h-[55px] w-[55px] bg-white rounded-full flex items-center justify-center flex-shrink-0 relative z-10">
-                <svg className="w-5 h-5 text-[#008A67] rotate-45" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                </svg>
+              {/* Credits Display */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-white">Credits remain</span>
+                <span className="w-1.5 h-1.5 bg-white/60 rounded-full"></span>
+                <span className="text-sm font-semibold text-white">{credits !== undefined ? credits : 0}</span>
               </div>
-            </button>
+            </div>
           </div>
         </div>
       </div>

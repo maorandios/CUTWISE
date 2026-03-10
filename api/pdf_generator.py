@@ -971,6 +971,48 @@ class BOMPDFGenerator:
             </tr>
             '''
         
+        # Build company info rows conditionally
+        company_info_rows = f'''
+                    <div class="company-row">
+                        <img src="data:image/svg+xml;base64,{icons.get('company', '')}" class="company-icon" />
+                        <span class="company-label">Company name:</span>
+                        <span class="company-value">{company_details.get('companyName', 'Your Company Name')}</span>
+                    </div>'''
+        
+        # Add address row only if address exists
+        if company_details.get('address'):
+            company_info_rows += f'''
+                    <div class="company-row">
+                        <img src="data:image/svg+xml;base64,{icons.get('address', '')}" class="company-icon" />
+                        <span class="company-label">Address:</span>
+                        <span class="company-value">{company_details.get('address', '')}</span>
+                    </div>'''
+        
+        # Add email row
+        company_info_rows += f'''
+                    <div class="company-row">
+                        <img src="data:image/svg+xml;base64,{icons.get('email', '')}" class="company-icon" />
+                        <span class="company-label">Email:</span>
+                        <span class="company-value">{company_details.get('email', 'Company Email')}</span>
+                    </div>'''
+        
+        # Add phone row only if phone exists
+        if company_details.get('phoneNumber'):
+            company_info_rows += f'''
+                    <div class="company-row">
+                        <img src="data:image/svg+xml;base64,{icons.get('phone', '')}" class="company-icon" />
+                        <span class="company-label">Phone:</span>
+                        <span class="company-value">{company_details.get('phoneNumber', '')}</span>
+                    </div>'''
+        
+        # Add date row
+        company_info_rows += f'''
+                    <div class="company-row">
+                        <img src="data:image/svg+xml;base64,{icons.get('date', '')}" class="company-icon" />
+                        <span class="company-label">Date:</span>
+                        <span class="company-value">{current_date}</span>
+                    </div>'''
+        
         # Build HTML
         html = f'''
         <!DOCTYPE html>
@@ -1151,31 +1193,7 @@ class BOMPDFGenerator:
                 <div class="title">Bill of materials</div>
                 
                 <div class="company-info">
-                    <div class="company-row">
-                        <img src="data:image/svg+xml;base64,{icons.get('company', '')}" class="company-icon" />
-                        <span class="company-label">Company name:</span>
-                        <span class="company-value">{company_details.get('companyName', 'Your Company Name')}</span>
-                    </div>
-                    <div class="company-row">
-                        <img src="data:image/svg+xml;base64,{icons.get('address', '')}" class="company-icon" />
-                        <span class="company-label">Address:</span>
-                        <span class="company-value">{company_details.get('address', 'Company Address')}</span>
-                    </div>
-                    <div class="company-row">
-                        <img src="data:image/svg+xml;base64,{icons.get('email', '')}" class="company-icon" />
-                        <span class="company-label">Email:</span>
-                        <span class="company-value">{company_details.get('email', 'Company Email')}</span>
-                    </div>
-                    <div class="company-row">
-                        <img src="data:image/svg+xml;base64,{icons.get('phone', '')}" class="company-icon" />
-                        <span class="company-label">Phone:</span>
-                        <span class="company-value">{company_details.get('phoneNumber', 'Company Phone Number')}</span>
-                    </div>
-                    <div class="company-row">
-                        <img src="data:image/svg+xml;base64,{icons.get('date', '')}" class="company-icon" />
-                        <span class="company-label">Date:</span>
-                        <span class="company-value">{current_date}</span>
-                    </div>
+{company_info_rows}
                 </div>
             </div>
             

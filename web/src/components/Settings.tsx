@@ -790,6 +790,37 @@ const Settings = ({
                   </div>
                 </div>
 
+                {/* Trust Footer */}
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="flex items-center gap-6">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                        </svg>
+                        <span className="text-sm font-medium text-gray-700">Secure Payment</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-sm font-medium text-gray-700">SSL Encrypted</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <svg className="w-5 h-5 text-[#0070ba]" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M20.067 8.478c.492.88.556 2.014.3 3.327-.74 3.806-3.276 5.12-6.514 5.12h-.5a.805.805 0 00-.794.68l-.04.22-.63 3.993-.028.15a.806.806 0 01-.795.68H8.29c-.44 0-.77-.36-.656-.793l2.4-15.213c.067-.42.44-.73.866-.73h4.92c.94 0 1.67.08 2.23.26.48.15.89.37 1.23.68.34.3.6.67.78 1.1z" />
+                          <path d="M7.27 3.11c.07-.43.44-.73.87-.73h5.7c1.95 0 3.27.4 4.02 1.42.36.48.58 1.05.68 1.74.1.7.08 1.54-.08 2.54v.01c-.74 3.81-3.28 5.13-6.52 5.13h-.5c-.44 0-.82.32-.87.75l-.72 4.56c-.06.4-.4.69-.8.69H6.6c-.44 0-.77-.36-.66-.79L7.27 3.11z" opacity=".7" />
+                        </svg>
+                        <span className="text-sm font-medium text-gray-700">PayPal Protected</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 text-center max-w-2xl">
+                      All payments are processed securely through PayPal. Your financial information is never stored on our servers. 
+                      PayPal's buyer protection ensures your purchase is safe and secure.
+                    </p>
+                  </div>
+                </div>
+
                 {/* Payment Modal */}
                 {showPaymentModal && (
                   <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => {
@@ -1037,6 +1068,37 @@ const Settings = ({
                               </div>
                             </div>
                           </div>
+
+                          {/* Trust Footer */}
+                          <div className="border-t border-gray-200 pt-8 mt-12">
+                            <div className="flex flex-col items-center gap-4">
+                              <div className="flex items-center gap-6">
+                                <div className="flex items-center gap-2">
+                                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                                  </svg>
+                                  <span className="text-sm font-medium text-gray-700">Secure Payment</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  <span className="text-sm font-medium text-gray-700">SSL Encrypted</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <svg className="w-5 h-5 text-[#0070ba]" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M20.067 8.478c.492.88.556 2.014.3 3.327-.74 3.806-3.276 5.12-6.514 5.12h-.5a.805.805 0 00-.794.68l-.04.22-.63 3.993-.028.15a.806.806 0 01-.795.68H8.29c-.44 0-.77-.36-.656-.793l2.4-15.213c.067-.42.44-.73.866-.73h4.92c.94 0 1.67.08 2.23.26.48.15.89.37 1.23.68.34.3.6.67.78 1.1z" />
+                                    <path d="M7.27 3.11c.07-.43.44-.73.87-.73h5.7c1.95 0 3.27.4 4.02 1.42.36.48.58 1.05.68 1.74.1.7.08 1.54-.08 2.54v.01c-.74 3.81-3.28 5.13-6.52 5.13h-.5c-.44 0-.82.32-.87.75l-.72 4.56c-.06.4-.4.69-.8.69H6.6c-.44 0-.77-.36-.66-.79L7.27 3.11z" opacity=".7" />
+                                  </svg>
+                                  <span className="text-sm font-medium text-gray-700">PayPal Protected</span>
+                                </div>
+                              </div>
+                              <p className="text-xs text-gray-500 text-center max-w-2xl">
+                                All payments are processed securely through PayPal. Your financial information is never stored on our servers. 
+                                PayPal's buyer protection ensures your purchase is safe and secure.
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       ) : (
                         // Step 2: Payment
@@ -1101,6 +1163,37 @@ const Settings = ({
                                   setSelectedPlan(null)
                                 }}
                               />
+                            </div>
+                          </div>
+
+                          {/* Trust Footer */}
+                          <div className="border-t border-gray-200 pt-8 mt-12">
+                            <div className="flex flex-col items-center gap-4">
+                              <div className="flex items-center gap-6">
+                                <div className="flex items-center gap-2">
+                                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                                  </svg>
+                                  <span className="text-sm font-medium text-gray-700">Secure Payment</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  <span className="text-sm font-medium text-gray-700">SSL Encrypted</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <svg className="w-5 h-5 text-[#0070ba]" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M20.067 8.478c.492.88.556 2.014.3 3.327-.74 3.806-3.276 5.12-6.514 5.12h-.5a.805.805 0 00-.794.68l-.04.22-.63 3.993-.028.15a.806.806 0 01-.795.68H8.29c-.44 0-.77-.36-.656-.793l2.4-15.213c.067-.42.44-.73.866-.73h4.92c.94 0 1.67.08 2.23.26.48.15.89.37 1.23.68.34.3.6.67.78 1.1z" />
+                                    <path d="M7.27 3.11c.07-.43.44-.73.87-.73h5.7c1.95 0 3.27.4 4.02 1.42.36.48.58 1.05.68 1.74.1.7.08 1.54-.08 2.54v.01c-.74 3.81-3.28 5.13-6.52 5.13h-.5c-.44 0-.82.32-.87.75l-.72 4.56c-.06.4-.4.69-.8.69H6.6c-.44 0-.77-.36-.66-.79L7.27 3.11z" opacity=".7" />
+                                  </svg>
+                                  <span className="text-sm font-medium text-gray-700">PayPal Protected</span>
+                                </div>
+                              </div>
+                              <p className="text-xs text-gray-500 text-center max-w-2xl">
+                                All payments are processed securely through PayPal. Your financial information is never stored on our servers. 
+                                PayPal's buyer protection ensures your purchase is safe and secure.
+                              </p>
                             </div>
                           </div>
                         </div>

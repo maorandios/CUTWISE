@@ -12,6 +12,7 @@ import { LottieLoader } from './components/LottieLoader'
 
 import UploadProjectModal from './components/UploadProjectModal'
 import { PaymentModal } from './components/PaymentModal'
+import { WelcomeModal } from './components/WelcomeModal'
 import FileUpload from './components/FileUpload'
 import IFCViewer from './components/IFCViewer'
 import IFCViewerWebIFC from './components/IFCViewerWebIFC'
@@ -42,7 +43,7 @@ function App() {
   const { user, loading: authLoading, signOut } = useAuth()
   const { projects, createProject, updateProject, deleteProject, getProject, fetchProjects } = useProjects()
   const { company, loading: companyLoading, saveCompany } = useCompany()
-  const { credits, hasCredits, deductCredit } = useCredits()
+  const { credits, hasCredits, deductCredit, refreshCredits } = useCredits()
   
   // Auth state
   const [authView, setAuthView] = useState<'login' | 'signup'>('login')
@@ -58,6 +59,7 @@ function App() {
   const [dashboardRefresh, setDashboardRefresh] = useState(0)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false)
   
   // Load from localStorage on mount (but NOT currentFile or nesting data - always start fresh)
   const loadFromStorage = () => {
@@ -288,6 +290,9 @@ function App() {
       const project = await createProject(projectName, data.filename, data.report)
       if (project) {
         setCurrentProjectId(project.id)
+        
+        // Deduct credit after successful file upload
+        await deductCredit(project.id, projectName)
       } else {
         toast.error('Failed to save project')
       }
@@ -413,10 +418,6 @@ function App() {
         hasNesting: !!updatedProject?.nestingReport
       })
       if (updatedProject) {
-        // Deduct credit after successful nesting report generation
-        const projectName = updatedProject.name || currentFile?.replace('.ifc', '') || 'Unknown Project'
-        await deductCredit(currentProjectId, projectName)
-        
         setCurrentView('report')
       } else {
         toast.error('Failed to save nesting report')
@@ -448,11 +449,17 @@ function App() {
       setCurrentView('dashboard')
       setUserName(details.companyName)
       
+      // Refresh credits immediately after company creation
+      await refreshCredits()
+      console.log('[App] Credits refreshed after company creation')
+      
       // Show loading screen for new signups after onboarding (only from onboarding)
       setShowLoginLoadingScreen(true)
       setTimeout(() => {
         setShowLoginLoadingScreen(false)
         setIsNewSignup(false)
+        // Show welcome modal after loading screen
+        setShowWelcomeModal(true)
       }, 4000)
       
       toast.success('Company details saved successfully')
@@ -667,6 +674,12 @@ function App() {
           onClose={() => setShowPaymentModal(false)}
           credits={credits}
         />
+        <WelcomeModal
+          isOpen={showWelcomeModal}
+          onClose={() => setShowWelcomeModal(false)}
+          onUploadClick={handleUploadNew}
+          userName={userName}
+        />
         {loading && (
           <LottieLoader 
             message={loadingMessage} 
@@ -699,15 +712,22 @@ function App() {
             {currentFile && (
               <>
                 <div className="flex-1 overflow-hidden">
-                  <NestingReport 
+                  <NestingReport
                     key={`split-${currentFile}`}
-                    filename={currentFile} 
+                    filename={currentFile}
                     nestingReport={nestingReport}
                     onNestingReportChange={handleNestingReportChange}
                     report={report}
                     initialView="select"
                     onSettingsClick={(handler) => setNestingSettingsHandler(() => handler)}
                     onModelReady={() => setModelReady(true)}
+                    companyDetails={company ? {
+                      companyName: company.companyName,
+                      address: company.address,
+                      country: company.country,
+                      phoneNumber: company.phoneNumber,
+                      email: company.email || ''
+                    } : undefined}
                   />
                 </div>
                 <Footer />
@@ -753,14 +773,21 @@ function App() {
             {currentFile && nestingReport && (
               <div className="min-h-full flex flex-col">
                 <div className="flex-1">
-                  <NestingReport 
+                  <NestingReport
                     key={`report-${currentFile}`}
-                    filename={currentFile} 
+                    filename={currentFile}
                     nestingReport={nestingReport}
                     onNestingReportChange={handleNestingReportChange}
                     report={report}
                     initialView="results"
                     onSettingsClick={(handler) => setNestingSettingsHandler(() => handler)}
+                    companyDetails={company ? {
+                      companyName: company.companyName,
+                      address: company.address,
+                      country: company.country,
+                      phoneNumber: company.phoneNumber,
+                      email: company.email || ''
+                    } : undefined}
                   />
                 </div>
                 <Footer />
@@ -920,11 +947,18 @@ function App() {
           {/* Main Content - Nesting View Only */}
           <div className="min-h-full flex flex-col">
             <div className="flex-1">
-              <NestingReport 
-                filename={currentFile} 
+              <NestingReport
+                filename={currentFile}
                 nestingReport={nestingReport}
                 onNestingReportChange={handleNestingReportChange}
                 report={report}
+                companyDetails={company ? {
+                  companyName: company.companyName,
+                  address: company.address,
+                  country: company.country,
+                  phoneNumber: company.phoneNumber,
+                  email: company.email || ''
+                } : undefined}
               />
             </div>
             <Footer />

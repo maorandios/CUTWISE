@@ -140,13 +140,17 @@ export const useCompany = () => {
         console.log('[useCompany] Inserting new company')
         const { error } = await supabase
           .from('companies')
-          .insert([companyData])
+          .insert([{
+            ...companyData,
+            credits: 1,  // Start with 1 free credit
+            total_credits_purchased: 0
+          }])
 
         if (error) {
           console.error('[useCompany] Insert error:', error)
           throw error
         }
-        console.log('[useCompany] Company inserted successfully')
+        console.log('[useCompany] Company inserted successfully with 1 free credit')
       }
 
       await fetchCompany(true) // Force reload after save
