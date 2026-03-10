@@ -5,6 +5,7 @@ import { useCredits } from '../hooks/useCredits'
 import { useCompany } from '../hooks/useCompany'
 import { supabase } from '../lib/supabase'
 import { useState, useEffect } from 'react'
+import { getBackendUrl } from '../utils/api'
 
 interface PayPalCheckoutProps {
   planType: string
@@ -155,7 +156,7 @@ export function PayPalCheckout({ planType, credits, amount, onSuccess, onError }
       }
 
       console.log('[PayPal] Making request to backend...')
-      const response = await fetch('http://localhost:8000/api/payments/create-order', {
+      const response = await fetch(`${getBackendUrl()}/api/payments/create-order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -194,7 +195,7 @@ export function PayPalCheckout({ planType, credits, amount, onSuccess, onError }
         throw new Error('No authentication token')
       }
 
-      const response = await fetch('http://localhost:8000/api/payments/capture-order', {
+      const response = await fetch(`${getBackendUrl()}/api/payments/capture-order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
