@@ -1340,7 +1340,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                             setChartFilterStockLength('all')
                           }}
                           disabled={chartFilterProfile === 'all' && chartFilterStockLength === 'all'}
-                          className="px-4 py-2 border border-input bg-background rounded-md text-sm hover:bg-muted/50 transition-colors cursor-pointer h-[42px] disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white hover:bg-gray-50 transition-colors whitespace-nowrap text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Reset Filters
                         </button>
@@ -2069,16 +2069,16 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                     )}
                   </div>
                     </div>
-                    <div>
+                    <div className="flex items-center gap-4">
                       <button
                         onClick={() => setSelectedProfilesForDisplay(new Set(nestingReport.profiles.map(p => p.profile_name)))}
-                        className="px-4 py-2 border border-input bg-background rounded-md text-sm hover:bg-muted/50 transition-colors cursor-pointer h-[42px]"
+                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white hover:bg-gray-50 transition-colors whitespace-nowrap text-sm"
                       >
                         Reset Filter
                       </button>
-                    </div>
-                    <div className="flex items-center justify-center text-sm text-muted-foreground h-[42px]">
-                      {selectedProfilesForDisplay.size} of {nestingReport.profiles.length} profiles
+                      <div className="text-sm text-muted-foreground">
+                        {selectedProfilesForDisplay.size} of {nestingReport.profiles.length} profiles
+                      </div>
                     </div>
                     <div className="ml-auto">
                       <Button

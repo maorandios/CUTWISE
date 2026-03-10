@@ -718,10 +718,20 @@ const Settings = ({
                             </td>
                           </tr>
                         ) : (
-                          payments.map((payment) => (
+                          payments.map((payment) => {
+                            // Map plan types to display names
+                            const planDisplayName = payment.plan_type === 'single' 
+                              ? 'Single Use'
+                              : payment.plan_type === 'pack_20'
+                              ? 'Light Pack'
+                              : payment.plan_type === 'pack_50'
+                              ? 'Heavy Pack'
+                              : payment.plan_type.replace(/_/g, ' ')
+                            
+                            return (
                             <tr key={payment.id} className="border-t hover:bg-muted/50">
-                              <td className="p-3 text-sm capitalize">
-                                {payment.plan_type.replace(/_/g, ' ')}
+                              <td className="p-3 text-sm">
+                                {planDisplayName}
                               </td>
                               <td className="p-3 text-sm">{payment.credits_purchased}</td>
                               <td className="p-3 text-sm">
@@ -746,7 +756,8 @@ const Settings = ({
                                 </span>
                               </td>
                             </tr>
-                          ))
+                            )
+                          })
                         )}
                       </tbody>
                     </table>
