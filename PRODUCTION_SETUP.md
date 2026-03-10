@@ -2,6 +2,8 @@
 
 This guide covers the steps needed to configure the application for production deployment.
 
+> **Note:** For detailed domain setup instructions (app.cutwise.app), see [DOMAIN_SETUP.md](./DOMAIN_SETUP.md)
+
 ## 1. Supabase Configuration
 
 ### Email Authentication Redirect URLs
@@ -16,20 +18,15 @@ The email verification links need to redirect to your production URL instead of 
 
    **Site URL:**
    ```
-   https://your-production-domain.railway.app
-   ```
-   Or if using custom domain:
-   ```
    https://app.cutwise.app
    ```
 
    **Redirect URLs (add all of these):**
    ```
-   https://your-production-domain.railway.app/*
-   https://your-production-domain.railway.app
    https://app.cutwise.app/*
    https://app.cutwise.app
-   http://localhost:5180/*  (for local development)
+   http://localhost:5180/*
+   http://localhost:5180
    ```
 
 4. Click **Save**
