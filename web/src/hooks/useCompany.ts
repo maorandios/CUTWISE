@@ -55,6 +55,7 @@ export const useCompany = () => {
       
       if (data) {
         const transformedCompany: CompanyDetails = {
+          id: data.id,
           companyName: data.name,
           address: data.address || '',
           country: data.country || '',

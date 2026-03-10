@@ -37,6 +37,7 @@ const COMPANY_DETAILS_KEY = 'cutwise_company_details'
 
 // Company details interface
 export interface CompanyDetails {
+  id?: string
   companyName: string
   address: string
   country: string

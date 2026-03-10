@@ -50,7 +50,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
 
   // Reload projects when refreshTrigger changes (force reload)
   useEffect(() => {
-    if (refreshTrigger > 0) {
+    if (refreshTrigger && refreshTrigger > 0) {
       fetchProjects(true)
     }
   }, [refreshTrigger])
