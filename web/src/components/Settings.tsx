@@ -847,8 +847,8 @@ const Settings = ({
                     <div className="bg-white rounded-2xl shadow-2xl max-w-7xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                       {!selectedPlan ? (
                         // Step 1: Plan Selection
-                        <div className="p-12">
-                          <div className="flex items-center justify-between mb-8">
+                        <div className="p-8">
+                          <div className="flex items-center justify-between mb-6">
                             <div>
                               <h2 className="text-3xl font-bold text-gray-900">Choose Your Plan</h2>
                               <p className="text-gray-600 mt-2">Select the perfect credit package for your needs</p>
@@ -863,13 +863,13 @@ const Settings = ({
                             </button>
                           </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {/* Single Use */}
                             <div 
                               onClick={() => setSelectedPlan({type: 'single', credits: 1, amount: 29.00, name: 'Single Use'})}
-                              className="group relative bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-2xl p-8 cursor-pointer hover:border-gray-900 hover:shadow-xl transition-all duration-300"
+                              className="group relative bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-2xl p-6 cursor-pointer hover:border-gray-900 hover:shadow-xl transition-all duration-300"
                             >
-                              <div className="space-y-6">
+                              <div className="space-y-4">
                                 <div>
                                   <div className="inline-flex items-center justify-center w-14 h-14 bg-gray-100 rounded-xl mb-4 group-hover:bg-gray-900/10 transition-colors">
                                     <svg className="w-7 h-7 text-gray-600 group-hover:text-gray-900 transition-colors" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
@@ -938,12 +938,12 @@ const Settings = ({
                             {/* Light Pack - Popular */}
                             <div 
                               onClick={() => setSelectedPlan({type: 'pack_20', credits: 20, amount: 499.00, name: 'Light Pack'})}
-                              className="group relative bg-gradient-to-br from-gray-50 to-white border-2 border-gray-900 rounded-2xl p-8 cursor-pointer hover:shadow-2xl transition-all duration-300 scale-105"
+                              className="group relative bg-gradient-to-br from-gray-50 to-white border-2 border-gray-900 rounded-2xl p-6 cursor-pointer hover:shadow-2xl transition-all duration-300 scale-105"
                             >
                               <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-lg">
                                 POPULAR
                               </div>
-                              <div className="space-y-6">
+                              <div className="space-y-4">
                                 <div>
                                   <div className="inline-flex items-center justify-center w-14 h-14 bg-gray-900/10 rounded-xl mb-4 group-hover:bg-gray-900/20 transition-colors">
                                     <svg className="w-7 h-7 text-gray-900" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
@@ -1013,12 +1013,12 @@ const Settings = ({
                             {/* Heavy Pack - Best Value */}
                             <div 
                               onClick={() => setSelectedPlan({type: 'pack_50', credits: 50, amount: 999.00, name: 'Heavy Pack'})}
-                              className="group relative bg-gradient-to-br from-amber-50 to-white border-2 border-amber-400 rounded-2xl p-8 cursor-pointer hover:border-amber-500 hover:shadow-xl transition-all duration-300"
+                              className="group relative bg-gradient-to-br from-amber-50 to-white border-2 border-amber-400 rounded-2xl p-6 cursor-pointer hover:border-amber-500 hover:shadow-xl transition-all duration-300"
                             >
                               <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-400 to-amber-500 text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-lg">
                                 BEST VALUE
                               </div>
-                              <div className="space-y-6">
+                              <div className="space-y-4">
                                 <div>
                                   <div className="inline-flex items-center justify-center w-14 h-14 bg-amber-100 rounded-xl mb-4 group-hover:bg-amber-200 transition-colors">
                                     <svg className="w-7 h-7 text-amber-600" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
