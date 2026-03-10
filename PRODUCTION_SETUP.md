@@ -18,13 +18,13 @@ The email verification links need to redirect to your production URL instead of 
 
    **Site URL:**
    ```
-   https://app.cutwise.app
+   https://app.cutwise.pro
    ```
 
    **Redirect URLs (add all of these):**
    ```
-   https://app.cutwise.app/*
-   https://app.cutwise.app
+   https://app.cutwise.pro/*
+   https://app.cutwise.pro
    http://localhost:5180/*
    http://localhost:5180
    ```

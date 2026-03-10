@@ -1,11 +1,11 @@
-# Domain Setup Guide: app.cutwise.app
+# Domain Setup Guide: app.cutwise.pro
 
-This guide walks you through setting up your custom domain `app.cutwise.app` for the Cutwise application.
+This guide walks you through setting up your custom domain `app.cutwise.pro` for the Cutwise application.
 
 ## Overview
 
-- **Domain:** cutwise.app (purchased from GoDaddy)
-- **App Subdomain:** app.cutwise.app
+- **Domain:** cutwise.pro (purchased from GoDaddy)
+- **App Subdomain:** app.cutwise.pro
 - **Hosting:** Railway
 
 ## Step 1: Configure Railway Custom Domain
@@ -17,10 +17,9 @@ This guide walks you through setting up your custom domain `app.cutwise.app` for
 3. Click on your service (the one running the Dockerfile)
 4. Go to **Settings** tab
 5. Scroll down to **Domains** section
-6. Click **+ Add Domain**
-7. Select **Custom Domain**
-8. Enter: `app.cutwise.app`
-9. Click **Add Domain**
+6. Click **+ Add Domain** or **+ Custom Domain**
+7. Enter: `app.cutwise.pro`
+8. Click **Add Domain**
 
 ### 1.2 Get Railway DNS Records
 
@@ -90,13 +89,13 @@ Once your domain is working, update Supabase to use it:
 
    **Site URL:**
    ```
-   https://app.cutwise.app
+   https://app.cutwise.pro
    ```
 
    **Redirect URLs (add all):**
    ```
-   https://app.cutwise.app/*
-   https://app.cutwise.app
+   https://app.cutwise.pro/*
+   https://app.cutwise.pro
    http://localhost:5180/*
    http://localhost:5180
    ```
