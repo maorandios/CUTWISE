@@ -207,7 +207,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
 
       {/* Dark Header Background - matches top menu, extends to middle of cards */}
       <div className="bg-[#11181C] pb-28">
-        <div className="max-w-[1440px] mx-auto px-6 pt-8">
+        <div className="max-w-[1200px] mx-auto px-6 pt-8">
           {/* Greeting Section with Upload Button */}
           <div className="mb-8 flex items-center justify-between">
             <div>
@@ -246,7 +246,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
       </div>
 
       {/* Main Content */}
-      <main className="w-full max-w-[1440px] mx-auto px-6 -mt-[100px] flex-1 flex flex-col">
+      <main className="w-full max-w-[1200px] mx-auto px-6 -mt-[100px] flex-1 flex flex-col">
         {/* Metric Cards - Full width with dividers */}
         <AnimatedDashboardCards
           totalProjects={metrics.totalProjects}
@@ -277,7 +277,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
                 <select
                   value={filterMonth}
                   onChange={(e) => setFilterMonth(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white text-sm"
                 >
                   <option value="all">All Months</option>
                   <option value="1">January</option>
@@ -296,7 +296,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
                 <select
                   value={filterYear}
                   onChange={(e) => setFilterYear(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white text-sm"
                 >
                   <option value="all">All Years</option>
                   {availableYears.map(year => (
@@ -308,7 +308,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
               {/* Reset Button */}
               <button
                 onClick={handleResetFilters}
-                className="px-4 py-2 border border-input bg-background rounded-md text-sm hover:bg-muted/50 transition-colors cursor-pointer h-[42px] whitespace-nowrap"
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white hover:bg-gray-50 transition-colors whitespace-nowrap text-sm"
               >
                 Reset
               </button>
@@ -461,7 +461,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
             <p className="text-gray-600 mb-6">Try adjusting your filters</p>
             <button
               onClick={handleResetFilters}
-              className="px-4 py-2 border border-input bg-background rounded-md text-sm hover:bg-muted/50 transition-colors cursor-pointer h-[42px]"
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white hover:bg-gray-50 transition-colors"
             >
               Reset Filters
             </button>

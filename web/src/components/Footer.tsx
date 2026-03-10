@@ -5,7 +5,7 @@ interface FooterProps {
 export const Footer = ({ className = '' }: FooterProps) => {
   return (
     <footer className={`bg-gray-50 border-t border-[#E0E0E0] ${className}`}>
-      <div className="max-w-[1440px] mx-auto px-6 py-5">
+      <div className="max-w-[1200px] mx-auto px-6 py-5">
         <div className="flex items-center justify-between">
           {/* Logo */}
           <img

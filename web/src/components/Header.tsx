@@ -31,7 +31,7 @@ export function Header({
   return (
     <>
       <header className="bg-[#11181C]">
-        <div className="max-w-[1440px] mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-[1200px] mx-auto px-6 py-4 flex items-center justify-between">
           <img
             src="/Icons/cutwise manu logo.svg"
             alt="Cutwise"
@@ -75,7 +75,7 @@ export function Header({
       {/* Back Button - Separate from header */}
       {showBackButton && onBackClick && (
         <div className="bg-[#11181C]">
-          <div className="max-w-[1440px] mx-auto px-6 py-2 flex items-center justify-between">
+          <div className="max-w-[1200px] mx-auto px-6 py-2 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Button
                 variant="ghost"

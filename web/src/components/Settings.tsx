@@ -253,7 +253,7 @@ const Settings = ({
       />
 
       <div className="flex-1 flex justify-center bg-gray-50">
-        <div className="w-full max-w-[1440px] flex bg-background">
+        <div className="w-full max-w-[1200px] flex bg-background">
           {/* Left Sidebar Menu */}
           <div className="w-80 bg-background border-r border-gray-200">
             <nav className="px-4 pb-4 pt-16 space-y-2">
@@ -293,7 +293,7 @@ const Settings = ({
                 </div>
 
                 <div className="space-y-6 bg-card p-6 rounded-lg">
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-w-[60%]">
                     <Label htmlFor="companyName">
                       Company Name <span className="text-destructive">*</span>
                     </Label>
@@ -306,7 +306,7 @@ const Settings = ({
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-w-[60%]">
                     <Label htmlFor="address">
                       Address <span className="text-muted-foreground text-xs">(Optional)</span>
                     </Label>
@@ -319,7 +319,7 @@ const Settings = ({
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-w-[60%]">
                     <Label htmlFor="country">
                       Country <span className="text-muted-foreground text-xs">(Optional)</span>
                     </Label>
@@ -332,7 +332,7 @@ const Settings = ({
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-w-[60%]">
                     <Label htmlFor="phoneNumber">
                       Phone Number <span className="text-muted-foreground text-xs">(Optional)</span>
                     </Label>
@@ -345,7 +345,7 @@ const Settings = ({
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-w-[60%]">
                     <Label htmlFor="companySize">
                       Company Size <span className="text-muted-foreground text-xs">(Optional)</span>
                     </Label>
@@ -367,13 +367,15 @@ const Settings = ({
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-3">
-                  <Button variant="outline" onClick={onBack}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleSaveGeneral}>
-                    Save Changes
-                  </Button>
+                <div className="max-w-[60%]">
+                  <div className="flex justify-end gap-3">
+                    <Button variant="outline" onClick={onBack}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleSaveGeneral}>
+                      Save Changes
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
@@ -387,7 +389,7 @@ const Settings = ({
                 </div>
 
                 <div className="space-y-6 bg-card p-6 rounded-lg">
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-w-[60%]">
                     <Label htmlFor="email">Email Address</Label>
                     <Input
                       id="email"
@@ -404,7 +406,7 @@ const Settings = ({
                     // OAuth users - show message about Google-managed password
                     <div className="border-t border-border pt-6 mt-6">
                       <h3 className="text-lg font-semibold mb-4">Password</h3>
-                      <div className="bg-muted/50 p-4 rounded-lg">
+                      <div className="bg-muted/50 p-4 rounded-lg max-w-[60%]">
                         <p className="text-sm text-muted-foreground">
                           You signed in with Google. Your password is managed through your Google account.
                         </p>
@@ -426,7 +428,7 @@ const Settings = ({
                     <div className="border-t border-border pt-6 mt-6">
                       <h3 className="text-lg font-semibold mb-4">Change Password</h3>
                       
-                      <div className="space-y-4">
+                      <div className="space-y-4 max-w-[60%]">
                         <div className="space-y-2">
                           <Label htmlFor="currentPassword">Current Password</Label>
                           <Input
@@ -465,13 +467,15 @@ const Settings = ({
                 </div>
 
                 {!isOAuthUser && (
-                  <div className="flex justify-end gap-3">
-                    <Button variant="outline" onClick={onBack}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleSavePassword}>
-                      Save Changes
-                    </Button>
+                  <div className="max-w-[60%]">
+                    <div className="flex justify-end gap-3">
+                      <Button variant="outline" onClick={onBack}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleSavePassword}>
+                        Save Changes
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -485,7 +489,7 @@ const Settings = ({
                   <p className="text-muted-foreground">Configure default nesting generation parameters</p>
                 </div>
 
-                <div className="space-y-6 bg-card p-6 rounded-lg">
+                <div className="space-y-6 bg-card p-6 rounded-lg max-w-[60%]">
                   <div className="space-y-2">
                     <Label htmlFor="kerf">Saw Kerf (mm)</Label>
                     <Input
@@ -590,13 +594,15 @@ const Settings = ({
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-3">
-                  <Button variant="outline" onClick={onBack}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleSaveTechnical}>
-                    Save Changes
-                  </Button>
+                <div className="max-w-[60%]">
+                  <div className="flex justify-end gap-3">
+                    <Button variant="outline" onClick={onBack}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleSaveTechnical}>
+                      Save Changes
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}

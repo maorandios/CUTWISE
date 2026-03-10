@@ -906,7 +906,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         {/* Step 1: Profile Selection with Split Screen */}
         {currentStep === 'select' && (
           <div className="flex-1 flex justify-center overflow-hidden bg-gray-50">
-            <div className="w-full max-w-[1440px] flex overflow-hidden h-full">
+            <div className="w-full max-w-[1200px] flex overflow-hidden h-full">
               {/* Left Panel - Profile List (max 30% width) */}
               <div className="w-full max-w-[30%] border-r flex flex-col">
               {/* Header */}
@@ -1023,7 +1023,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
           <div className={`flex-1 flex flex-col ${activeReportTab === 'model' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
             {/* Dark Header Section with Tab Buttons */}
             <div className="bg-[#11181C] pb-6">
-              <div className="max-w-[1440px] mx-auto px-6 pt-8">
+              <div className="max-w-[1200px] mx-auto px-6 pt-8">
                 <div className="flex items-center justify-center">
                   {/* Tab Buttons */}
                   <div className="flex gap-3">
@@ -1123,7 +1123,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
 
             {/* Content Area */}
             <div className={`flex-1 ${activeReportTab === 'model' ? 'bg-gray-50 overflow-hidden' : 'overflow-y-auto'}`}>
-              <div className={activeReportTab === 'model' ? 'h-full' : 'max-w-[1440px] mx-auto px-6 py-6'}>
+              <div className={activeReportTab === 'model' ? 'h-full' : 'max-w-[1200px] mx-auto px-6 py-6'}>
                 {/* Minimum width warning */}
                 {windowWidth < 900 && activeReportTab !== 'model' && (
                   <div className="mb-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded">
@@ -1285,7 +1285,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               }
               
               return (
-              <div className="mb-8">
+              <div className="mb-2">
                 {/* Summary Cards with Animation */}
                 <AnimatedMetricCards 
                   avgWastePercent={avgWastePercent}
@@ -1296,7 +1296,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 />
                 
                 <Card className="border-0 shadow-none">
-                  <CardContent className="pt-6 px-0">
+                  <CardContent className="pt-6 px-0 pb-2">
                     {/* Filters */}
                     <div className="flex gap-4 mb-9 px-[150px]">
                       <div className="flex-1">
@@ -1385,7 +1385,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                     dy={16}
                                     textAnchor="end"
                                     fill="#374151"
-                                    fontSize={14}
+                                    fontSize={11}
                                     fontWeight={500}
                                     transform="rotate(-45)"
                                   >
@@ -1417,10 +1417,11 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                   />
                                   <text
                                     x={x}
-                                    y={y + 6}
+                                    y={y}
                                     textAnchor="middle"
+                                    dominantBaseline="middle"
                                     fill="#374151"
-                                    fontSize={14}
+                                    fontSize={11}
                                     fontWeight={600}
                                   >
                                     {labelText}
@@ -1432,7 +1433,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                           />
                           
                           <YAxis
-                            tick={{ fill: '#374151', fontSize: 14, fontWeight: 500 }}
+                            tick={{ fill: '#374151', fontSize: 11, fontWeight: 500 }}
                             label={(props: any) => {
                               const { viewBox } = props
                               const x = viewBox.x - 10
@@ -1452,10 +1453,11 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                                     />
                                     <text
                                       x={0}
-                                      y={6}
+                                      y={0}
                                       textAnchor="middle"
+                                      dominantBaseline="middle"
                                       fill="#374151"
-                                      fontSize={14}
+                                      fontSize={11}
                                       fontWeight={600}
                                     >
                                       Waste (%)
@@ -4627,7 +4629,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                   {/* Tab 4: IFC Model View */}
                   {activeReportTab === 'model' && (
                     <div className="h-full flex justify-center" style={{ height: 'calc(100vh - 180px)' }}>
-                      <div className="flex divide-x divide-gray-200 h-full w-full max-w-[1440px]">
+                      <div className="flex divide-x divide-gray-200 h-full w-full max-w-[1200px]">
                         {/* Left Panel - Profile List */}
                         <div className="w-[350px] flex-shrink-0 flex flex-col h-full">
                           <div className="p-4 flex-shrink-0">
@@ -4711,7 +4713,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                   )}
 
                 </div> {/* End of nesting-report-pdf-content */}
-              </div> {/* End of max-w-[1440px] container */}
+              </div> {/* End of max-w-[1200px] container */}
             </div> {/* End of content area */}
           </div>
         )}

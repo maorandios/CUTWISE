@@ -24,7 +24,7 @@ export const AnimatedCuttingMetricCards = ({
 
   return (
     <div className="bg-[#FAFAFA] py-8 -mt-6" style={{ marginLeft: 'calc(-50vw + 50% + 24px)', marginRight: 'calc(-50vw + 50% + 24px)' }}>
-      <div className="max-w-[1440px] mx-auto px-6">
+      <div className="max-w-[1200px] mx-auto px-6">
         <div className="grid grid-cols-4 divide-x divide-gray-200">
           {/* Tolerance Card */}
           <div className="flex flex-col items-center justify-center text-center py-9">

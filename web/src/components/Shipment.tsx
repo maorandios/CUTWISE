@@ -227,7 +227,7 @@ export default function Shipment({ filename, report, cachedData }: ShipmentProps
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-[1440px] mx-auto">
+      <div className="max-w-[1200px] mx-auto">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
