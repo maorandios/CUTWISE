@@ -13,6 +13,10 @@ import { TermsContent, PrivacyContent, CookieContent } from './LegalContent'
 import { useAuth } from '../hooks/useAuth'
 import { toast } from 'sonner'
 import EmailVerification from './EmailVerification'
+import { NestingPreview } from './NestingPreview'
+import { WasteOptimizationPreview } from './WasteOptimizationPreview'
+import { BOMPreview } from './BOMPreview'
+import { ModelViewerPreview } from './ModelViewerPreview'
 
 interface SignupProps {
   onSignupSuccess: () => void
@@ -122,9 +126,9 @@ const Signup = ({ onSignupSuccess, onSwitchToLogin }: SignupProps) => {
   }
 
   return (
-    <div className="min-h-screen flex">
+    <div className="h-screen flex overflow-hidden">
       {/* Left Side - Signup Form */}
-      <div className="w-1/2 flex items-center justify-center bg-white p-12">
+      <div className="w-1/2 flex items-center justify-center bg-white p-12 overflow-y-auto">
         <div className="w-full max-w-md">
           {/* Logo */}
           <div className="mb-12 text-center">
@@ -293,13 +297,20 @@ const Signup = ({ onSignupSuccess, onSwitchToLogin }: SignupProps) => {
         </div>
       </div>
 
-      {/* Right Side - Image */}
-      <div className="w-1/2 bg-gray-100">
-        <img 
-          src="/path-to-your-image.jpg" 
-          alt="Cutwise" 
-          className="w-full h-full object-cover"
-        />
+      {/* Right Side - Preview Cards */}
+      <div className="w-1/2 overflow-y-auto snap-y snap-mandatory scroll-smooth">
+        <div className="h-screen snap-start snap-always">
+          <WasteOptimizationPreview />
+        </div>
+        <div className="h-screen snap-start snap-always">
+          <NestingPreview />
+        </div>
+        <div className="h-screen snap-start snap-always">
+          <BOMPreview />
+        </div>
+        <div className="h-screen snap-start snap-always">
+          <ModelViewerPreview />
+        </div>
       </div>
 
       {/* Terms of Service Modal */}
