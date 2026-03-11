@@ -2050,7 +2050,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                               }}
                               className="w-full flex items-center gap-3 px-3 py-3 hover:bg-muted/50 rounded transition-colors text-left"
                             >
-                              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                                 isSelected ? 'bg-primary border-primary' : 'border-input'
                               }`}>
                                 {isSelected && (
