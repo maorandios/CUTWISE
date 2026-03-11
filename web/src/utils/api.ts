@@ -23,6 +23,36 @@ export async function apiRequest(endpoint: string, options?: RequestInit): Promi
   return fetch(url, options)
 }
 
+/**
+ * Validate IFC file for numbering completeness
+ */
+export async function validateIFC(file: File): Promise<{
+  is_valid: boolean
+  total_parts: number
+  unnumbered_count: number
+  unnumbered_parts: Array<{
+    id: number
+    part_number: string
+    type: string
+    profile_name: string
+    length: number
+  }>
+}> {
+  const formData = new FormData()
+  formData.append('file', file)
+  
+  const response = await apiRequest('/api/validate-ifc', {
+    method: 'POST',
+    body: formData,
+  })
+  
+  if (!response.ok) {
+    throw new Error(`Validation failed: ${response.status} ${response.statusText}`)
+  }
+  
+  return response.json()
+}
+
 
 
 

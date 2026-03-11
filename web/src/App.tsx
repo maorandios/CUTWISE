@@ -14,6 +14,7 @@ import { LottieLoader } from './components/LottieLoader'
 import UploadProjectModal from './components/UploadProjectModal'
 import { PaymentModal } from './components/PaymentModal'
 import { WelcomeModal } from './components/WelcomeModal'
+import IFCValidationModal from './components/IFCValidationModal'
 import FileUpload from './components/FileUpload'
 import IFCViewer from './components/IFCViewer'
 import IFCViewerWebIFC from './components/IFCViewerWebIFC'
@@ -63,6 +64,9 @@ function App() {
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [showWelcomeModal, setShowWelcomeModal] = useState(false)
+  const [showValidationModal, setShowValidationModal] = useState(false)
+  const [validationResult, setValidationResult] = useState<any>(null)
+  const [pendingUpload, setPendingUpload] = useState<{ projectName: string; file: File } | null>(null)
   
   // Load from localStorage on mount (but NOT currentFile or nesting data - always start fresh)
   const loadFromStorage = () => {
@@ -288,13 +292,46 @@ function App() {
   }
   
   const handleUploadWithName = async (projectName: string, file: File) => {
+    // First, validate the IFC file
+    setLoading(true)
+    setLoadingMessage('Validating IFC file...')
+    setUploadProgress(0)
+    
+    try {
+      const { validateIFC } = await import('./utils/api')
+      const validation = await validateIFC(file)
+      
+      setLoading(false)
+      
+      // If validation fails, show warning modal
+      if (!validation.is_valid) {
+        setShowUploadModal(false) // Close upload modal
+        setValidationResult(validation)
+        setShowValidationModal(true)
+        setPendingUpload({ projectName, file })
+        return
+      }
+      
+      // If validation passes, proceed with upload
+      await proceedWithUpload(projectName, file)
+      
+    } catch (error) {
+      console.error('Validation error:', error)
+      toast.error('Failed to validate IFC file')
+      setLoading(false)
+      setShowUploadModal(true)
+    }
+  }
+
+  const proceedWithUpload = async (projectName: string, file: File) => {
     setLoading(true)
     setUploadProgress(0)
     setModelReady(false)
     setLoadingMessage('Uploading IFC file')
 
-    // Close modal immediately so Lottie loader is visible
+    // Close modals
     setShowUploadModal(false)
+    setShowValidationModal(false)
 
     try {
       // Upload file to backend
@@ -761,6 +798,22 @@ function App() {
           onUpload={handleUploadWithName}
           loading={loading}
         />
+        {showValidationModal && validationResult && (
+          <IFCValidationModal
+            validation={validationResult}
+            onCancel={() => {
+              setShowValidationModal(false)
+              setValidationResult(null)
+              setPendingUpload(null)
+              setShowUploadModal(true)
+            }}
+            onContinue={() => {
+              if (pendingUpload) {
+                proceedWithUpload(pendingUpload.projectName, pendingUpload.file)
+              }
+            }}
+          />
+        )}
         <PaymentModal
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}

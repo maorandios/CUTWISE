@@ -7,12 +7,18 @@ export const Footer = ({ className = '' }: FooterProps) => {
     <footer className={`bg-gray-50 border-t border-[#E0E0E0] ${className}`}>
       <div className="max-w-[1200px] mx-auto px-6 py-5">
         <div className="flex items-center justify-between">
-          {/* Logo */}
-          <img
-            src="/Icons/Cutwise for pdf main.svg"
-            alt="Cutwise"
-            className="h-10"
-          />
+          {/* Logo and Support Email */}
+          <div className="flex items-center gap-3">
+            <img
+              src="/Icons/Cutwise for pdf main.svg"
+              alt="Cutwise"
+              className="h-10"
+            />
+            <span className="text-gray-400">•</span>
+            <span className="text-sm text-gray-600">
+              Support: <a href="mailto:Hello@cutwise.pro" className="text-gray-600 hover:text-gray-900 transition-colors">Hello@cutwise.pro</a>
+            </span>
+          </div>
           
           {/* Live Status Indicator */}
           <div className="flex items-center gap-2">

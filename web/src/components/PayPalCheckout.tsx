@@ -256,14 +256,14 @@ export function PayPalCheckout({ planType, credits, amount, onSuccess, onError }
         'disable-funding': 'paylater,venmo' // Disable unnecessary payment methods
       }}
     >
-      <div className="space-y-4">
+      <div className="max-w-md mx-auto">
         <PayPalButtons
           style={{
             layout: 'vertical',
             color: 'gold',
             shape: 'rect',
             label: 'paypal',
-            height: 48
+            height: 38
           }}
           createOrder={createOrder}
           onApprove={onApprove}
