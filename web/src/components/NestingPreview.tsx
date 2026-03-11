@@ -304,38 +304,53 @@ export const NestingPreview = () => {
         </div>
       </div>
 
-      {/* Add custom animations to global styles */}
-      <style>{`
-        @keyframes fade-in {
-          from {
-            opacity: 0;
-            transform: scale(0.95);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
+              {/* Add custom animations to global styles */}
+              <style>{`
+                @keyframes fade-in {
+                  from {
+                    opacity: 0;
+                    transform: scale(0.95);
+                  }
+                  to {
+                    opacity: 1;
+                    transform: scale(1);
+                  }
+                }
 
-        @keyframes slide-in {
-          from {
-            opacity: 0;
-            transform: translateX(-10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
+                @keyframes slide-in {
+                  from {
+                    opacity: 0;
+                    transform: translateX(-10px);
+                  }
+                  to {
+                    opacity: 1;
+                    transform: translateX(0);
+                  }
+                }
 
-        .animate-fade-in {
-          animation: fade-in forwards;
-        }
+                @keyframes scroll-hint {
+                  0%, 100% {
+                    transform: translateY(0);
+                    opacity: 1;
+                  }
+                  50% {
+                    transform: translateY(8px);
+                    opacity: 0.7;
+                  }
+                }
 
-        .animate-slide-in {
-          animation: slide-in forwards;
+                .animate-fade-in {
+                  animation: fade-in forwards;
+                }
+
+                .animate-slide-in {
+                  animation: slide-in forwards;
+                }
+
+                .animate-scroll-hint {
+                  animation: scroll-hint 2s ease-in-out infinite;
+                }
+              `}</style>
+            </div>
+          )
         }
-      `}</style>
-    </div>
-  )
-}

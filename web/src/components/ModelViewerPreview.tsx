@@ -279,7 +279,7 @@ export const ModelViewerPreview = () => {
         .animate-pulse-slow {
           animation: pulse-slow 2s ease-in-out infinite;
         }
-      `}</style>
-    </div>
-  )
-}
+              `}</style>
+            </div>
+          )
+        }

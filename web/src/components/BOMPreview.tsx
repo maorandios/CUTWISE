@@ -185,6 +185,17 @@ export const BOMPreview = () => {
           }
         }
 
+        @keyframes scroll-hint {
+          0%, 100% {
+            transform: translateY(0);
+            opacity: 1;
+          }
+          50% {
+            transform: translateY(8px);
+            opacity: 0.7;
+          }
+        }
+
         .animate-fade-in {
           animation: fade-in forwards;
         }
@@ -192,7 +203,11 @@ export const BOMPreview = () => {
         .animate-slide-in {
           animation: slide-in forwards;
         }
+
+        .animate-scroll-hint {
+          animation: scroll-hint 2s ease-in-out infinite;
+        }
       `}</style>
-    </div>
-  )
-}
+            </div>
+          )
+        }
