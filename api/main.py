@@ -922,6 +922,98 @@ def analyze_ifc(file_path: Path) -> Dict[str, Any]:
     }
 
 
+@app.post("/api/validate-ifc")
+async def validate_ifc(file: UploadFile = File(...)):
+    """
+    Validate IFC file for numbering completeness before processing.
+    This is a quick check that doesn't use credits.
+    """
+    try:
+        if not file.filename or not file.filename.endswith((".ifc", ".IFC")):
+            raise HTTPException(status_code=400, detail="File must be an IFC file")
+        
+        # Read file content
+        content = await file.read()
+        if len(content) == 0:
+            raise HTTPException(status_code=400, detail="File is empty")
+        
+        # Save to temporary location
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.ifc') as temp_file:
+            temp_path = temp_file.name
+            temp_file.write(content)
+        
+        try:
+            # Open IFC file
+            ifc_file = ifcopenshell.open(temp_path)
+            
+            # Get all structural elements
+            products = (ifc_file.by_type("IfcBeam") + 
+                       ifc_file.by_type("IfcColumn") + 
+                       ifc_file.by_type("IfcMember"))
+            
+            unnumbered_parts = []
+            for product in products:
+                tag = str(getattr(product, 'Tag', '') or '')
+                name = str(getattr(product, 'Name', '') or '')
+                part_number = tag or name
+                
+                # Check if part number contains '?'
+                if '?' in part_number:
+                    # Get profile name
+                    profile_name = "Unknown"
+                    try:
+                        psets = ifcopenshell.util.element.get_psets(product)
+                        if 'Pset_BeamCommon' in psets:
+                            profile_name = psets['Pset_BeamCommon'].get('Reference', 'Unknown')
+                        elif 'Pset_ColumnCommon' in psets:
+                            profile_name = psets['Pset_ColumnCommon'].get('Reference', 'Unknown')
+                        elif 'Pset_MemberCommon' in psets:
+                            profile_name = psets['Pset_MemberCommon'].get('Reference', 'Unknown')
+                    except:
+                        pass
+                    
+                    # Try to get length from properties
+                    length = 0
+                    try:
+                        psets = ifcopenshell.util.element.get_psets(product)
+                        for pset_name, pset_data in psets.items():
+                            if 'Length' in pset_data:
+                                length = float(pset_data['Length'])
+                                break
+                    except:
+                        pass
+                    
+                    unnumbered_parts.append({
+                        "id": product.id(),
+                        "part_number": part_number,
+                        "type": product.is_a(),
+                        "profile_name": profile_name,
+                        "length": round(length, 2) if length > 0 else 0
+                    })
+            
+            # Clean up temp file
+            os.unlink(temp_path)
+            
+            return {
+                "is_valid": len(unnumbered_parts) == 0,
+                "total_parts": len(products),
+                "unnumbered_count": len(unnumbered_parts),
+                "unnumbered_parts": unnumbered_parts[:10]  # Return first 10 examples
+            }
+            
+        except Exception as e:
+            # Clean up temp file on error
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            raise HTTPException(status_code=500, detail=f"Error validating IFC: {str(e)}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Validation error: {str(e)}")
+
+
 @app.post("/api/upload")
 async def upload_ifc(file: UploadFile = File(...)):
     """Upload an IFC file."""
