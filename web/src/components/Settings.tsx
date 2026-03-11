@@ -97,7 +97,7 @@ const Settings = ({
       kerf: 3.0,
       trim: 5.0,
       stockToleranceEnabled: true,
-      stockToleranceValue: 20.0,
+      stockToleranceValue: 10.0,
       stockLengths: [
         { id: 1, value: 6000 },
         { id: 2, value: 12000 }
@@ -132,7 +132,7 @@ const Settings = ({
           kerf: settings.kerf || 3.0,
           trim: settings.trim || 5.0,
           stockToleranceEnabled: settings.toleranceEnabled !== undefined ? settings.toleranceEnabled : true,
-          stockToleranceValue: settings.tolerance || 20.0,
+          stockToleranceValue: settings.tolerance || 10.0,
           stockLengths: settings.stockLengths || [{ id: 1, value: 6000 }, { id: 2, value: 12000 }]
         })
         

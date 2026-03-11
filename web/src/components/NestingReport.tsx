@@ -123,7 +123,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   const [kerfValue, setKerfValue] = useState<number>(3.0) // Default kerf: 3mm
   const [trimValue, setTrimValue] = useState<number>(5.0) // Default trim: 5mm
   const [stockToleranceEnabled, setStockToleranceEnabled] = useState<boolean>(true) // Default: enabled
-  const [stockToleranceValue, setStockToleranceValue] = useState<number>(20.0) // Default: 20mm
+  const [stockToleranceValue, setStockToleranceValue] = useState<number>(10.0) // Default: 10mm
   const [stockLengths, setStockLengths] = useState<{id: number, value: number}[]>([
     {id: 1, value: 6000},
     {id: 2, value: 12000}

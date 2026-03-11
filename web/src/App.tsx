@@ -540,6 +540,20 @@ function App() {
     // Show loading screen immediately to prevent dashboard flash
     setShowLoginLoadingScreen(true)
     
+    // Initialize default technical settings for new users
+    const defaultSettings = {
+      kerf: 3.0,
+      trim: 5.0,
+      toleranceEnabled: true,
+      tolerance: 10.0,
+      stockLengths: [
+        { id: 1, value: 6000 },
+        { id: 2, value: 12000 }
+      ]
+    }
+    localStorage.setItem('cutwise_nesting_settings', JSON.stringify(defaultSettings))
+    console.log('[App] Default technical settings initialized:', defaultSettings)
+    
     const success = await saveCompany(details)
     console.log('[App] saveCompany result:', success)
 

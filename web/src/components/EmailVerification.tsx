@@ -77,9 +77,9 @@ const EmailVerification = ({ email, onVerified }: EmailVerificationProps) => {
   // Show success message after verification
   if (verified) {
     return (
-      <div className="min-h-screen flex overflow-hidden">
+      <div className="h-screen flex overflow-hidden">
         {/* Left Side - Success Message */}
-        <div className="w-1/2 flex items-center justify-center bg-white p-12 overflow-y-auto">
+        <div className="w-1/2 flex items-center justify-center bg-white p-12">
           <div className="w-full max-w-md text-center">
             {/* Logo */}
             <div className="mb-12">
@@ -196,9 +196,9 @@ const EmailVerification = ({ email, onVerified }: EmailVerificationProps) => {
   }
 
   return (
-    <div className="min-h-screen flex overflow-hidden">
+    <div className="h-screen flex overflow-hidden">
       {/* Left Side - Verification Message */}
-      <div className="w-1/2 flex items-center justify-center bg-white p-12 overflow-y-auto">
+      <div className="w-1/2 flex items-center justify-center bg-white p-12">
         <div className="w-full max-w-md text-center">
           {/* Logo */}
           <div className="mb-12">
