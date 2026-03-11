@@ -12,6 +12,7 @@ import {
 import { TermsContent, PrivacyContent, CookieContent } from './LegalContent'
 import { useAuth } from '../hooks/useAuth'
 import { toast } from 'sonner'
+import EmailVerification from './EmailVerification'
 
 interface SignupProps {
   onSignupSuccess: () => void
@@ -28,6 +29,8 @@ const Signup = ({ onSignupSuccess, onSwitchToLogin }: SignupProps) => {
   const [showTermsModal, setShowTermsModal] = useState(false)
   const [showPrivacyModal, setShowPrivacyModal] = useState(false)
   const [showCookieModal, setShowCookieModal] = useState(false)
+  const [showVerificationScreen, setShowVerificationScreen] = useState(false)
+  const [signupEmail, setSignupEmail] = useState('')
   const { signUp, signInWithGoogle } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -76,8 +79,13 @@ const Signup = ({ onSignupSuccess, onSwitchToLogin }: SignupProps) => {
           return
         }
         
-        toast.success('Account created successfully! Please check your email at hello@cutwise.pro to verify your account.')
-        onSignupSuccess()
+        // Mark this tab as the "waiting" tab (use localStorage for persistence)
+        localStorage.setItem('cutwise_waiting_for_verification', 'true')
+        console.log('[Signup] Set waiting marker in localStorage')
+        
+        // Show verification screen instead of immediately proceeding
+        setSignupEmail(email)
+        setShowVerificationScreen(true)
       }
     } catch (err) {
       const errorMsg = 'An unexpected error occurred'
@@ -91,15 +99,26 @@ const Signup = ({ onSignupSuccess, onSwitchToLogin }: SignupProps) => {
 
   const handleGoogleSignup = async () => {
     try {
+      // Mark this as a new signup before OAuth redirect
+      sessionStorage.setItem('cutwise_google_signup', 'true')
+      console.log('[Signup] Marked Google signup in sessionStorage')
+      
       const { error } = await signInWithGoogle()
       
       if (error) {
         toast.error(error.message || 'Failed to sign up with Google')
+        sessionStorage.removeItem('cutwise_google_signup')
       }
     } catch (err) {
       toast.error('An unexpected error occurred')
       console.error('Google signup error:', err)
+      sessionStorage.removeItem('cutwise_google_signup')
     }
+  }
+
+  // Show verification screen if user just signed up
+  if (showVerificationScreen) {
+    return <EmailVerification email={signupEmail} onVerified={onSignupSuccess} />
   }
 
   return (

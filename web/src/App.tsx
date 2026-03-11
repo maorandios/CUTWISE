@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import Login from './components/Login'
 import Signup from './components/Signup'
 import Onboarding from './components/Onboarding'
+import VerificationSuccess from './components/VerificationSuccess'
 import ProjectsDashboard from './components/ProjectsDashboard'
 import Settings from './components/Settings'
 import { Button } from '@/components/ui/Button'
@@ -52,6 +53,8 @@ function App() {
   const [isNewSignup, setIsNewSignup] = useState(false)
   const [showLoginLoadingScreen, setShowLoginLoadingScreen] = useState(false)
   const [hasCheckedOnboarding, setHasCheckedOnboarding] = useState(false)
+  const [isFromEmailVerification, setIsFromEmailVerification] = useState(false)
+  const [isProcessingVerification, setIsProcessingVerification] = useState(false)
   
   // View state
   const [currentView, setCurrentView] = useState<'dashboard' | 'split' | 'report' | 'settings'>('dashboard')
@@ -120,6 +123,35 @@ function App() {
     dashboardDetails?: any
   }>({})
 
+  // Detect if user came from email verification link (NEW TAB) or Google signup
+  useEffect(() => {
+    const hash = window.location.hash
+    const isWaitingTab = sessionStorage.getItem('cutwise_is_waiting_tab') === 'true'
+    const wasGoogleSignup = sessionStorage.getItem('cutwise_google_signup') === 'true'
+
+    console.log('[App] Hash check - hash:', hash.substring(0, 50), 'isWaitingTab:', isWaitingTab, 'wasGoogleSignup:', wasGoogleSignup)
+
+    // Check for Google signup
+    if (wasGoogleSignup) {
+      console.log('[App] Detected Google signup - setting isNewSignup!')
+      setIsNewSignup(true)
+      sessionStorage.removeItem('cutwise_google_signup')
+    }
+
+    if (hash.includes('access_token') && hash.includes('type=signup')) {
+      if (!isWaitingTab) {
+        // NEW TAB from email link - show loading while Supabase processes
+        console.log('[App] NEW TAB from email - processing verification, setting isNewSignup!')
+        setIsProcessingVerification(true)
+        setIsNewSignup(true)
+        // Store in sessionStorage to persist across re-renders
+        sessionStorage.setItem('cutwise_is_new_signup', 'true')
+      } else {
+        console.log('[App] WAITING TAB - EmailVerification component will handle it')
+      }
+    }
+  }, [])
+
   // Check authentication and set user display name
   useEffect(() => {
     if (user) {
@@ -129,28 +161,54 @@ function App() {
       console.log('[App] User authenticated:', displayName)
       console.log('[App] Company loading:', companyLoading, 'Company exists:', !!company, 'Has checked:', hasCheckedOnboarding, 'isNewSignup:', isNewSignup, 'showLoadingScreen:', showLoginLoadingScreen)
       
+      // Stop processing verification once user is authenticated (with minimum 2 second delay)
+      if (isProcessingVerification) {
+        console.log('[App] Verification complete - user authenticated! Waiting 2 seconds...')
+        
+        // Restore isNewSignup from sessionStorage if it was set
+        const wasNewSignup = sessionStorage.getItem('cutwise_is_new_signup') === 'true'
+        if (wasNewSignup && !isNewSignup) {
+          console.log('[App] Restoring isNewSignup from sessionStorage!')
+          setIsNewSignup(true)
+        }
+        
+        // Wait at least 2 seconds before hiding the arrows animation
+        setTimeout(() => {
+          console.log('[App] 2 seconds elapsed, stopping verification screen')
+          setIsProcessingVerification(false)
+        }, 2000)
+      }
+      
       // Check onboarding after company data has finished loading AND loading screen is done
       if (!companyLoading && !showLoginLoadingScreen) {
         if (!hasCheckedOnboarding) {
           setHasCheckedOnboarding(true)
         }
         
-        // Always update onboarding state based on company existence
-        if (!company) {
+        // If user has no company, they need onboarding AND should see welcome screen
+        // BUT don't show onboarding if this is the verification success screen
+        if (!company && !isFromEmailVerification) {
           setNeedsOnboarding(true)
+          // Always show welcome screen if user has no company (never completed onboarding)
+          if (!isNewSignup) {
+            console.log('[App] User has no company - setting isNewSignup to show welcome screen')
+            setIsNewSignup(true)
+          }
           console.log('[App] User needs onboarding (no company details)')
-        } else {
+        } else if (company) {
           setNeedsOnboarding(false)
           console.log('[App] User has company details, skipping onboarding')
         }
       }
     } else {
-      // Reset when user logs out
+      // Reset when user logs out (but don't reset isNewSignup if we're processing verification)
       setHasCheckedOnboarding(false)
       setNeedsOnboarding(false)
-      setIsNewSignup(false)
+      if (!isProcessingVerification) {
+        setIsNewSignup(false)
+      }
     }
-  }, [user, company, companyLoading, hasCheckedOnboarding, isNewSignup, showLoginLoadingScreen])
+  }, [user, company, companyLoading, hasCheckedOnboarding, isNewSignup, showLoginLoadingScreen, isFromEmailVerification, isProcessingVerification])
   
   // Handle login loading screen with minimum 4 seconds
   useEffect(() => {
@@ -170,12 +228,12 @@ function App() {
   
   // Trigger loading screen on login
   useEffect(() => {
-    if (user && !authLoading && !isNewSignup && !hasCheckedOnboarding) {
+    if (user && !authLoading && !isNewSignup && !hasCheckedOnboarding && !isProcessingVerification) {
       // User just logged in (not a new signup) - show loading screen immediately
       console.log('[App] User logged in, showing loading screen')
       setShowLoginLoadingScreen(true)
     }
-  }, [user, authLoading, isNewSignup, hasCheckedOnboarding])
+  }, [user, authLoading, isNewSignup, hasCheckedOnboarding, isProcessingVerification])
 
   // Save to localStorage whenever state changes (but only save filters and activeTab, not file data)
   useEffect(() => {
@@ -441,14 +499,18 @@ function App() {
   
   const handleOnboardingComplete = async (details: CompanyDetails) => {
     console.log('[App] handleOnboardingComplete called with:', details)
+    
+    // Show loading screen immediately to prevent dashboard flash
+    setShowLoginLoadingScreen(true)
+    
     const success = await saveCompany(details)
     console.log('[App] saveCompany result:', success)
-    
+
     if (success) {
       setNeedsOnboarding(false)
       setCurrentView('dashboard')
       setUserName(details.companyName)
-      
+
       // Refresh credits immediately after company creation
       await refreshCredits()
       console.log('[App] Credits refreshed after company creation')
@@ -555,6 +617,43 @@ function App() {
   // Data is now loaded on-demand when each tab is opened
   // This saves ~23 seconds on file upload and only loads what's needed
 
+  // Check if this is the waiting tab that got verified - keep it on success screen
+  const isWaitingTabVerified = sessionStorage.getItem('cutwise_waiting_tab_verified') === 'true'
+  
+  if (isWaitingTabVerified && !company) {
+    console.log('[App] This is the WAITING TAB that got verified - keeping on success screen')
+    // Keep showing Signup component which will display EmailVerification success
+    return (
+      <>
+        <Signup onSignupSuccess={handleSignupSuccess} onSwitchToLogin={() => setAuthView('login')} />
+        <Toaster position="top-right" />
+      </>
+    )
+  }
+
+  // Show loading while processing email verification (NEW TAB)
+  console.log('[App] Render check - isProcessingVerification:', isProcessingVerification, 'user:', !!user, 'authView:', authView)
+  
+  if (isProcessingVerification) {
+    console.log('[App] Processing verification - showing loading screen')
+    return (
+      <>
+        <div className="fixed inset-0 bg-gray-50 flex items-center justify-center overflow-hidden">
+          <div className="flex flex-col items-center gap-6">
+            <LottieLoader 
+              message=""
+              size={125}
+              animationPath="/animations/Arrows icon.json"
+              overlay={false}
+            />
+            <p className="text-gray-700 text-xl font-medium">Redirecting you to Cutwise!</p>
+          </div>
+        </div>
+        <Toaster position="top-right" />
+      </>
+    )
+  }
+  
   // Show auth screens if not authenticated (including during initial auth check)
   if (!user) {
     if (authView === 'login') {
@@ -578,15 +677,7 @@ function App() {
   if (showLoginLoadingScreen) {
     return (
       <>
-        {/* Keep login screen in background */}
-        {authView === 'login' ? (
-          <Login onLoginSuccess={handleLoginSuccess} onSwitchToSignup={() => setAuthView('signup')} />
-        ) : (
-          <Signup onSignupSuccess={handleSignupSuccess} onSwitchToLogin={() => setAuthView('login')} />
-        )}
-        
-        {/* Loading overlay on top */}
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-lg flex items-center justify-center z-[9999]">
+        <div className="fixed inset-0 bg-gray-100 flex items-center justify-center z-[9999]">
           <div className="flex flex-col items-center gap-6">
             <LottieLoader 
               message=""
@@ -594,7 +685,7 @@ function App() {
               animationPath="/animations/Rocket in Space.json"
               overlay={false}
             />
-            <p className="text-white text-xl font-medium">We are setting things up</p>
+            <p className="text-gray-700 text-xl font-medium">We are setting things up</p>
           </div>
         </div>
         <Toaster position="top-right" />
@@ -604,6 +695,7 @@ function App() {
   
   // Show onboarding if user just signed up and hasn't completed it
   if (needsOnboarding) {
+    console.log('[App] Rendering Onboarding - showWelcome:', isNewSignup, 'isFromEmailVerification:', isFromEmailVerification)
     return (
       <>
         <Onboarding onComplete={handleOnboardingComplete} showWelcome={isNewSignup} />
