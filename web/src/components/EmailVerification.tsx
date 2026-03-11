@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { toast } from 'sonner'
+import { WasteOptimizationPreview } from './WasteOptimizationPreview'
+import { NestingPreview } from './NestingPreview'
+import { BOMPreview } from './BOMPreview'
+import { ModelViewerPreview } from './ModelViewerPreview'
 
 interface EmailVerificationProps {
   email: string
@@ -73,9 +77,9 @@ const EmailVerification = ({ email, onVerified }: EmailVerificationProps) => {
   // Show success message after verification
   if (verified) {
     return (
-      <div className="min-h-screen flex">
+      <div className="min-h-screen flex overflow-hidden">
         {/* Left Side - Success Message */}
-        <div className="w-1/2 flex items-center justify-center bg-white p-12">
+        <div className="w-1/2 flex items-center justify-center bg-white p-12 overflow-y-auto">
           <div className="w-full max-w-md text-center">
             {/* Logo */}
             <div className="mb-12">
@@ -127,22 +131,74 @@ const EmailVerification = ({ email, onVerified }: EmailVerificationProps) => {
           </div>
         </div>
 
-        {/* Right Side - Image */}
-        <div className="w-1/2 bg-gray-100">
-          <img 
-            src="/path-to-your-image.jpg" 
-            alt="Cutwise" 
-            className="w-full h-full object-cover"
-          />
+        {/* Right Side - Preview Cards */}
+        <div className="w-1/2 overflow-y-auto scroll-smooth">
+          <div className="h-screen relative">
+            <WasteOptimizationPreview />
+            {/* Scroll Indicator */}
+            <div className="absolute bottom-12 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-3 z-50">
+              <span className="text-gray-300 text-sm font-medium">Scroll for more</span>
+              <div className="w-10 h-10 rounded-full border-2 border-[#00FF9F] flex items-center justify-center bg-[#00817A]/20 animate-scroll-hint">
+                <svg className="w-5 h-5 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div className="h-screen relative">
+            <NestingPreview />
+            {/* Scroll Indicator */}
+            <div className="absolute bottom-12 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-3 z-50">
+              <span className="text-gray-300 text-sm font-medium">Scroll for more</span>
+              <div className="w-10 h-10 rounded-full border-2 border-[#00FF9F] flex items-center justify-center bg-[#00817A]/20 animate-scroll-hint">
+                <svg className="w-5 h-5 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div className="h-screen relative">
+            <BOMPreview />
+            {/* Scroll Indicator */}
+            <div className="absolute bottom-12 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-3 z-50">
+              <span className="text-gray-300 text-sm font-medium">Scroll for more</span>
+              <div className="w-10 h-10 rounded-full border-2 border-[#00FF9F] flex items-center justify-center bg-[#00817A]/20 animate-scroll-hint">
+                <svg className="w-5 h-5 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div className="h-screen relative">
+            <ModelViewerPreview />
+          </div>
         </div>
+
+        {/* Add scroll hint animation */}
+        <style>{`
+          @keyframes scroll-hint {
+            0%, 100% {
+              transform: translateY(0);
+              opacity: 1;
+            }
+            50% {
+              transform: translateY(8px);
+              opacity: 0.7;
+            }
+          }
+
+          .animate-scroll-hint {
+            animation: scroll-hint 2s ease-in-out infinite;
+          }
+        `}</style>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex overflow-hidden">
       {/* Left Side - Verification Message */}
-      <div className="w-1/2 flex items-center justify-center bg-white p-12">
+      <div className="w-1/2 flex items-center justify-center bg-white p-12 overflow-y-auto">
         <div className="w-full max-w-md text-center">
           {/* Logo */}
           <div className="mb-12">
@@ -231,14 +287,66 @@ const EmailVerification = ({ email, onVerified }: EmailVerificationProps) => {
         </div>
       </div>
 
-      {/* Right Side - Image */}
-      <div className="w-1/2 bg-gray-100">
-        <img 
-          src="/path-to-your-image.jpg" 
-          alt="Cutwise" 
-          className="w-full h-full object-cover"
-        />
+      {/* Right Side - Preview Cards */}
+      <div className="w-1/2 overflow-y-auto scroll-smooth">
+        <div className="h-screen relative">
+          <WasteOptimizationPreview />
+          {/* Scroll Indicator */}
+          <div className="absolute bottom-12 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-3 z-50">
+            <span className="text-gray-300 text-sm font-medium">Scroll for more</span>
+            <div className="w-10 h-10 rounded-full border-2 border-[#00FF9F] flex items-center justify-center bg-[#00817A]/20 animate-scroll-hint">
+              <svg className="w-5 h-5 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div className="h-screen relative">
+          <NestingPreview />
+          {/* Scroll Indicator */}
+          <div className="absolute bottom-12 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-3 z-50">
+            <span className="text-gray-300 text-sm font-medium">Scroll for more</span>
+            <div className="w-10 h-10 rounded-full border-2 border-[#00FF9F] flex items-center justify-center bg-[#00817A]/20 animate-scroll-hint">
+              <svg className="w-5 h-5 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div className="h-screen relative">
+          <BOMPreview />
+          {/* Scroll Indicator */}
+          <div className="absolute bottom-12 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-3 z-50">
+            <span className="text-gray-300 text-sm font-medium">Scroll for more</span>
+            <div className="w-10 h-10 rounded-full border-2 border-[#00FF9F] flex items-center justify-center bg-[#00817A]/20 animate-scroll-hint">
+              <svg className="w-5 h-5 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div className="h-screen relative">
+          <ModelViewerPreview />
+        </div>
       </div>
+
+      {/* Add scroll hint animation */}
+      <style>{`
+        @keyframes scroll-hint {
+          0%, 100% {
+            transform: translateY(0);
+            opacity: 1;
+          }
+          50% {
+            transform: translateY(8px);
+            opacity: 0.7;
+          }
+        }
+
+        .animate-scroll-hint {
+          animation: scroll-hint 2s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   )
 }
