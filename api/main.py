@@ -5257,6 +5257,130 @@ async def generate_bom_pdf(request: Request):
         raise HTTPException(status_code=500, detail=f"Failed to generate BOM PDF: {str(e) or repr(e)}")
 
 
+@app.post("/api/generate-parts-list-pdf")
+async def generate_parts_list_pdf(request: Request):
+    """Generate Parts Selection List PDF server-side using Playwright in a separate process."""
+    import subprocess
+    import json
+    import tempfile
+    
+    try:
+        data = await request.json()
+        
+        parts_by_profile = data.get('partsByProfile')
+        selected_parts = data.get('selectedParts')
+        project_name = data.get('projectName', 'Project')
+        company_details = data.get('companyDetails', {})
+        icons = data.get('icons', {})
+        
+        if not parts_by_profile or not selected_parts:
+            raise HTTPException(status_code=400, detail="Missing required data")
+        
+        # Write data to temporary file for worker process
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump({
+                'parts_by_profile': parts_by_profile,
+                'selected_parts': selected_parts,
+                'project_name': project_name,
+                'company_details': company_details,
+                'icons': icons,
+                'pdf_type': 'parts_list'
+            }, f)
+            temp_file = f.name
+        
+        try:
+            # Run Playwright in separate process to avoid asyncio issues
+            result = subprocess.run(
+                [sys.executable, 'api/pdf_worker.py', temp_file],
+                capture_output=True,
+                text=True,
+                timeout=120,
+                cwd=str(Path(__file__).parent.parent)
+            )
+            
+            if result.returncode != 0:
+                print(f"[ERROR] PDF worker failed:")
+                print(f"STDOUT: {result.stdout}")
+                print(f"STDERR: {result.stderr}")
+                raise Exception(f"PDF worker failed: {result.stderr or result.stdout}")
+            
+            # Read generated PDF
+            pdf_path = temp_file.replace('.json', '.pdf')
+            if not Path(pdf_path).exists():
+                raise Exception("PDF file was not created")
+            
+            with open(pdf_path, 'rb') as f:
+                pdf_bytes = f.read()
+            
+            # Cleanup temp files
+            Path(temp_file).unlink(missing_ok=True)
+            Path(pdf_path).unlink(missing_ok=True)
+            
+            # Use URL encoding for filename to support international characters
+            from urllib.parse import quote
+            safe_filename = quote(f"{project_name}_Parts_List.pdf")
+            
+            return Response(
+                content=pdf_bytes,
+                media_type='application/pdf',
+                headers={
+                    'Content-Disposition': f"attachment; filename*=UTF-8''{safe_filename}"
+                }
+            )
+        except subprocess.TimeoutExpired:
+            Path(temp_file).unlink(missing_ok=True)
+            raise HTTPException(status_code=500, detail="PDF generation timed out")
+            
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        print(f"[ERROR] Parts List PDF Generation failed:")
+        print(error_trace)
+        raise HTTPException(status_code=500, detail=f"Failed to generate Parts List PDF: {str(e) or repr(e)}")
+
+
+@app.post("/api/generate-parts-list-excel")
+async def generate_parts_list_excel(request: Request):
+    """Generate Parts Selection List Excel file."""
+    try:
+        data = await request.json()
+        
+        parts_by_profile = data.get('partsByProfile')
+        selected_parts = data.get('selectedParts')
+        project_name = data.get('projectName', 'Project')
+        company_details = data.get('companyDetails', {})
+        
+        if not parts_by_profile or not selected_parts:
+            raise HTTPException(status_code=400, detail="Missing required data")
+        
+        # Generate Excel
+        from pdf_generator import PartsListExcelGenerator
+        generator = PartsListExcelGenerator()
+        excel_bytes = generator.generate_excel(
+            parts_by_profile=parts_by_profile,
+            selected_parts=selected_parts,
+            project_name=project_name,
+            company_details=company_details
+        )
+        
+        # Use URL encoding for filename to support international characters
+        from urllib.parse import quote
+        safe_filename = quote(f"{project_name}_Parts_List.xlsx")
+        
+        return Response(
+            content=excel_bytes,
+            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            headers={
+                'Content-Disposition': f"attachment; filename*=UTF-8''{safe_filename}"
+            }
+        )
+            
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        print(f"[ERROR] Parts List Excel Generation failed:")
+        print(error_trace)
+        raise HTTPException(status_code=500, detail=f"Failed to generate Parts List Excel: {str(e) or repr(e)}")
+
+
 @app.get("/api/health")
 async def health():
     """Health check endpoint."""

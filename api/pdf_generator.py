@@ -1240,3 +1240,621 @@ class BOMPDFGenerator:
         '''
         
         return html
+
+
+class PartsListPDFGenerator:
+    """Generates Parts Selection List PDFs server-side using Playwright."""
+
+    def __init__(self):
+        self.page_width = 210  # A4 portrait width in mm
+        self.page_height = 297  # A4 portrait height in mm
+
+    def generate_pdf(
+        self,
+        parts_by_profile: Dict[str, List[Dict]],
+        selected_parts: Dict[str, List[str]],
+        project_name: str,
+        company_details: Dict[str, str],
+        icons: Dict[str, str]
+    ) -> bytes:
+        """Generate Parts List PDF from parts data."""
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            page = browser.new_page()
+
+            html_content = self._generate_html(
+                parts_by_profile=parts_by_profile,
+                selected_parts=selected_parts,
+                project_name=project_name,
+                company_details=company_details,
+                icons=icons
+            )
+
+            page.set_content(html_content, wait_until='networkidle')
+
+            company_name = company_details.get('companyName', 'N/A')
+
+            footer_template = f"""
+            <div style="width: 100%; font-size: 9px; padding: 9px 62px; border-top: 1px solid #E5E7EB; display: flex; justify-content: space-between; align-items: center; color: #6B7280; background: white;">
+                <div style="display: flex; align-items: center;">
+                    <img src="data:image/svg+xml;base64,{icons.get('logo', '')}" style="width: 80px; height: 28px;" />
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; line-height: 1;">
+                    <span style="line-height: 1;"><strong>Company Name:</strong> {company_name}</span>
+                    <span style="color: #D1D5DB; line-height: 1;">•</span>
+                    <span style="line-height: 1;"><strong>Project name:</strong> {project_name}</span>
+                    <span style="color: #D1D5DB; line-height: 1;">•</span>
+                    <span style="line-height: 1;"><strong>Page:</strong> <span class="pageNumber"></span> of <span class="totalPages"></span></span>
+                </div>
+            </div>
+            """
+
+            pdf_bytes = page.pdf(
+                format='A4',
+                landscape=False,
+                print_background=True,
+                display_header_footer=True,
+                header_template='<div></div>',
+                footer_template=footer_template,
+                margin={
+                    'top': '0mm',
+                    'right': '0mm',
+                    'bottom': '12mm',
+                    'left': '0mm'
+                },
+                prefer_css_page_size=True
+            )
+
+            browser.close()
+            return pdf_bytes
+
+    def _generate_html(
+        self,
+        parts_by_profile: Dict[str, List[Dict]],
+        selected_parts: Dict[str, List[str]],
+        project_name: str,
+        company_details: Dict[str, str],
+        icons: Dict[str, str]
+    ) -> str:
+        """Generate complete HTML for Parts List PDF."""
+
+        from datetime import datetime
+        current_date = datetime.now().strftime("%d %B, %Y")
+
+        # Calculate totals
+        total_parts = 0
+        total_weight_kg = 0.0
+
+        # Build company info rows
+        company_info_rows = f'''
+                    <div class="company-row">
+                        <img src="data:image/svg+xml;base64,{icons.get('company', '')}" class="company-icon" />
+                        <span class="company-label">Company name:</span>
+                        <span class="company-value">{company_details.get('companyName', 'Your Company Name')}</span>
+                    </div>'''
+
+        if company_details.get('address'):
+            company_info_rows += f'''
+                    <div class="company-row">
+                        <img src="data:image/svg+xml;base64,{icons.get('address', '')}" class="company-icon" />
+                        <span class="company-label">Address:</span>
+                        <span class="company-value">{company_details.get('address', '')}</span>
+                    </div>'''
+
+        if company_details.get('email'):
+            company_info_rows += f'''
+                    <div class="company-row">
+                        <img src="data:image/svg+xml;base64,{icons.get('email', '')}" class="company-icon" />
+                        <span class="company-label">Email:</span>
+                        <span class="company-value">{company_details.get('email', '')}</span>
+                    </div>'''
+
+        if company_details.get('phoneNumber'):
+            company_info_rows += f'''
+                    <div class="company-row">
+                        <img src="data:image/svg+xml;base64,{icons.get('phone', '')}" class="company-icon" />
+                        <span class="company-label">Phone:</span>
+                        <span class="company-value">{company_details.get('phoneNumber', '')}</span>
+                    </div>'''
+
+        company_info_rows += f'''
+                    <div class="company-row">
+                        <img src="data:image/svg+xml;base64,{icons.get('date', '')}" class="company-icon" />
+                        <span class="company-label">Date:</span>
+                        <span class="company-value">{current_date}</span>
+                    </div>'''
+
+        # Generate profile sections
+        profile_sections_html = ''
+        
+        for profile_name, parts_list in parts_by_profile.items():
+            selected_part_numbers = set(selected_parts.get(profile_name, []))
+            
+            # Filter only selected parts
+            selected_parts_list = [
+                part for part in parts_list 
+                if str(part.get('part_number', '')) in selected_part_numbers or 
+                   str(part.get('product_id', '')) in selected_part_numbers
+            ]
+            
+            if not selected_parts_list:
+                continue
+            
+            # Sort by part number
+            selected_parts_list.sort(key=lambda p: str(p.get('part_number', '')))
+            
+            # Calculate profile totals
+            profile_total_weight = sum(
+                part.get('weight', 0) * part.get('quantity', 1) 
+                for part in selected_parts_list
+            )
+            total_parts += len(selected_parts_list)
+            total_weight_kg += profile_total_weight
+            
+            # Generate table rows for this profile
+            table_rows_html = ''
+            for part in selected_parts_list:
+                part_weight = part.get('weight', 0)
+                quantity = part.get('quantity', 1)
+                part_total_weight = part_weight * quantity
+                
+                table_rows_html += f'''
+                <tr>
+                    <td>{part.get('part_number', 'Unknown')}</td>
+                    <td>{part.get('element_name', 'Unnamed')}</td>
+                    <td>{part.get('length', 0):.1f}</td>
+                    <td>{quantity}</td>
+                    <td>{part_weight:.2f}</td>
+                    <td>{part_total_weight:.2f}</td>
+                </tr>
+                '''
+            
+            profile_sections_html += f'''
+            <div class="profile-section">
+                <h2 class="profile-title">{profile_name} • {len(selected_parts_list)} parts</h2>
+                
+                <table class="parts-table">
+                    <thead>
+                        <tr>
+                            <th>PART NUMBER</th>
+                            <th>PART NAME</th>
+                            <th>LENGTH (MM)</th>
+                            <th>QUANTITY</th>
+                            <th>WEIGHT (KG)</th>
+                            <th>TOTAL WEIGHT (KG)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {table_rows_html}
+                    </tbody>
+                </table>
+            </div>
+            '''
+
+        # Build HTML with same styling as BOM
+        html = f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                @page {{
+                    size: A4 portrait;
+                    margin: 50px 0 80px 0;
+                }}
+                
+                * {{
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }}
+                
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    padding: 0 62px;
+                    background: white;
+                }}
+                
+                /* Header Section */
+                .header {{
+                    margin-bottom: 24px;
+                }}
+                
+                .title {{
+                    font-size: 32px;
+                    font-weight: 600;
+                    color: #000000;
+                    letter-spacing: -0.5px;
+                    margin-bottom: 20px;
+                }}
+                
+                .company-info {{
+                    margin-top: 12px;
+                }}
+                
+                .company-row {{
+                    display: flex;
+                    align-items: center;
+                    margin-bottom: 8px;
+                }}
+                
+                .company-icon {{
+                    width: 14px;
+                    height: 14px;
+                    margin-right: 10px;
+                    flex-shrink: 0;
+                    filter: grayscale(100%) brightness(0.4);
+                }}
+                
+                .company-label {{
+                    font-size: 11px;
+                    color: #000000;
+                    font-weight: 700;
+                    margin-right: 4px;
+                }}
+                
+                .company-value {{
+                    font-size: 11px;
+                    color: #000000;
+                    font-weight: 400;
+                }}
+                
+                /* Divider */
+                .divider {{
+                    border-bottom: 1px solid #D3D3D3;
+                    margin: 20px 0;
+                }}
+                
+                /* Project Section */
+                .project-section {{
+                    display: flex;
+                    align-items: center;
+                    margin-bottom: 16px;
+                }}
+                
+                .project-icon {{
+                    width: 16px;
+                    height: 16px;
+                    margin-right: 8px;
+                }}
+                
+                .project-name {{
+                    font-size: 18px;
+                    font-weight: 400;
+                    color: #000000;
+                }}
+                
+                /* Summary Box */
+                .summary-box {{
+                    background-color: rgba(28, 185, 126, 0.12);
+                    border-radius: 4px;
+                    padding: 16px;
+                    margin-bottom: 20px;
+                    display: inline-block;
+                    min-width: 220px;
+                }}
+                
+                .summary-row {{
+                    display: flex;
+                    justify-content: space-between;
+                    margin-bottom: 4px;
+                }}
+                
+                .summary-row:last-child {{
+                    margin-bottom: 0;
+                }}
+                
+                .summary-label {{
+                    font-size: 10px;
+                    font-weight: 700;
+                    color: #000000;
+                }}
+                
+                .summary-value {{
+                    font-size: 10px;
+                    color: #000000;
+                    font-weight: 400;
+                }}
+                
+                /* Profile Section */
+                .profile-section {{
+                    margin-bottom: 32px;
+                    page-break-inside: avoid;
+                }}
+                
+                .profile-title {{
+                    font-size: 16px;
+                    font-weight: 600;
+                    color: #000000;
+                    margin-bottom: 12px;
+                }}
+                
+                /* Table */
+                .parts-table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 9px;
+                    page-break-inside: auto;
+                }}
+                
+                .parts-table tr {{
+                    page-break-inside: avoid;
+                    page-break-after: auto;
+                }}
+                
+                .parts-table thead {{
+                    display: table-header-group;
+                    border-bottom: 1px solid #D3D3D3;
+                    background-color: #F3F4F6;
+                }}
+                
+                .parts-table th {{
+                    text-align: left;
+                    padding: 6px 10px;
+                    font-size: 8px;
+                    font-weight: 700;
+                    color: #A5A7A9;
+                    text-transform: uppercase;
+                }}
+                
+                .parts-table td {{
+                    padding: 6px 10px;
+                    font-size: 9px;
+                    color: #000000;
+                    border-bottom: 0.5px solid #F0F0F0;
+                }}
+                
+                .parts-table th:nth-child(3),
+                .parts-table th:nth-child(4),
+                .parts-table th:nth-child(5),
+                .parts-table th:nth-child(6),
+                .parts-table td:nth-child(3),
+                .parts-table td:nth-child(4),
+                .parts-table td:nth-child(5),
+                .parts-table td:nth-child(6) {{
+                    text-align: right;
+                }}
+                
+            </style>
+        </head>
+        <body>
+            <!-- Header with Company Info -->
+            <div class="header">
+                <div class="title">Parts List</div>
+                
+                <div class="company-info">
+{company_info_rows}
+                </div>
+            </div>
+            
+            <div class="divider"></div>
+            
+            <!-- Project Name -->
+            <div class="project-section">
+                <img src="data:image/svg+xml;base64,{icons.get('project', '')}" class="project-icon" />
+                <span class="project-name">{project_name}</span>
+            </div>
+            
+            <!-- Summary Box -->
+            <div class="summary-box">
+                <div class="summary-row">
+                    <span class="summary-label">Total Parts:</span>
+                    <span class="summary-value">{total_parts}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Total Weight:</span>
+                    <span class="summary-value">{total_weight_kg:.2f} kg</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Profiles:</span>
+                    <span class="summary-value">{len([p for p in parts_by_profile.keys() if selected_parts.get(p)])}</span>
+                </div>
+            </div>
+            
+            <!-- Profile Sections -->
+            {profile_sections_html}
+            
+        </body>
+        </html>
+        '''
+        
+        return html
+
+
+class PartsListExcelGenerator:
+    """Generates Parts Selection List Excel files using openpyxl."""
+
+    def generate_excel(
+        self,
+        parts_by_profile: Dict[str, List[Dict]],
+        selected_parts: Dict[str, List[str]],
+        project_name: str,
+        company_details: Dict[str, str]
+    ) -> bytes:
+        """Generate Parts List Excel from parts data."""
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        from openpyxl.utils import get_column_letter
+        from datetime import datetime
+        from io import BytesIO
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Parts List"
+
+        # Define styles
+        header_fill = PatternFill(start_color="1CB97E", end_color="1CB97E", fill_type="solid")
+        header_font = Font(name='Arial', size=12, bold=True, color="FFFFFF")
+        
+        title_font = Font(name='Arial', size=16, bold=True)
+        subtitle_font = Font(name='Arial', size=10, color="666666")
+        
+        profile_header_fill = PatternFill(start_color="F3F4F6", end_color="F3F4F6", fill_type="solid")
+        profile_header_font = Font(name='Arial', size=10, bold=True, color="6B7280")
+        
+        cell_font = Font(name='Arial', size=10)
+        border = Border(
+            left=Side(style='thin', color='E5E7EB'),
+            right=Side(style='thin', color='E5E7EB'),
+            top=Side(style='thin', color='E5E7EB'),
+            bottom=Side(style='thin', color='E5E7EB')
+        )
+
+        current_row = 1
+
+        # Title
+        ws.merge_cells(f'A{current_row}:F{current_row}')
+        title_cell = ws[f'A{current_row}']
+        title_cell.value = "Parts List"
+        title_cell.font = title_font
+        title_cell.alignment = Alignment(horizontal='left', vertical='center')
+        current_row += 2
+
+        # Company details
+        current_date = datetime.now().strftime("%d %B, %Y")
+        
+        company_info = [
+            ('Company name:', company_details.get('companyName', 'N/A')),
+            ('Address:', company_details.get('address', '')) if company_details.get('address') else None,
+            ('Email:', company_details.get('email', '')) if company_details.get('email') else None,
+            ('Phone:', company_details.get('phoneNumber', '')) if company_details.get('phoneNumber') else None,
+            ('Date:', current_date)
+        ]
+        
+        for info in company_info:
+            if info:
+                ws[f'A{current_row}'] = info[0]
+                ws[f'A{current_row}'].font = Font(name='Arial', size=9, bold=True)
+                ws[f'B{current_row}'] = info[1]
+                ws[f'B{current_row}'].font = Font(name='Arial', size=9)
+                current_row += 1
+        
+        current_row += 1
+
+        # Project name
+        ws[f'A{current_row}'] = "Project:"
+        ws[f'A{current_row}'].font = Font(name='Arial', size=10, bold=True)
+        ws[f'B{current_row}'] = project_name
+        ws[f'B{current_row}'].font = Font(name='Arial', size=10)
+        current_row += 2
+
+        # Calculate totals
+        total_parts = 0
+        total_weight_kg = 0.0
+
+        # Summary box
+        ws[f'A{current_row}'] = "Total Parts:"
+        ws[f'A{current_row}'].font = Font(name='Arial', size=9, bold=True)
+        ws[f'A{current_row}'].fill = PatternFill(start_color="E8F5F0", end_color="E8F5F0", fill_type="solid")
+        
+        ws[f'A{current_row + 1}'] = "Total Weight:"
+        ws[f'A{current_row + 1}'].font = Font(name='Arial', size=9, bold=True)
+        ws[f'A{current_row + 1}'].fill = PatternFill(start_color="E8F5F0", end_color="E8F5F0", fill_type="solid")
+        
+        ws[f'A{current_row + 2}'] = "Profiles:"
+        ws[f'A{current_row + 2}'].font = Font(name='Arial', size=9, bold=True)
+        ws[f'A{current_row + 2}'].fill = PatternFill(start_color="E8F5F0", end_color="E8F5F0", fill_type="solid")
+
+        # We'll update these after calculating
+        summary_row = current_row
+        current_row += 4
+
+        # Generate profile sections
+        for profile_name, parts_list in parts_by_profile.items():
+            selected_part_numbers = set(selected_parts.get(profile_name, []))
+            
+            # Filter only selected parts
+            selected_parts_list = [
+                part for part in parts_list 
+                if str(part.get('part_number', '')) in selected_part_numbers or 
+                   str(part.get('product_id', '')) in selected_part_numbers
+            ]
+            
+            if not selected_parts_list:
+                continue
+            
+            # Sort by part number
+            selected_parts_list.sort(key=lambda p: str(p.get('part_number', '')))
+            
+            # Calculate profile totals
+            profile_total_weight = sum(
+                part.get('weight', 0) * part.get('quantity', 1) 
+                for part in selected_parts_list
+            )
+            total_parts += len(selected_parts_list)
+            total_weight_kg += profile_total_weight
+
+            # Profile title
+            ws.merge_cells(f'A{current_row}:F{current_row}')
+            profile_title_cell = ws[f'A{current_row}']
+            profile_title_cell.value = f"{profile_name} • {len(selected_parts_list)} parts"
+            profile_title_cell.font = Font(name='Arial', size=12, bold=True)
+            profile_title_cell.alignment = Alignment(horizontal='left', vertical='center')
+            current_row += 1
+
+            # Table headers
+            headers = ['Part Number', 'Part Name', 'Length (mm)', 'Quantity', 'Weight (kg)', 'Total Weight (kg)']
+            for col_idx, header in enumerate(headers, start=1):
+                cell = ws.cell(row=current_row, column=col_idx)
+                cell.value = header
+                cell.font = profile_header_font
+                cell.fill = profile_header_fill
+                cell.alignment = Alignment(horizontal='center' if col_idx > 2 else 'left', vertical='center')
+                cell.border = border
+            
+            current_row += 1
+
+            # Table data
+            for part in selected_parts_list:
+                part_weight = part.get('weight', 0)
+                quantity = part.get('quantity', 1)
+                part_total_weight = part_weight * quantity
+
+                row_data = [
+                    part.get('part_number', 'Unknown'),
+                    part.get('element_name', 'Unnamed'),
+                    part.get('length', 0),
+                    quantity,
+                    round(part_weight, 2),
+                    round(part_total_weight, 2)
+                ]
+
+                for col_idx, value in enumerate(row_data, start=1):
+                    cell = ws.cell(row=current_row, column=col_idx)
+                    cell.value = value
+                    cell.font = cell_font
+                    cell.alignment = Alignment(horizontal='right' if col_idx > 2 else 'left', vertical='center')
+                    cell.border = border
+                
+                current_row += 1
+            
+            current_row += 2  # Space between profiles
+
+        # Update summary values
+        ws[f'B{summary_row}'] = total_parts
+        ws[f'B{summary_row}'].font = Font(name='Arial', size=9)
+        ws[f'B{summary_row}'].fill = PatternFill(start_color="E8F5F0", end_color="E8F5F0", fill_type="solid")
+        
+        ws[f'B{summary_row + 1}'] = f"{total_weight_kg:.2f} kg"
+        ws[f'B{summary_row + 1}'].font = Font(name='Arial', size=9)
+        ws[f'B{summary_row + 1}'].fill = PatternFill(start_color="E8F5F0", end_color="E8F5F0", fill_type="solid")
+        
+        ws[f'B{summary_row + 2}'] = len([p for p in parts_by_profile.keys() if selected_parts.get(p)])
+        ws[f'B{summary_row + 2}'].font = Font(name='Arial', size=9)
+        ws[f'B{summary_row + 2}'].fill = PatternFill(start_color="E8F5F0", end_color="E8F5F0", fill_type="solid")
+
+        # Set column widths
+        ws.column_dimensions['A'].width = 18
+        ws.column_dimensions['B'].width = 25
+        ws.column_dimensions['C'].width = 15
+        ws.column_dimensions['D'].width = 12
+        ws.column_dimensions['E'].width = 15
+        ws.column_dimensions['F'].width = 18
+
+        # Save to bytes
+        excel_buffer = BytesIO()
+        wb.save(excel_buffer)
+        excel_buffer.seek(0)
+        
+        return excel_buffer.getvalue()

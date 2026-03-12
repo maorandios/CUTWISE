@@ -947,11 +947,10 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         )}
 
         {/* Step 1: Profile Selection with Split Screen */}
-        {currentStep === 'select' && (
-          <div className="flex-1 flex justify-center overflow-hidden bg-gray-50">
-            <div className="w-full max-w-[1200px] flex overflow-hidden h-full">
-              {/* Left Panel - Profile List (max 30% width) */}
-              <div className="w-full max-w-[30%] border-r flex flex-col">
+        <div className={`flex-1 flex justify-center overflow-hidden bg-gray-50 ${currentStep !== 'select' ? 'hidden' : ''}`}>
+          <div className="w-full max-w-[1200px] flex overflow-hidden h-full">
+            {/* Left Panel - Profile List (max 30% width) */}
+            <div className="w-full max-w-[30%] border-r flex flex-col">
               {/* Header */}
               <div className="p-4 border-b">
                 {/* Metric Cards */}
@@ -1038,18 +1037,17 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               </div>
             </div>
 
-              {/* Right Panel - IFC Viewer (70% width) */}
-              <div className="flex-1" style={{ willChange: 'transform', contain: 'layout style paint' }}>
-                <IFCViewerWebIFC 
-                  filename={filename}
-                  isVisible={true}
-                  selectedProfiles={selectedProfiles}
-                  onModelReady={onModelReady}
-                />
-              </div>
+            {/* Right Panel - IFC Viewer (70% width) */}
+            <div className="flex-1" style={{ willChange: 'transform', contain: 'layout style paint' }}>
+              <IFCViewerWebIFC 
+                filename={filename}
+                isVisible={currentStep === 'select'}
+                selectedProfiles={selectedProfiles}
+                onModelReady={onModelReady}
+              />
             </div>
           </div>
-        )}
+        </div>
 
         {/* Step 2: Part Selection */}
         {currentStep === 'part-selection' && (
@@ -1086,6 +1084,8 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 parts: Array.from(partsMap.values())
               }
             })}
+            filename={filename}
+            companyDetails={companyDetails}
             onBack={() => setCurrentStep('select')}
             onContinue={(selectedPartsMap) => {
               setSelectedParts(selectedPartsMap)

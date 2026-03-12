@@ -30,6 +30,17 @@ try:
             company_details=input_data['company_details'],
             icons=input_data['icons']
         )
+    elif pdf_type == 'parts_list':
+        # Generate Parts List PDF
+        from pdf_generator import PartsListPDFGenerator
+        generator = PartsListPDFGenerator()
+        pdf_bytes = generator.generate_pdf(
+            parts_by_profile=input_data['parts_by_profile'],
+            selected_parts=input_data['selected_parts'],
+            project_name=input_data['project_name'],
+            company_details=input_data['company_details'],
+            icons=input_data['icons']
+        )
     else:
         # Generate Cutting Plan PDF (default)
         from pdf_generator import CuttingPlanPDFGenerator
