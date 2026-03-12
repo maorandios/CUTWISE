@@ -1256,6 +1256,128 @@ async def get_report(filename: str):
     return JSONResponse(report)
 
 
+@app.post("/api/parts/{filename}")
+async def get_parts_by_profiles(filename: str, request: Request):
+    """Get all parts for specified profiles."""
+    from urllib.parse import unquote
+    decoded_filename = unquote(filename)
+    file_path = IFC_DIR / decoded_filename
+    
+    print(f"[PARTS-API] Fetching parts for file: {decoded_filename}")
+    
+    if not file_path.exists():
+        print(f"[PARTS-API] ERROR: File not found: {file_path}")
+        raise HTTPException(status_code=404, detail="IFC file not found")
+    
+    body = await request.json()
+    profile_names = body.get('profile_names', [])
+    
+    print(f"[PARTS-API] Requested profiles: {profile_names}")
+    
+    if not profile_names:
+        print(f"[PARTS-API] No profile names provided")
+        return JSONResponse({'parts_by_profile': {}})
+    
+    import ifcopenshell
+    ifc_file = ifcopenshell.open(str(file_path.resolve()))
+    
+    parts_by_profile = {}
+    total_elements = 0
+    
+    for element in ifc_file.by_type("IfcProduct"):
+        element_type = element.is_a()
+        total_elements += 1
+        
+        if element_type in {"IfcBeam", "IfcColumn", "IfcMember"}:
+            # Skip fasteners and plates
+            if is_fastener_like(element) or is_plate_like(element):
+                continue
+            
+            profile_name = get_profile_name(element)
+            if not profile_name or profile_name.strip() not in profile_names:
+                continue
+            
+            profile_name = profile_name.strip()
+            
+            # Get part details
+            product_id = element.id()
+            tag = str(getattr(element, 'Tag', '') or '')
+            name = str(getattr(element, 'Name', '') or '')
+            
+            # Try to get Reference from property sets (Tekla stores part numbers here)
+            reference = None
+            try:
+                import ifcopenshell.util.element
+                psets = ifcopenshell.util.element.get_psets(element)
+                
+                # Check common property sets for Reference
+                for pset_name in ['Pset_BeamCommon', 'Pset_ColumnCommon', 'Pset_MemberCommon']:
+                    if pset_name in psets and 'Reference' in psets[pset_name]:
+                        reference = str(psets[pset_name]['Reference'])
+                        break
+                
+                # Also check other property sets
+                if not reference:
+                    for pset_name, props in psets.items():
+                        if 'Reference' in props:
+                            reference = str(props['Reference'])
+                            break
+            except Exception as e:
+                print(f"[PARTS-API] Error getting reference for element {product_id}: {e}")
+            
+            # Determine part number priority: Reference > Tag (if not GUID) > product_id
+            if reference:
+                part_number = reference
+            elif tag and not (tag.startswith('ID') and len(tag) > 30):
+                # Tag is a real part number (not a GUID)
+                part_number = tag
+            else:
+                # Fallback to product_id
+                part_number = str(product_id)
+            
+            # Element name is the Name field (e.g., "BEAM", "STRINGER")
+            element_name = name
+            
+            # Debug first part of each profile
+            if profile_name not in parts_by_profile or len(parts_by_profile[profile_name]) == 0:
+                print(f"[PARTS-API] First part for {profile_name}: ID={product_id}, Tag='{tag}', Name='{name}', Reference='{reference}', Using part_number='{part_number}'")
+            
+            # Get length
+            length = 0
+            for rel in getattr(element, 'IsDefinedBy', []):
+                if rel.is_a('IfcRelDefinesByProperties'):
+                    prop_set = rel.RelatingPropertyDefinition
+                    if hasattr(prop_set, 'HasProperties'):
+                        for prop in prop_set.HasProperties:
+                            if hasattr(prop, 'Name') and prop.Name in ['Length', 'LENGTH', 'length']:
+                                if hasattr(prop, 'NominalValue') and hasattr(prop.NominalValue, 'wrappedValue'):
+                                    length = float(prop.NominalValue.wrappedValue)
+                                    break
+            
+            # Get weight
+            weight = get_element_weight(element)
+            
+            if profile_name not in parts_by_profile:
+                parts_by_profile[profile_name] = []
+            
+            parts_by_profile[profile_name].append({
+                'product_id': product_id,
+                'part_number': part_number,
+                'element_name': element_name,
+                'reference': reference,
+                'profile_name': profile_name,
+                'length': length,
+                'weight': weight
+            })
+    
+    print(f"[PARTS-API] Processed {total_elements} total elements")
+    print(f"[PARTS-API] Found parts for {len(parts_by_profile)} profiles")
+    for profile_name, parts in parts_by_profile.items():
+        print(f"[PARTS-API]   - {profile_name}: {len(parts)} parts")
+    
+    return JSONResponse({'parts_by_profile': parts_by_profile})
+
+
 @app.post("/api/refined-geometry/{filename}")
 async def get_refined_geometry(filename: str, request: Request):
     """Get high-quality geometry for specific elements using IfcOpenShell with boolean operations."""
