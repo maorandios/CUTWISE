@@ -3,7 +3,14 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { ChevronDown, ChevronUp, Plus, X, Package, Recycle, CheckCircle2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, X, Package, Recycle, CheckCircle2, AlertCircle } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface StockLength {
   id: string
@@ -19,10 +26,11 @@ interface ProfileStock {
   purchasedStocks: StockLength[]
   leftoverStocks: StockLength[]
   isComplete: boolean
+  maxPartLength?: number
 }
 
 interface StockAssignmentProps {
-  profiles: { name: string; partCount: number; totalLength: number; totalWeight: number }[]
+  profiles: { name: string; partCount: number; totalLength: number; totalWeight: number; maxPartLength?: number }[]
   defaultStockLengths?: { id: number; value: number }[]
   onBack: () => void
   onContinue: (stockConfig: ProfileStock[]) => void
@@ -36,6 +44,7 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
       partCount: profile.partCount,
       totalLength: profile.totalLength,
       totalWeight: profile.totalWeight,
+      maxPartLength: profile.maxPartLength,
       purchasedStocks: (defaultStockLengths || [
         { id: 1, value: 6000 },
         { id: 2, value: 12000 }
@@ -68,6 +77,13 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false)
   const profileFilterRef = useRef<HTMLDivElement>(null)
   const statusFilterRef = useRef<HTMLDivElement>(null)
+  const [showIncompleteWarning, setShowIncompleteWarning] = useState(false)
+  const [showStockWarning, setShowStockWarning] = useState(false)
+  const [stockWarnings, setStockWarnings] = useState<Array<{
+    profile: string
+    maxPart: number
+    maxStock: number
+  }>>([])
 
   const toggleProfile = (profileName: string) => {
     setExpandedProfiles(prev => {
@@ -234,8 +250,35 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
   }
 
   const hasValidStocks = profileStocks.every(
-    profile => profile.purchasedStocks.length > 0 || profile.leftoverStocks.length > 0
+    profile => profile.isComplete
   )
+
+  const validateStockLengths = (): Array<{profile: string, maxPart: number, maxStock: number}> => {
+    const issues: Array<{profile: string, maxPart: number, maxStock: number}> = []
+    
+    profileStocks.forEach(profile => {
+      if (!profile.maxPartLength) return
+      
+      const allStocks = [
+        ...profile.purchasedStocks.map(s => s.length),
+        ...profile.leftoverStocks.map(s => s.length)
+      ]
+      
+      if (allStocks.length === 0) return
+      
+      const maxStock = Math.max(...allStocks)
+      
+      if (profile.maxPartLength > maxStock) {
+        issues.push({
+          profile: profile.profileName,
+          maxPart: profile.maxPartLength,
+          maxStock
+        })
+      }
+    })
+    
+    return issues
+  }
 
   const toggleProfileFilter = (profileName: string) => {
     setSelectedProfileFilter(prev => {
@@ -286,8 +329,19 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
                 Back
               </Button>
               <Button
-                onClick={() => onContinue(profileStocks)}
-                disabled={!hasValidStocks}
+                onClick={() => {
+                  if (!hasValidStocks) {
+                    setShowIncompleteWarning(true)
+                  } else {
+                    const warnings = validateStockLengths()
+                    if (warnings.length > 0) {
+                      setStockWarnings(warnings)
+                      setShowStockWarning(true)
+                    } else {
+                      onContinue(profileStocks)
+                    }
+                  }
+                }}
               >
                 Complete
               </Button>
@@ -647,6 +701,74 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
         })}
         </div>
       </div>
+
+    {/* Incomplete Profiles Warning Modal */}
+    <Dialog open={showIncompleteWarning} onOpenChange={setShowIncompleteWarning}>
+      <DialogContent className="sm:max-w-[450px]">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
+              <AlertCircle className="h-6 w-6 text-orange-600" />
+            </div>
+            <DialogTitle>Incomplete Configuration</DialogTitle>
+          </div>
+        </DialogHeader>
+        <DialogDescription className="text-sm text-gray-600 pt-4">
+          To complete and generate the nesting report, please mark all profile types as complete by configuring their stock lengths and toggling the &quot;Mark as Complete&quot; switch.
+        </DialogDescription>
+        <div className="flex justify-end gap-3 pt-4">
+          <Button onClick={() => setShowIncompleteWarning(false)}>
+            Got it
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Stock Length Warning Modal */}
+    <Dialog open={showStockWarning} onOpenChange={setShowStockWarning}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
+              <AlertCircle className="h-6 w-6 text-orange-600" />
+            </div>
+            <DialogTitle>Stock Length Insufficient</DialogTitle>
+          </div>
+        </DialogHeader>
+        <div className="space-y-4 pt-4">
+          <DialogDescription className="text-sm text-gray-600">
+            The following profiles have parts that exceed your configured stock lengths:
+          </DialogDescription>
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-2">
+            {stockWarnings.map((warning, idx) => (
+              <div key={idx} className="text-sm">
+                <span className="font-semibold text-orange-900">{warning.profile}:</span>{' '}
+                <span className="text-orange-800">
+                  Longest part is {warning.maxPart.toLocaleString()}mm but max stock is {warning.maxStock.toLocaleString()}mm
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="text-sm text-gray-600">
+            These parts will not be nested and will appear in the error table. You can add longer stock lengths or proceed anyway.
+          </p>
+        </div>
+        <div className="flex justify-end gap-3 pt-4">
+          <Button variant="outline" onClick={() => setShowStockWarning(false)}>
+            Go Back
+          </Button>
+          <Button 
+            onClick={() => {
+              setShowStockWarning(false)
+              onContinue(profileStocks)
+            }}
+            className="bg-orange-600 hover:bg-orange-700"
+          >
+            Proceed Anyway
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
     </div>
   )
 }

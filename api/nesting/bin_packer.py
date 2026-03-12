@@ -344,9 +344,12 @@ def pack_parts_first_fit_decreasing(
     patterns: List[CuttingPattern] = []
     rejected: List[RejectedPart] = []
     
+    print(f"[BIN-PACKER] Starting packing: {len(sorted_parts)} parts, max_stock_length={max_stock_length}mm", flush=True)
+    
     for part in sorted_parts:
         # Check if part is too long for any stock
         if part.length > max_stock_length:
+            print(f"[BIN-PACKER] REJECTED: Part {part.product_id} ({part.length:.0f}mm) exceeds max stock ({max_stock_length:.0f}mm)", flush=True)
             rejected.append(RejectedPart(
                 product_id=part.product_id,
                 length=part.length,
@@ -379,6 +382,7 @@ def pack_parts_first_fit_decreasing(
             )
             
             if best_stock is None:
+                print(f"[BIN-PACKER] REJECTED: Part {part.product_id} ({part.length:.0f}mm) - no suitable stock found", flush=True)
                 rejected.append(RejectedPart(
                     product_id=part.product_id,
                     length=part.length,
@@ -404,7 +408,12 @@ def pack_parts_first_fit_decreasing(
         used_length = calculate_combined_length_with_kerf(pattern.parts, kerf)
         pattern.waste = pattern.stock_length - used_length
         pattern.waste_percentage = (pattern.waste / pattern.stock_length) * 100.0
-    
+
+    print(f"[BIN-PACKER] Packing complete: {len(patterns)} patterns, {len(rejected)} rejected parts", flush=True)
+    if rejected:
+        for r in rejected:
+            print(f"[BIN-PACKER] Rejected part: {r.product_id}, length={r.length:.0f}mm, reason={r.reason}", flush=True)
+
     return patterns, rejected
 
 

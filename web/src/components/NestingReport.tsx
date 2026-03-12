@@ -1166,6 +1166,7 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
               let partCount = 0
               let totalLength = 0
               let totalWeight = 0
+              let maxPartLength = 0
               
               // Count only selected parts - use part_number to match PartSelection
               parts.forEach(part => {
@@ -1175,16 +1176,18 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                   partCount += 1
                   totalLength += part.length || 0
                   totalWeight += part.weight || 0
+                  maxPartLength = Math.max(maxPartLength, part.length || 0)
                 }
               })
 
-              console.log(`[StockAssignment] Profile ${profileName}: ${partCount} parts, ${totalLength}mm total, ${totalWeight}kg total`)
+              console.log(`[StockAssignment] Profile ${profileName}: ${partCount} parts, ${totalLength}mm total, ${totalWeight}kg total, max part: ${maxPartLength}mm`)
 
               return {
                 name: profileName,
                 partCount,
                 totalLength,
-                totalWeight
+                totalWeight,
+                maxPartLength
               }
             })}
             defaultStockLengths={nestingSettings?.stockLengths || [
@@ -2025,32 +2028,35 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
               </div>
             </div>
 
-            {/* Error Parts Table - Only show if there are parts exceeding 12001mm */}
+            {/* Error Parts Table - Show all rejected parts that exceed stock lengths */}
             {(() => {
-              // Collect all rejected parts from all profiles where length > 12001mm
+              // Collect all rejected parts from all profiles
               const allErrorParts: Array<{
                 profile_name: string
                 reference: string
                 length: number
+                reason: string
               }> = []
               
+              console.log('[ERROR-PARTS] Checking for rejected parts...')
+              console.log('[ERROR-PARTS] Total profiles:', nestingReport.profiles.length)
+              
               nestingReport.profiles.forEach(profile => {
+                console.log(`[ERROR-PARTS] Profile ${profile.profile_name}: rejected_parts =`, profile.rejected_parts)
                 if (profile.rejected_parts && profile.rejected_parts.length > 0) {
+                  console.log(`[ERROR-PARTS] Found ${profile.rejected_parts.length} rejected parts in ${profile.profile_name}`)
                   profile.rejected_parts.forEach(rejectedPart => {
-                    // Only include parts where length > 12001mm
-                    if (rejectedPart.length > 12001) {
-                      // Use the same logic as cutting list: reference || element_name || 'Unknown'
-                      // Handle null, undefined, and empty string
-                      const reference = rejectedPart.reference && rejectedPart.reference.trim() ? rejectedPart.reference : null
-                      const elementName = rejectedPart.element_name && rejectedPart.element_name.trim() ? rejectedPart.element_name : null
-                      const partName = reference || elementName || 'Unknown'
-                      
-                      allErrorParts.push({
-                        profile_name: profile.profile_name,
-                        reference: partName,
-                        length: rejectedPart.length
-                      })
-                    }
+                    // Include ALL rejected parts (removed 12001mm filter)
+                    const reference = rejectedPart.reference && rejectedPart.reference.trim() ? rejectedPart.reference : null
+                    const elementName = rejectedPart.element_name && rejectedPart.element_name.trim() ? rejectedPart.element_name : null
+                    const partName = reference || elementName || 'Unknown'
+                    
+                    allErrorParts.push({
+                      profile_name: profile.profile_name,
+                      reference: partName,
+                      length: rejectedPart.length,
+                      reason: rejectedPart.reason || 'Exceeds stock length'
+                    })
                   })
                 }
               })
@@ -2061,6 +2067,7 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                 reference: string
                 length: number
                 quantity: number
+                reason: string
               }>()
 
               allErrorParts.forEach(part => {
@@ -2072,17 +2079,24 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                     profile_name: part.profile_name,
                     reference: part.reference,
                     length: part.length,
-                    quantity: 1
+                    quantity: 1,
+                    reason: part.reason
                   })
                 }
               })
 
               const errorPartsList = Array.from(groupedErrorParts.values())
 
+              console.log('[ERROR-PARTS] Total error parts after grouping:', errorPartsList.length)
+              console.log('[ERROR-PARTS] Error parts list:', errorPartsList)
+
               // Only render table if there are error parts
               if (errorPartsList.length === 0) {
+                console.log('[ERROR-PARTS] No error parts to display')
                 return null
               }
+              
+              console.log('[ERROR-PARTS] Rendering Error Parts Table with', errorPartsList.length, 'parts')
 
               return (
                 <div className="mb-8 page-break-after">
@@ -2093,10 +2107,11 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                       <Table>
                         <TableHeader>
                           <TableRow className="bg-gray-100 hover:bg-gray-100 h-16">
-                            <TableHead className="text-gray-700 font-semibold h-16 text-base w-[35%] pl-6">Profile Type</TableHead>
-                            <TableHead className="text-gray-700 font-semibold h-16 text-base w-[35%]">Part Name</TableHead>
+                            <TableHead className="text-gray-700 font-semibold h-16 text-base w-[20%] pl-6">Profile Type</TableHead>
+                            <TableHead className="text-gray-700 font-semibold h-16 text-base w-[20%]">Part Name</TableHead>
                             <TableHead className="text-gray-700 text-right font-semibold h-16 text-base w-[15%]">Cut Length (mm)</TableHead>
-                            <TableHead className="text-gray-700 text-right font-semibold h-16 text-base w-[15%] pr-6">Quantity</TableHead>
+                            <TableHead className="text-gray-700 text-right font-semibold h-16 text-base w-[10%]">Quantity</TableHead>
+                            <TableHead className="text-gray-700 font-semibold h-16 text-base w-[35%] pr-6">Reason</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -2111,8 +2126,11 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                               <TableCell className="text-right">
                                 {Math.round(part.length)}
                               </TableCell>
-                              <TableCell className="text-right pr-6">
+                              <TableCell className="text-right">
                                 {part.quantity}
+                              </TableCell>
+                              <TableCell className="text-sm text-red-600 pr-6">
+                                {part.reason}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -2342,7 +2360,7 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                       {/* Stockbar Title */}
                       <div className="mb-3 flex items-center gap-2">
                         {pattern.stock_type === 'leftover' && (
-                          <Recycle className="w-5 h-5 text-[#1CB97E]" />
+                          <Recycle className="w-5 h-5 text-orange-500" />
                         )}
                         <h5 className="text-base font-medium text-muted-foreground">
                           {pattern.stock_type === 'leftover' ? 'Leftover ' : ''}Stockbar {patternIdx + 1}
@@ -2362,18 +2380,15 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                             
                             <div className="w-px h-4 bg-border"></div>
                             
-                            {/* Tolerance - 0mm for leftovers, actual value for purchased */}
-                            {((pattern.stock_type === 'leftover' ? 0 : (nestingReport.settings?.stock_tolerance ?? 0)) > 0) && (
-                              <>
-                                <div className="flex items-center gap-1.5">
-                                  <img src="/Icons/tolerance for section.svg" alt="Tolerance" className="w-4 h-4" />
-                                  <span className="text-sm font-medium">
-                                    {pattern.stock_type === 'leftover' ? '0' : (nestingReport.settings?.stock_tolerance ?? 0).toFixed(0)}mm
-                                  </span>
-                                </div>
-                                <div className="w-px h-4 bg-border"></div>
-                              </>
-                            )}
+                            {/* Tolerance - always show, 0mm for leftovers */}
+                            <div className="flex items-center gap-1.5">
+                              <img src="/Icons/tolerance for section.svg" alt="Tolerance" className="w-4 h-4" />
+                              <span className="text-sm font-medium">
+                                {pattern.stock_type === 'leftover' ? '0' : (nestingReport.settings?.stock_tolerance ?? 0).toFixed(0)}mm
+                              </span>
+                            </div>
+                            
+                            <div className="w-px h-4 bg-border"></div>
                             
                             {/* Trim - 0mm for leftovers, actual value for purchased */}
                             <div className="flex items-center gap-1.5">
@@ -5196,6 +5211,11 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                       {stockToleranceEnabled ? `${stockToleranceValue} (mm)` : 'Disabled'}
                     </span>
                   </div>
+                </div>
+                <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  <p className="text-xs text-orange-800">
+                    <span className="font-semibold">Note:</span> For leftover stock bars, only kerf is applied during nesting calculations. Trim and tolerance are not applied as these bars are already cut to exact lengths.
+                  </p>
                 </div>
               </div>
 

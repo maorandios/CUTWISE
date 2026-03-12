@@ -524,6 +524,7 @@ def create_nesting_report_v2(
         
         # TWO-PHASE NESTING: Phase 1 - Use leftovers first, Phase 2 - Use purchased for remaining
         all_patterns = []
+        all_rejected_parts = []
         remaining_parts = parts.copy()
         
         # PHASE 1: Nest with leftover stocks only (if any)
@@ -558,6 +559,9 @@ def create_nesting_report_v2(
                 profile_name,
                 use_complementary_pairing
             )
+            
+            # Collect rejected parts from Phase 1
+            all_rejected_parts.extend(leftover_nesting.rejected_parts)
             
             # Limit patterns to match available leftover quantities
             # Group patterns by stock length
@@ -634,16 +638,21 @@ def create_nesting_report_v2(
                 use_complementary_pairing
             )
             
+            # Collect rejected parts from Phase 2
+            all_rejected_parts.extend(purchased_nesting.rejected_parts)
+            
             # Mark all purchased patterns
             for pattern in purchased_nesting.cutting_patterns:
                 pattern.stock_type = 'purchased'
                 all_patterns.append(pattern)
             
             log_func(f"[ORCHESTRATOR V2] Phase 2 complete: {len(purchased_nesting.cutting_patterns)} patterns using purchased stocks")
+            if purchased_nesting.rejected_parts:
+                log_func(f"[ORCHESTRATOR V2] Phase 2: {len(purchased_nesting.rejected_parts)} parts rejected")
         
         # Combine results from both phases
-        if not all_patterns:
-            log_func(f"[ORCHESTRATOR V2] No patterns generated for profile {profile_name}")
+        if not all_patterns and not all_rejected_parts:
+            log_func(f"[ORCHESTRATOR V2] No patterns or rejected parts for profile {profile_name}, skipping")
             continue
         
         # Calculate totals
@@ -652,6 +661,10 @@ def create_nesting_report_v2(
         total_waste = sum(p.waste for p in all_patterns)
         total_stock_used = sum(p.stock_length for p in all_patterns)
         total_waste_percentage = (total_waste / total_stock_used * 100.0) if total_stock_used > 0 else 0.0
+        
+        # If no patterns but have rejected parts, log it
+        if not all_patterns and all_rejected_parts:
+            log_func(f"[ORCHESTRATOR V2] Profile {profile_name}: All parts rejected (no patterns generated)")
         
         # Calculate stock_lengths_used (ONLY purchased stocks for BOM)
         purchased_stock_usage: Dict[float, int] = {}
@@ -668,8 +681,11 @@ def create_nesting_report_v2(
             stock_lengths_used=purchased_stock_usage,
             total_waste=total_waste,
             total_waste_percentage=total_waste_percentage,
-            rejected_parts=[]  # Rejected parts are tracked separately
+            rejected_parts=all_rejected_parts
         )
+        
+        if all_rejected_parts:
+            log_func(f"[ORCHESTRATOR V2] Profile {profile_name}: {len(all_rejected_parts)} parts rejected (exceed stock lengths)")
         
         # Calculate alternative waste (use only purchased stocks for comparison)
         from .alternative_calculator import calculate_alternative_waste
