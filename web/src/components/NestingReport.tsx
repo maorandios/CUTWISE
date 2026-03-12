@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { Recycle } from 'lucide-react'
 import { LottieLoader } from './LottieLoader'
 import { AnimatedMetricCards } from './AnimatedMetricCards'
 import { AnimatedBOMMetricCards } from './AnimatedBOMMetricCards'
