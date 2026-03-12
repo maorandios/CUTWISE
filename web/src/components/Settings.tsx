@@ -549,12 +549,14 @@ const Settings = ({
                   <div className="space-y-4">
                     <Label>Purchased Stock Lengths</Label>
                     <div className="flex flex-wrap gap-2">
-                      {technicalSettings.stockLengths.map((stock) => (
+                      {technicalSettings.stockLengths
+                        .sort((a, b) => b.value - a.value) // Sort descending (largest to smallest)
+                        .map((stock) => (
                         <div
                           key={stock.id}
                           className="inline-flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700"
                         >
-                          <span>{stock.value}mm</span>
+                          <span>{stock.value.toLocaleString()}mm</span>
                           {technicalSettings.stockLengths.length > 1 && (
                             <button
                               onClick={() => {
@@ -589,7 +591,7 @@ const Settings = ({
                                   if (!isDuplicate) {
                                     setTechnicalSettings({
                                       ...technicalSettings,
-                                      stockLengths: [...technicalSettings.stockLengths, { id: nextStockId, value }]
+                                      stockLengths: [...technicalSettings.stockLengths, { id: nextStockId, value }].sort((a, b) => b.value - a.value)
                                     })
                                     setNextStockId(nextStockId + 1)
                                     setAddingStockLength(false)
@@ -611,7 +613,7 @@ const Settings = ({
                                 if (!isDuplicate) {
                                   setTechnicalSettings({
                                     ...technicalSettings,
-                                    stockLengths: [...technicalSettings.stockLengths, { id: nextStockId, value }]
+                                    stockLengths: [...technicalSettings.stockLengths, { id: nextStockId, value }].sort((a, b) => b.value - a.value)
                                   })
                                   setNextStockId(nextStockId + 1)
                                 } else {

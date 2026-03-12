@@ -60,6 +60,7 @@ function App() {
   // View state
   const [currentView, setCurrentView] = useState<'dashboard' | 'split' | 'report' | 'settings'>('dashboard')
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null)
+  const [currentProjectName, setCurrentProjectName] = useState<string>('')
   const [dashboardRefresh, setDashboardRefresh] = useState(0)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -385,6 +386,7 @@ function App() {
       const project = await createProject(projectName, data.filename, data.report)
       if (project) {
         setCurrentProjectId(project.id)
+        setCurrentProjectName(projectName) // Store the custom project name
         
         // Deduct credit after successful file upload
         await deductCredit(project.id, projectName)
@@ -611,6 +613,7 @@ function App() {
       })
       
       setCurrentFile(fullProject.filename)
+      setCurrentProjectName(fullProject.name) // Store the project name
       setReport(fullProject.steelReport)
       setNestingReport(fullProject.nestingReport)
       setCurrentProjectId(fullProject.id)
@@ -862,7 +865,7 @@ function App() {
             onLogout={handleLogout}
             showBackButton={true}
             onBackClick={handleBackToDashboard}
-            title={currentFile?.replace('.ifc', '') || 'Project'}
+            title={currentProjectName || currentFile?.replace('.ifc', '') || 'Project'}
             showNestingSettings={false}
             onNestingSettingsClick={nestingSettingsHandler || undefined}
           />
@@ -874,6 +877,7 @@ function App() {
                   <NestingReport
                     key={`split-${currentFile}`}
                     filename={currentFile}
+                    projectName={currentProjectName}
                     nestingReport={nestingReport}
                     onNestingReportChange={handleNestingReportChange}
                     report={report}
@@ -887,6 +891,14 @@ function App() {
                       phoneNumber: company.phoneNumber,
                       email: company.email || ''
                     } : undefined}
+                    nestingSettings={(() => {
+                      try {
+                        const settings = localStorage.getItem('cutwise_nesting_settings')
+                        return settings ? JSON.parse(settings) : undefined
+                      } catch {
+                        return undefined
+                      }
+                    })()}
                   />
                 </div>
                 <Footer />
@@ -923,7 +935,7 @@ function App() {
             onLogout={handleLogout}
             showBackButton={true}
             onBackClick={handleBackToDashboard}
-            title={currentFile?.replace('.ifc', '') || 'Project'}
+            title={currentProjectName || currentFile?.replace('.ifc', '') || 'Project'}
             showNestingSettings={false}
             onNestingSettingsClick={nestingSettingsHandler || undefined}
           />
@@ -935,6 +947,7 @@ function App() {
                   <NestingReport
                     key={`report-${currentFile}`}
                     filename={currentFile}
+                    projectName={currentProjectName}
                     nestingReport={nestingReport}
                     onNestingReportChange={handleNestingReportChange}
                     report={report}
@@ -947,6 +960,14 @@ function App() {
                       phoneNumber: company.phoneNumber,
                       email: company.email || ''
                     } : undefined}
+                    nestingSettings={(() => {
+                      try {
+                        const settings = localStorage.getItem('cutwise_nesting_settings')
+                        return settings ? JSON.parse(settings) : undefined
+                      } catch {
+                        return undefined
+                      }
+                    })()}
                   />
                 </div>
                 <Footer />
@@ -1108,6 +1129,7 @@ function App() {
             <div className="flex-1">
               <NestingReport
                 filename={currentFile}
+                projectName={currentProjectName}
                 nestingReport={nestingReport}
                 onNestingReportChange={handleNestingReportChange}
                 report={report}
@@ -1118,6 +1140,14 @@ function App() {
                   phoneNumber: company.phoneNumber,
                   email: company.email || ''
                 } : undefined}
+                nestingSettings={(() => {
+                  try {
+                    const settings = localStorage.getItem('cutwise_nesting_settings')
+                    return settings ? JSON.parse(settings) : undefined
+                  } catch {
+                    return undefined
+                  }
+                })()}
               />
             </div>
             <Footer />

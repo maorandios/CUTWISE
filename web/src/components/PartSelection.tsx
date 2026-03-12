@@ -20,12 +20,13 @@ interface ProfileParts {
 interface PartSelectionProps {
   profilesData: ProfileParts[]
   filename: string
+  projectName?: string
   companyDetails: any
   onBack: () => void
   onContinue: (selectedParts: Map<string, Set<string>>) => void
 }
 
-export const PartSelection = ({ profilesData, filename, companyDetails, onBack, onContinue }: PartSelectionProps) => {
+export const PartSelection = ({ profilesData, filename, projectName, companyDetails, onBack, onContinue }: PartSelectionProps) => {
   console.log('[PartSelection] Received profilesData:', profilesData)
   
   const [activeProfile, setActiveProfile] = useState<string>(profilesData[0]?.profileName || '')
@@ -171,7 +172,7 @@ export const PartSelection = ({ profilesData, filename, companyDetails, onBack, 
         body: JSON.stringify({
           partsByProfile,
           selectedParts: selectedPartsObj,
-          projectName: filename.replace('.ifc', ''),
+          projectName: projectName || filename.replace('.ifc', ''),
           companyDetails,
           icons
         })
@@ -243,7 +244,7 @@ export const PartSelection = ({ profilesData, filename, companyDetails, onBack, 
         body: JSON.stringify({
           partsByProfile,
           selectedParts: selectedPartsObj,
-          projectName: filename.replace('.ifc', ''),
+          projectName: projectName || filename.replace('.ifc', ''),
           companyDetails
         })
       })

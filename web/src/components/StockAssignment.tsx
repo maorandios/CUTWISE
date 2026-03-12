@@ -15,28 +15,36 @@ interface ProfileStock {
   profileName: string
   partCount: number
   totalLength: number
+  totalWeight: number
   purchasedStocks: StockLength[]
   leftoverStocks: StockLength[]
   isComplete: boolean
 }
 
 interface StockAssignmentProps {
-  profiles: { name: string; partCount: number; totalLength: number }[]
+  profiles: { name: string; partCount: number; totalLength: number; totalWeight: number }[]
+  defaultStockLengths?: { id: number; value: number }[]
   onBack: () => void
   onContinue: (stockConfig: ProfileStock[]) => void
 }
 
-export const StockAssignment = ({ profiles, onBack, onContinue }: StockAssignmentProps) => {
-  // Initialize stock configuration for each profile
+export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onContinue }: StockAssignmentProps) => {
+  // Initialize stock configuration for each profile using default stock lengths from settings
   const [profileStocks, setProfileStocks] = useState<ProfileStock[]>(
     profiles.map((profile, index) => ({
       profileName: profile.name,
       partCount: profile.partCount,
       totalLength: profile.totalLength,
-      purchasedStocks: [
-        { id: `${profile.name}-p-1`, length: 6000 },
-        { id: `${profile.name}-p-2`, length: 12000 }
-      ],
+      totalWeight: profile.totalWeight,
+      purchasedStocks: (defaultStockLengths || [
+        { id: 1, value: 6000 },
+        { id: 2, value: 12000 }
+      ])
+        .sort((a, b) => b.value - a.value) // Sort descending (largest to smallest)
+        .map((stock, idx) => ({
+          id: `${profile.name}-p-${idx + 1}`,
+          length: stock.value
+        })),
       leftoverStocks: [],
       isComplete: false
     }))
@@ -121,17 +129,20 @@ export const StockAssignment = ({ profiles, onBack, onContinue }: StockAssignmen
     setProfileStocks(prev =>
       prev.map(profile => {
         if (profile.profileName === profileName) {
+          let updatedProfile = { ...profile }
+          
           if (type === 'purchased') {
-            return {
-              ...profile,
-              purchasedStocks: profile.purchasedStocks.filter(s => s.id !== stockId)
-            }
+            updatedProfile.purchasedStocks = profile.purchasedStocks.filter(s => s.id !== stockId)
           } else {
-            return {
-              ...profile,
-              leftoverStocks: profile.leftoverStocks.filter(s => s.id !== stockId)
-            }
+            updatedProfile.leftoverStocks = profile.leftoverStocks.filter(s => s.id !== stockId)
           }
+          
+          // Auto-uncheck complete if no stocks remain
+          if (updatedProfile.purchasedStocks.length === 0 && updatedProfile.leftoverStocks.length === 0) {
+            updatedProfile.isComplete = false
+          }
+          
+          return updatedProfile
         }
         return profile
       })
@@ -165,12 +176,12 @@ export const StockAssignment = ({ profiles, onBack, onContinue }: StockAssignmen
             }
             return {
               ...profile,
-              purchasedStocks: [...profile.purchasedStocks, newStock]
+              purchasedStocks: [...profile.purchasedStocks, newStock].sort((a, b) => b.length - a.length)
             }
           } else {
             return {
               ...profile,
-              leftoverStocks: [...profile.leftoverStocks, newStock]
+              leftoverStocks: [...profile.leftoverStocks, newStock].sort((a, b) => b.length - a.length)
             }
           }
         }
@@ -197,10 +208,15 @@ export const StockAssignment = ({ profiles, onBack, onContinue }: StockAssignmen
     setProfileStocks(prev =>
       prev.map(profile => ({
         ...profile,
-        purchasedStocks: [
-          { id: `${profile.profileName}-p-1`, length: 6000 },
-          { id: `${profile.profileName}-p-2`, length: 12000 }
-        ],
+        purchasedStocks: (defaultStockLengths || [
+          { id: 1, value: 6000 },
+          { id: 2, value: 12000 }
+        ])
+          .sort((a, b) => b.value - a.value) // Sort descending (largest to smallest)
+          .map((stock, idx) => ({
+            id: `${profile.profileName}-p-${idx + 1}`,
+            length: stock.value
+          })),
         leftoverStocks: []
       }))
     )
@@ -273,7 +289,7 @@ export const StockAssignment = ({ profiles, onBack, onContinue }: StockAssignmen
                 onClick={() => onContinue(profileStocks)}
                 disabled={!hasValidStocks}
               >
-                Generate Nesting
+                Complete
               </Button>
             </div>
           </div>
@@ -422,14 +438,20 @@ export const StockAssignment = ({ profiles, onBack, onContinue }: StockAssignmen
           return (
             <div
               key={profile.profileName}
-              className={`bg-white rounded-xl border-2 transition-all ${
-                hasNoStocks ? 'border-red-200' : 'border-gray-200'
+              className={`rounded-xl border-2 transition-all ${
+                hasNoStocks 
+                  ? 'border-red-200 bg-white' 
+                  : profile.isComplete 
+                    ? 'border-green-200 bg-green-50' 
+                    : 'border-gray-200 bg-white'
               }`}
             >
               {/* Profile Header */}
               <button
                 onClick={() => toggleProfile(profile.profileName)}
-                className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                className={`w-full px-6 py-4 flex items-center justify-between transition-colors ${
+                  profile.isComplete ? 'hover:bg-green-100' : 'hover:bg-gray-50'
+                }`}
               >
                 <div className="flex items-center gap-4">
                   <div className={`w-3 h-3 rounded-full ${
@@ -440,7 +462,7 @@ export const StockAssignment = ({ profiles, onBack, onContinue }: StockAssignmen
                       {profile.profileName}
                     </h3>
                     <p className="text-sm text-gray-500">
-                      {profile.partCount} parts • Total length: {(profile.totalLength / 1000).toFixed(1)}m
+                      {profile.partCount} parts • Total length: {(profile.totalLength / 1000).toFixed(1)}m • Weight: {(profile.totalWeight / 1000).toFixed(2)}t
                     </p>
                   </div>
                 </div>
@@ -475,7 +497,7 @@ export const StockAssignment = ({ profiles, onBack, onContinue }: StockAssignmen
                           key={stock.id}
                           className="inline-flex items-center gap-2 px-3 py-2 bg-green-50 border border-gray-200 rounded-lg text-sm font-medium text-green-700"
                         >
-                          <span>{stock.length}mm</span>
+                          <span>{stock.length.toLocaleString()}mm</span>
                           <button
                             onClick={() => removeStock(profile.profileName, stock.id, 'purchased')}
                             className="hover:bg-green-200 rounded p-0.5 transition-colors"
@@ -532,7 +554,7 @@ export const StockAssignment = ({ profiles, onBack, onContinue }: StockAssignmen
                           key={stock.id}
                           className="inline-flex items-center gap-2 px-3 py-2 bg-orange-50 border border-gray-200 rounded-lg text-sm font-medium text-orange-700"
                         >
-                          <span>{stock.length}mm</span>
+                          <span>{stock.length.toLocaleString()}mm</span>
                           <span className="text-xs bg-orange-200 px-1.5 py-0.5 rounded">
                             ×{stock.quantity}
                           </span>
@@ -601,19 +623,20 @@ export const StockAssignment = ({ profiles, onBack, onContinue }: StockAssignmen
                   <div className="pt-6 border-t">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-5 h-5 text-gray-400" />
+                        <CheckCircle2 className={`w-5 h-5 ${hasNoStocks ? 'text-gray-300' : 'text-gray-400'}`} />
                         <div>
-                          <Label className="text-sm font-semibold text-gray-700">
+                          <Label className={`text-sm font-semibold ${hasNoStocks ? 'text-gray-400' : 'text-gray-700'}`}>
                             Mark as Complete
                           </Label>
                           <p className="text-xs text-gray-500 mt-1">
-                            Confirm you've finished configuring stock for this profile
+                            {hasNoStocks ? 'Add at least one stock length to mark as complete' : 'Confirm you\'ve finished configuring stock for this profile'}
                           </p>
                         </div>
                       </div>
                       <Switch
                         checked={profile.isComplete}
                         onCheckedChange={() => toggleComplete(profile.profileName)}
+                        disabled={hasNoStocks}
                       />
                     </div>
                   </div>

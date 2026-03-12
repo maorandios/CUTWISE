@@ -89,7 +89,7 @@ export function Header({
                 <span className="text-sm">Back to dashboard</span>
               </Button>
               
-              {title && (
+              {title && title !== 'Settings' && (
                 <>
                   <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
                   <span className="text-white text-sm font-medium">

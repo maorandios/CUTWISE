@@ -41,6 +41,7 @@ import { StockAssignment } from './StockAssignment'
 
 interface NestingReportProps {
   filename: string
+  projectName?: string // Custom project name (overrides filename)
   nestingReport: NestingReportType | null
   onNestingReportChange: (report: NestingReportType | null) => void
   report: SteelReport | null  // Report data to get available profiles
@@ -53,6 +54,13 @@ interface NestingReportProps {
     country: string
     phoneNumber: string
     email: string
+  }
+  nestingSettings?: {
+    kerf: number
+    trim: number
+    toleranceEnabled: boolean
+    tolerance: number
+    stockLengths: { id: number; value: number }[]
   }
 }
 
@@ -109,7 +117,7 @@ const ProfileItem = memo(({ profile, isSelected, onToggle }: ProfileItemProps) =
   )
 })
 
-export default function NestingReport({ filename, nestingReport: propNestingReport, onNestingReportChange, report, initialView, onSettingsClick, onModelReady, companyDetails }: NestingReportProps) {
+export default function NestingReport({ filename, projectName, nestingReport: propNestingReport, onNestingReportChange, report, initialView, onSettingsClick, onModelReady, companyDetails, nestingSettings }: NestingReportProps) {
   // Use prop as source of truth, but maintain local state for updates
   const nestingReport = propNestingReport
   const [currentStep, setCurrentStep] = useState<Step>(initialView || 'select')
@@ -539,7 +547,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         body: JSON.stringify({
           nestingReport: filteredNestingReport,
           report: report,
-          projectName: bomProjectName || filename.replace('.ifc', ''),
+          projectName: bomProjectName || projectName || filename.replace('.ifc', ''),
           companyDetails: {
             companyName: finalCompanyDetails.companyName,
             address: finalCompanyDetails.address,
@@ -789,7 +797,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
         },
         body: JSON.stringify({
           nestingReport: filteredNestingReport,
-          projectName: cuttingPlanProjectName || filename.replace('.ifc', ''),
+          projectName: cuttingPlanProjectName || projectName || filename.replace('.ifc', ''),
           tolerance: nestingReport.settings?.stock_tolerance ?? 0,
           toleranceEnabled: (nestingReport.settings?.stock_tolerance ?? 0) > 0,
           trim: nestingReport.settings?.trim ?? 5.0,
@@ -1085,6 +1093,7 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               }
             })}
             filename={filename}
+            projectName={projectName}
             companyDetails={companyDetails}
             onBack={() => setCurrentStep('select')}
             onContinue={(selectedPartsMap) => {
@@ -1103,23 +1112,32 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
               
               let partCount = 0
               let totalLength = 0
+              let totalWeight = 0
               
-              // Count only selected parts
+              // Count only selected parts - use part_number to match PartSelection
               parts.forEach(part => {
-                const partNumber = part.product_id?.toString() || part.part_number || 'Unknown'
+                const partNumber = part.part_number || part.product_id?.toString() || 'Unknown'
                 
                 if (profileSelectedParts.has(partNumber)) {
                   partCount += 1
                   totalLength += part.length || 0
+                  totalWeight += part.weight || 0
                 }
               })
+
+              console.log(`[StockAssignment] Profile ${profileName}: ${partCount} parts, ${totalLength}mm total, ${totalWeight}kg total`)
 
               return {
                 name: profileName,
                 partCount,
-                totalLength
+                totalLength,
+                totalWeight
               }
             })}
+            defaultStockLengths={nestingSettings?.stockLengths || [
+              { id: 1, value: 6000 },
+              { id: 2, value: 12000 }
+            ]}
             onBack={() => setCurrentStep('part-selection')}
             onContinue={(stockConfig) => {
               // TODO: Store stock config and selected parts, use when generating report
@@ -5114,17 +5132,6 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                 </div>
               </div>
 
-              {/* Stock Lengths */}
-              <div className="space-y-3 border-t pt-4">
-                <h3 className="text-sm font-semibold text-gray-900">Stockbar Lengths</h3>
-                <div className="space-y-2">
-                  {stockLengths.map((stock, idx) => (
-                    <div key={stock.id} className="flex items-center gap-2 text-sm">
-                      <span className="text-gray-600">{(stock.value / 1000).toFixed(2)} (m)</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
 
               {/* Approval Checkbox */}
               <div className="border-t pt-4">
