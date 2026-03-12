@@ -105,6 +105,8 @@ const Settings = ({
     }
   )
   const [nextStockId, setNextStockId] = useState<number>(3)
+  const [addingStockLength, setAddingStockLength] = useState(false)
+  const [newStockLengthValue, setNewStockLengthValue] = useState('')
 
   useEffect(() => {
     setGeneralDetails(companyDetails)
@@ -545,59 +547,95 @@ const Settings = ({
                   </div>
 
                   <div className="space-y-4">
-                    <Label>Stock Lengths (mm) - Up to 5</Label>
-                    <div className="space-y-3">
-                      {technicalSettings.stockLengths.map((stock, index) => (
-                        <div key={stock.id} className="flex items-center gap-3">
-                          <span className="text-sm text-muted-foreground font-medium w-8">{index + 1}.</span>
-                          <Input
-                            type="number"
-                            min="1000"
-                            max="20000"
-                            step="100"
-                            value={stock.value}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              const parsedVal = val === '' ? 0 : parseFloat(val)
-                              const newStockLengths = technicalSettings.stockLengths.map(s => 
-                                s.id === stock.id ? {...s, value: parsedVal} : s
-                              )
-                              setTechnicalSettings({ ...technicalSettings, stockLengths: newStockLengths })
-                            }}
-                            className="w-32"
-                          />
-                          <span className="text-sm text-muted-foreground">mm</span>
-                          <span className="text-sm text-muted-foreground">({(stock.value / 1000).toFixed(1)}m)</span>
+                    <Label>Purchased Stock Lengths</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {technicalSettings.stockLengths.map((stock) => (
+                        <div
+                          key={stock.id}
+                          className="inline-flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700"
+                        >
+                          <span>{stock.value}mm</span>
                           {technicalSettings.stockLengths.length > 1 && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
+                            <button
                               onClick={() => {
                                 const newStockLengths = technicalSettings.stockLengths.filter(s => s.id !== stock.id)
                                 setTechnicalSettings({ ...technicalSettings, stockLengths: newStockLengths })
                               }}
-                              className="text-destructive hover:text-destructive"
+                              className="hover:bg-gray-200 rounded p-0.5 transition-colors"
                             >
-                              Remove
-                            </Button>
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                              </svg>
+                            </button>
                           )}
                         </div>
                       ))}
-                      {technicalSettings.stockLengths.length < 5 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setTechnicalSettings({
-                              ...technicalSettings,
-                              stockLengths: [...technicalSettings.stockLengths, { id: nextStockId, value: 6000 }]
-                            })
-                            setNextStockId(nextStockId + 1)
-                          }}
-                          className="mt-3"
+                      
+                      {/* Add Stock Input */}
+                      {addingStockLength ? (
+                        <div className="inline-flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus-within:border-gray-300">
+                          <Input
+                            type="number"
+                            placeholder="Length (mm)"
+                            value={newStockLengthValue}
+                            onChange={(e) => setNewStockLengthValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const value = parseFloat(newStockLengthValue)
+                                if (value && value >= 1000 && value <= 20000) {
+                                  // Check for duplicates
+                                  const isDuplicate = technicalSettings.stockLengths.some(s => s.value === value)
+                                  if (!isDuplicate) {
+                                    setTechnicalSettings({
+                                      ...technicalSettings,
+                                      stockLengths: [...technicalSettings.stockLengths, { id: nextStockId, value }]
+                                    })
+                                    setNextStockId(nextStockId + 1)
+                                    setAddingStockLength(false)
+                                    setNewStockLengthValue('')
+                                  } else {
+                                    toast.error('This stock length already exists')
+                                  }
+                                } else {
+                                  setAddingStockLength(false)
+                                  setNewStockLengthValue('')
+                                }
+                              }
+                            }}
+                            onBlur={() => {
+                              const value = parseFloat(newStockLengthValue)
+                              if (value && value >= 1000 && value <= 20000) {
+                                // Check for duplicates
+                                const isDuplicate = technicalSettings.stockLengths.some(s => s.value === value)
+                                if (!isDuplicate) {
+                                  setTechnicalSettings({
+                                    ...technicalSettings,
+                                    stockLengths: [...technicalSettings.stockLengths, { id: nextStockId, value }]
+                                  })
+                                  setNextStockId(nextStockId + 1)
+                                } else {
+                                  toast.error('This stock length already exists')
+                                }
+                              }
+                              setAddingStockLength(false)
+                              setNewStockLengthValue('')
+                            }}
+                            className="w-28 h-7 text-sm border-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent p-0 shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-gray-400"
+                            autoFocus
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setAddingStockLength(true)}
+                          className="inline-flex items-center gap-1 px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-primary hover:text-primary transition-colors"
                         >
-                          + Add Stock Length
-                        </Button>
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                          </svg>
+                          Add
+                        </button>
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground">
