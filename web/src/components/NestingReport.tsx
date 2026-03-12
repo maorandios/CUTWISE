@@ -36,6 +36,8 @@ import { LottieLoader } from './LottieLoader'
 import { AnimatedMetricCards } from './AnimatedMetricCards'
 import { AnimatedBOMMetricCards } from './AnimatedBOMMetricCards'
 import { AnimatedCuttingMetricCards } from './AnimatedCuttingMetricCards'
+import { PartSelection } from './PartSelection'
+import { StockAssignment } from './StockAssignment'
 
 interface NestingReportProps {
   filename: string
@@ -54,7 +56,7 @@ interface NestingReportProps {
   }
 }
 
-type Step = 'select' | 'results'
+type Step = 'select' | 'part-selection' | 'stock-assignment' | 'results'
 
 // Memoized ProfileItem component to prevent unnecessary re-renders
 interface ProfileItemProps {
@@ -112,6 +114,9 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
   const nestingReport = propNestingReport
   const [currentStep, setCurrentStep] = useState<Step>(initialView || 'select')
   const [selectedProfiles, setSelectedProfiles] = useState<Set<string>>(new Set())
+  const [selectedParts, setSelectedParts] = useState<Map<string, Set<string>>>(new Map())
+  const [partsData, setPartsData] = useState<Map<string, any[]>>(new Map())
+  const [loadingParts, setLoadingParts] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState<number>(0)
   const [error, setError] = useState<string | null>(null)
@@ -378,6 +383,44 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
       setSelectedProfiles(new Set())
     } else {
       setSelectedProfiles(new Set(availableProfiles.map(p => p.profile_name)))
+    }
+  }
+
+  const fetchPartsForProfiles = async () => {
+    setLoadingParts(true)
+    try {
+      console.log('[PARTS] Fetching parts for profiles:', Array.from(selectedProfiles))
+      const response = await apiRequest(`/api/parts/${encodeURIComponent(filename)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          profile_names: Array.from(selectedProfiles)
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch parts: ${response.status} ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      console.log('[PARTS] Parsed data:', data)
+      
+      const partsMap = new Map<string, any[]>()
+      Object.entries(data.parts_by_profile || {}).forEach(([profileName, parts]: [string, any]) => {
+        console.log(`[PARTS] Profile ${profileName}:`, parts)
+        partsMap.set(profileName, parts)
+      })
+      
+      console.log('[PARTS] Parts map size:', partsMap.size)
+      setPartsData(partsMap)
+      setCurrentStep('part-selection')
+    } catch (error) {
+      console.error('Error fetching parts:', error)
+      alert('Failed to load parts data. Please try again.')
+    } finally {
+      setLoadingParts(false)
     }
   }
 
@@ -985,15 +1028,12 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
                   {selectedProfiles.size} of {availableProfiles.length} profiles selected
                 </div>
                 <Button
-                  onClick={() => {
-                    setNestingApproved(false)
-                    setShowConfirmNestingModal(true)
-                  }}
-                  disabled={selectedProfiles.size === 0 || loading}
+                  onClick={fetchPartsForProfiles}
+                  disabled={selectedProfiles.size === 0 || loading || loadingParts}
                   className="w-full"
                   size="lg"
                 >
-                  {loading ? 'Generating...' : 'Generate Report'}
+                  {loadingParts ? 'Loading Parts...' : 'Continue'}
                 </Button>
               </div>
             </div>
@@ -1011,7 +1051,87 @@ export default function NestingReport({ filename, nestingReport: propNestingRepo
           </div>
         )}
 
-        {/* Step 2: Results */}
+        {/* Step 2: Part Selection */}
+        {currentStep === 'part-selection' && (
+          <PartSelection
+            profilesData={Array.from(selectedProfiles).map(profileName => {
+              const parts = partsData.get(profileName) || []
+              
+              // Group parts by product_id and count quantities
+              const partsMap = new Map<string, any>()
+              
+              parts.forEach(part => {
+                // Use part_number as the identifier
+                const partNumber = part.part_number || part.product_id?.toString() || 'Unknown'
+                // Use element_name as the display name (e.g., "STRINGER", "BEAM")
+                const partName = part.element_name || 'Unnamed'
+                
+                if (!partsMap.has(partNumber)) {
+                  partsMap.set(partNumber, {
+                    partNumber,
+                    partName,
+                    length: part.length || 0,
+                    quantity: 1,
+                    weight: part.weight || 0
+                  })
+                } else {
+                  // Increment quantity if part already exists
+                  const existing = partsMap.get(partNumber)!
+                  existing.quantity += 1
+                }
+              })
+
+              return {
+                profileName,
+                parts: Array.from(partsMap.values())
+              }
+            })}
+            onBack={() => setCurrentStep('select')}
+            onContinue={(selectedPartsMap) => {
+              setSelectedParts(selectedPartsMap)
+              setCurrentStep('stock-assignment')
+            }}
+          />
+        )}
+
+        {/* Step 3: Stock Assignment */}
+        {currentStep === 'stock-assignment' && (
+          <StockAssignment
+            profiles={Array.from(selectedProfiles).map(profileName => {
+              const parts = partsData.get(profileName) || []
+              const profileSelectedParts = selectedParts.get(profileName) || new Set()
+              
+              let partCount = 0
+              let totalLength = 0
+              
+              // Count only selected parts
+              parts.forEach(part => {
+                const partNumber = part.product_id?.toString() || part.part_number || 'Unknown'
+                
+                if (profileSelectedParts.has(partNumber)) {
+                  partCount += 1
+                  totalLength += part.length || 0
+                }
+              })
+
+              return {
+                name: profileName,
+                partCount,
+                totalLength
+              }
+            })}
+            onBack={() => setCurrentStep('part-selection')}
+            onContinue={(stockConfig) => {
+              // TODO: Store stock config and selected parts, use when generating report
+              console.log('Stock configuration:', stockConfig)
+              console.log('Selected parts:', selectedParts)
+              setNestingApproved(false)
+              setShowConfirmNestingModal(true)
+            }}
+          />
+        )}
+
+        {/* Step 3: Results */}
         {currentStep === 'results' && !nestingReport && !loading && (
           <div className="text-center text-gray-500 py-12">
             <p className="text-lg mb-2">No nesting data generated yet</p>
