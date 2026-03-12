@@ -1933,50 +1933,51 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                         })
                       })}
                     </TableBody>
-                    <TableRow className="bg-muted/50 font-semibold hover:bg-muted/50 h-12">
-                      <TableCell className="h-12 pl-6">Total</TableCell>
-                      <TableCell className="text-right h-12">-</TableCell>
-                      <TableCell className="text-right h-12">
-                        {nestingReport.summary.total_stock_bars}
-                      </TableCell>
-                      <TableCell className="text-right h-12">
+                    <tfoot>
+                      <TableRow className="bg-muted/50 font-semibold hover:bg-muted/50 h-12">
+                        <TableCell className="h-12 pl-6">Total</TableCell>
+                        <TableCell className="text-right h-12">-</TableCell>
+                        <TableCell className="text-right h-12">
+                          {nestingReport.summary.total_stock_bars}
+                        </TableCell>
+                        <TableCell className="text-right h-12">
+                            {nestingReport.profiles.reduce((total, profile) => {
+                              const profileData = report?.profiles.find(p => p.profile_name === profile.profile_name)
+                              if (!profileData || profile.total_length === 0) return total
+                              
+                              const weightPerMeter = profileData.total_weight / (profile.total_length / 1000.0)
+                              const profileTonnage = Object.entries(profile.stock_lengths_used).reduce((sum, [stockLengthStr, barCount]) => {
+                                const stockLengthM = parseFloat(stockLengthStr) / 1000.0
+                                return sum + (weightPerMeter * stockLengthM * barCount) / 1000.0
+                              }, 0)
+                              
+                              return total + profileTonnage
+                            }, 0).toFixed(3)}
+                        </TableCell>
+                        <TableCell className="text-right h-12">
                           {nestingReport.profiles.reduce((total, profile) => {
-                            const profileData = report?.profiles.find(p => p.profile_name === profile.profile_name)
-                            if (!profileData || profile.total_length === 0) return total
-                            
-                            const weightPerMeter = profileData.total_weight / (profile.total_length / 1000.0)
-                            const profileTonnage = Object.entries(profile.stock_lengths_used).reduce((sum, [stockLengthStr, barCount]) => {
-                              const stockLengthM = parseFloat(stockLengthStr) / 1000.0
-                              return sum + (weightPerMeter * stockLengthM * barCount) / 1000.0
+                            return total + profile.cutting_patterns.reduce((sum, pattern) => {
+                              return sum + Math.max(0, pattern.parts.length - 1)
                             }, 0)
-                            
-                            return total + profileTonnage
-                          }, 0).toFixed(3)}
-                      </TableCell>
-                      <TableCell className="text-right h-12">
-                        {nestingReport.profiles.reduce((total, profile) => {
-                          return total + profile.cutting_patterns.reduce((sum, pattern) => {
-                            return sum + Math.max(0, pattern.parts.length - 1)
-                          }, 0)
-                        }, 0)}
-                      </TableCell>
-                      <TableCell className="text-right h-12 bg-muted/80 pl-4">
+                          }, 0)}
+                        </TableCell>
+                        <TableCell className="text-right h-12 bg-muted/80 pl-4">
+                            {nestingReport.profiles.reduce((total, profile) => {
+                              const profileData = report?.profiles.find(p => p.profile_name === profile.profile_name)
+                              if (!profileData || profile.total_length === 0) return total
+                              
+                              const weightPerMeter = profileData.total_weight / (profile.total_length / 1000.0)
+                              const profileWasteTonnage = profile.cutting_patterns.reduce((sum, pattern) => {
+                                const wasteM = (pattern.waste || 0) / 1000.0
+                                return sum + (wasteM * weightPerMeter) / 1000.0
+                              }, 0)
+                              
+                              return total + profileWasteTonnage
+                            }, 0).toFixed(3)}
+                        </TableCell>
+                        <TableCell className="text-right h-12 bg-muted/80">
                           {nestingReport.profiles.reduce((total, profile) => {
-                            const profileData = report?.profiles.find(p => p.profile_name === profile.profile_name)
-                            if (!profileData || profile.total_length === 0) return total
-                            
-                            const weightPerMeter = profileData.total_weight / (profile.total_length / 1000.0)
-                            const profileWasteTonnage = profile.cutting_patterns.reduce((sum, pattern) => {
-                              const wasteM = (pattern.waste || 0) / 1000.0
-                              return sum + (wasteM * weightPerMeter) / 1000.0
-                            }, 0)
-                            
-                            return total + profileWasteTonnage
-                          }, 0).toFixed(3)}
-                      </TableCell>
-                      <TableCell className="text-right h-12 bg-muted/80">
-                        {nestingReport.profiles.reduce((total, profile) => {
-                          const profileWasteM = profile.cutting_patterns.reduce((sum, pattern) => {
+                            const profileWasteM = profile.cutting_patterns.reduce((sum, pattern) => {
                             return sum + ((pattern.waste || 0) / 1000.0)
                           }, 0)
                           return total + profileWasteM
@@ -1986,6 +1987,7 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                         {nestingReport.summary.avg_waste_percentage.toFixed(2)}%
                       </TableCell>
                     </TableRow>
+                    </tfoot>
                   </Table>
                 </div>
               </div>
