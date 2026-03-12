@@ -52,7 +52,8 @@ def build_pattern_dict(pattern: CuttingPattern) -> Dict[str, Any]:
         "waste_percentage": pattern.waste_percentage,
         "cut_positions": pattern.cut_positions,
         "shared_cuts": pattern.shared_cuts,
-        "num_parts": len(pattern.parts)
+        "num_parts": len(pattern.parts),
+        "stock_type": pattern.stock_type
     }
 
 

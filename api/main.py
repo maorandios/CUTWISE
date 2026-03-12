@@ -2374,6 +2374,10 @@ async def generate_nesting_v2(filename: str, request: NestingRequest):
             - trim: Trim amount in mm (default: 5.0mm)
             - stock_tolerance: Safety tolerance in mm (default: 0.0mm)
     """
+    print("=" * 80, flush=True)
+    print("[API] POST /api/nesting/ endpoint called!", flush=True)
+    print("=" * 80, flush=True)
+    
     from urllib.parse import unquote
     import sys
     

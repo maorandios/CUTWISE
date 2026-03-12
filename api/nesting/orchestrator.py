@@ -494,10 +494,10 @@ def create_nesting_report_v2(
             log_func(f"[ORCHESTRATOR V2] No parts selected for profile {profile_name}, skipping")
             continue
         
-        # Filter parts - match by part_number or product_id
+        # Filter parts - match by reference or product_id
         filtered_parts = []
         for part in all_parts:
-            part_identifier = part.part_number if hasattr(part, 'part_number') and part.part_number else str(part.product_id)
+            part_identifier = part.reference if part.reference else str(part.product_id)
             if part_identifier in selected_part_numbers:
                 filtered_parts.append(part)
         
@@ -522,60 +522,166 @@ def create_nesting_report_v2(
         
         log_func(f"[ORCHESTRATOR V2] Profile {profile_name}: {len(purchased_stocks)} purchased stocks, {len(leftover_stocks)} leftover stocks")
         
-        # Combine all stock lengths (leftovers first for priority)
-        all_stock_lengths = []
-        stock_type_map = {}  # Map stock length to type
+        # TWO-PHASE NESTING: Phase 1 - Use leftovers first, Phase 2 - Use purchased for remaining
+        all_patterns = []
+        remaining_parts = parts.copy()
         
-        # Add leftovers first (they get priority)
-        for leftover in leftover_stocks:
-            length = leftover['length']
-            quantity = leftover.get('quantity', 1)
-            for _ in range(quantity):
-                all_stock_lengths.append(length)
-                stock_type_map[len(all_stock_lengths) - 1] = 'leftover'
+        # PHASE 1: Nest with leftover stocks only (if any)
+        if leftover_stocks:
+            log_func(f"[ORCHESTRATOR V2] Phase 1: Nesting with leftover stocks")
+            
+            # Build leftover stock list with exact quantities
+            leftover_stock_lengths = []
+            for leftover in leftover_stocks:
+                length = leftover['length']
+                quantity = leftover.get('quantity', 1)
+                for _ in range(quantity):
+                    leftover_stock_lengths.append(length)
+            
+            log_func(f"[ORCHESTRATOR V2] Phase 1: {len(leftover_stock_lengths)} leftover bars available")
+            
+            # Create orchestrator with only leftover stocks
+            # NOTE: Leftovers don't need trim or tolerance - they're already cut to exact length
+            # Only kerf matters for leftovers (cutting blade width between parts)
+            leftover_orchestrator = NestingOrchestrator(
+                stock_lengths=leftover_stock_lengths,
+                kerf=kerf,
+                trim=0,  # No trim for leftovers (already cut to size)
+                min_angle=min_angle,
+                stock_tolerance=0,  # No tolerance for leftovers (exact length)
+                log_func=log_func
+            )
+            
+            # Nest with leftovers
+            leftover_nesting = leftover_orchestrator.nest_profile(
+                remaining_parts,
+                profile_name,
+                use_complementary_pairing
+            )
+            
+            # Limit patterns to match available leftover quantities
+            # Group patterns by stock length
+            patterns_by_length = {}
+            for pattern in leftover_nesting.cutting_patterns:
+                length = pattern.stock_length
+                if length not in patterns_by_length:
+                    patterns_by_length[length] = []
+                patterns_by_length[length].append(pattern)
+            
+            # Track which parts were successfully nested with leftovers
+            nested_part_ids = set()
+            
+            # For each leftover stock length, only keep patterns up to the available quantity
+            for leftover in leftover_stocks:
+                leftover_length = leftover['length']
+                leftover_quantity = leftover.get('quantity', 1)
+                
+                # Find patterns using this leftover length (need to match usable length)
+                # The pattern.stock_length is the original length, but we need to match it
+                matching_patterns = []
+                for length, patterns_list in patterns_by_length.items():
+                    # Check if this length matches the leftover (within tolerance)
+                    if abs(length - leftover_length) < 1.0:  # 1mm tolerance
+                        matching_patterns = patterns_list
+                        break
+                
+                if matching_patterns:
+                    # Only use up to the available quantity
+                    patterns_to_use = matching_patterns[:leftover_quantity]
+                    patterns_to_skip = matching_patterns[leftover_quantity:]
+                    
+                    # Add the allowed patterns
+                    for pattern in patterns_to_use:
+                        pattern.stock_type = 'leftover'
+                        all_patterns.append(pattern)
+                        # Track nested parts
+                        for part_ref in pattern.parts:
+                            nested_part_ids.add(part_ref.product_id)
+                    
+                    # Parts from skipped patterns go back to remaining_parts
+                    # (they will be nested with purchased stocks in Phase 2)
+                    log_func(f"[ORCHESTRATOR V2] Phase 1: Used {len(patterns_to_use)}/{len(matching_patterns)} patterns for {leftover_length}mm (quantity limit: {leftover_quantity})")
+            
+            # Update remaining_parts to exclude only the parts that were nested with leftovers
+            remaining_parts = [p for p in remaining_parts if p.product_id not in nested_part_ids]
+            
+            log_func(f"[ORCHESTRATOR V2] Phase 1 complete: {len(all_patterns)} patterns using leftovers, {len(remaining_parts)} parts remaining")
         
-        # Add purchased stocks
-        for purchased_length in purchased_stocks:
-            all_stock_lengths.append(purchased_length)
-            stock_type_map[len(all_stock_lengths) - 1] = 'purchased'
+        # PHASE 2: Nest remaining parts with purchased stocks
+        if remaining_parts and purchased_stocks:
+            log_func(f"[ORCHESTRATOR V2] Phase 2: Nesting {len(remaining_parts)} remaining parts with purchased stocks")
+            
+            # Build purchased stock list (unlimited supply)
+            purchased_stock_lengths = []
+            for purchased_length in purchased_stocks:
+                for _ in range(100):  # Provide 100 bars of each length
+                    purchased_stock_lengths.append(purchased_length)
+            
+            # Create orchestrator with only purchased stocks
+            purchased_orchestrator = NestingOrchestrator(
+                stock_lengths=purchased_stock_lengths,
+                kerf=kerf,
+                trim=trim,
+                min_angle=min_angle,
+                stock_tolerance=stock_tolerance,
+                log_func=log_func
+            )
+            
+            # Nest remaining parts
+            purchased_nesting = purchased_orchestrator.nest_profile(
+                remaining_parts,
+                profile_name,
+                use_complementary_pairing
+            )
+            
+            # Mark all purchased patterns
+            for pattern in purchased_nesting.cutting_patterns:
+                pattern.stock_type = 'purchased'
+                all_patterns.append(pattern)
+            
+            log_func(f"[ORCHESTRATOR V2] Phase 2 complete: {len(purchased_nesting.cutting_patterns)} patterns using purchased stocks")
         
-        if not all_stock_lengths:
-            log_func(f"[ORCHESTRATOR V2] No stock lengths configured for profile {profile_name}, skipping")
+        # Combine results from both phases
+        if not all_patterns:
+            log_func(f"[ORCHESTRATOR V2] No patterns generated for profile {profile_name}")
             continue
         
-        log_func(f"[ORCHESTRATOR V2] Profile {profile_name}: Total {len(all_stock_lengths)} stock bars available")
+        # Calculate totals
+        total_parts_nested = len(parts) - len(remaining_parts)
+        total_length = sum(p.length for p in parts if p.product_id not in [rp.product_id for rp in remaining_parts])
+        total_waste = sum(p.waste for p in all_patterns)
+        total_stock_used = sum(p.stock_length for p in all_patterns)
+        total_waste_percentage = (total_waste / total_stock_used * 100.0) if total_stock_used > 0 else 0.0
         
-        # Create orchestrator for this profile
-        orchestrator = NestingOrchestrator(
-            stock_lengths=all_stock_lengths,
-            kerf=kerf,
-            trim=trim,
-            min_angle=min_angle,
-            stock_tolerance=stock_tolerance,
-            log_func=log_func
+        # Calculate stock_lengths_used (ONLY purchased stocks for BOM)
+        purchased_stock_usage: Dict[float, int] = {}
+        for pattern in all_patterns:
+            if pattern.stock_type == 'purchased':
+                purchased_stock_usage[pattern.stock_length] = purchased_stock_usage.get(pattern.stock_length, 0) + 1
+        
+        # Create combined profile nesting
+        profile_nesting = ProfileNesting(
+            profile_name=profile_name,
+            total_parts=total_parts_nested,
+            total_length=total_length,
+            cutting_patterns=all_patterns,
+            stock_lengths_used=purchased_stock_usage,
+            total_waste=total_waste,
+            total_waste_percentage=total_waste_percentage,
+            rejected_parts=[]  # Rejected parts are tracked separately
         )
         
-        # Nest the profile
-        profile_nesting = orchestrator.nest_profile(
-            parts,
-            profile_name,
-            use_complementary_pairing
-        )
-        
-        # Mark stock types in cutting patterns
-        for i, pattern in enumerate(profile_nesting.cutting_patterns):
-            # Determine stock type based on the order (leftovers are used first)
-            if i < len(leftover_stocks):
-                pattern.stock_type = 'leftover'
-            else:
-                pattern.stock_type = 'purchased'
-        
-        # Calculate alternative waste
+        # Calculate alternative waste (use only purchased stocks for comparison)
         from .alternative_calculator import calculate_alternative_waste
+        purchased_stock_lengths_for_alt = []
+        for purchased_length in purchased_stocks:
+            for _ in range(100):
+                purchased_stock_lengths_for_alt.append(purchased_length)
+        
         alt_result = calculate_alternative_waste(
             parts,
             profile_name,
-            all_stock_lengths,
+            purchased_stock_lengths_for_alt if purchased_stock_lengths_for_alt else [6000, 12000],
             kerf,
             trim,
             stock_tolerance

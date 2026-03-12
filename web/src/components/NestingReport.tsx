@@ -869,7 +869,14 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
   }
 
   const generateNesting = async () => {
-    if (!filename || selectedProfiles.size === 0) return
+    console.log('[GENERATE-NESTING] Function called!')
+    console.log('[GENERATE-NESTING] filename:', filename)
+    console.log('[GENERATE-NESTING] selectedProfiles:', selectedProfiles)
+    
+    if (!filename || selectedProfiles.size === 0) {
+      console.log('[GENERATE-NESTING] Early return - missing filename or profiles')
+      return
+    }
 
     const startTime = Date.now()
     setLoading(true)
@@ -879,6 +886,7 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
 
     try {
       const encodedFilename = encodeURIComponent(filename)
+      console.log('[GENERATE-NESTING] Encoded filename:', encodedFilename)
       
       // Convert selectedParts Map to plain object
       const selectedPartsObj: Record<string, string[]> = {}
@@ -894,6 +902,10 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
           leftovers: config.leftoverStocks.map((s: any) => ({ length: s.length, quantity: s.quantity || 1 }))
         }
       })
+      
+      console.log('Selected parts:', selectedPartsObj)
+      console.log('Stock configuration:', stockConfigObj)
+      console.log('Stock config array length:', stockConfiguration.length)
       
       const url = `/api/nesting/${encodedFilename}`
       
@@ -911,6 +923,16 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
         })
       }, 500)
 
+      console.log('[GENERATE-NESTING] Making POST request to:', url)
+      console.log('[GENERATE-NESTING] Request body:', {
+        profiles: Array.from(selectedProfiles),
+        selected_parts: selectedPartsObj,
+        stock_config: stockConfigObj,
+        kerf: kerfValue,
+        trim: trimValue,
+        stock_tolerance: stockToleranceEnabled ? stockToleranceValue : 0
+      })
+      
       const response = await apiRequest(url, {
         method: 'POST',
         headers: {
@@ -927,6 +949,8 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
       })
       clearInterval(progressInterval)
       
+      console.log('[GENERATE-NESTING] Response received:', response.status, response.statusText)
+      
       if (!response.ok) {
         const errorText = await response.text()
         console.error('Backend error response:', errorText)
@@ -935,6 +959,9 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
 
       setLoadingProgress(95)
       const data: NestingReportType = await response.json()
+      
+      console.log('[GENERATE-NESTING] Parsed response data:', data)
+      console.log('[GENERATE-NESTING] Profiles in response:', data.profiles?.length || 0)
       
       setLoadingProgress(100)
       onNestingReportChange(data)
@@ -946,6 +973,8 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
       const remainingTime = Math.max(0, 3000 - elapsedTime)
       await new Promise(resolve => setTimeout(resolve, remainingTime))
     } catch (err) {
+      console.error('[GENERATE-NESTING] ERROR:', err)
+      console.error('[GENERATE-NESTING] Error details:', err instanceof Error ? err.message : 'Unknown error')
       setError(err instanceof Error ? err.message : 'Unknown error')
       console.error('Error generating nesting:', err)
       
@@ -1164,11 +1193,13 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
             ]}
             onBack={() => setCurrentStep('part-selection')}
             onContinue={(stockConfig) => {
+              console.log('[STOCK-ASSIGNMENT] onContinue called')
+              console.log('[STOCK-ASSIGNMENT] Stock config:', stockConfig)
+              console.log('[STOCK-ASSIGNMENT] Selected parts:', selectedParts)
               setStockConfiguration(stockConfig)
-              console.log('Stock configuration:', stockConfig)
-              console.log('Selected parts:', selectedParts)
               setNestingApproved(false)
               setShowConfirmNestingModal(true)
+              console.log('[STOCK-ASSIGNMENT] Modal should open now')
             }}
           />
         )}
@@ -2304,20 +2335,20 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                     {/* Collapsible content */}
                     {isExpanded && (
                       <div className="p-4">
-                  {profile.cutting_patterns.map((pattern, patternIdx) => (
+                  {profile.cutting_patterns.map((pattern, patternIdx) => {
+                    console.log(`[STOCKBAR] Pattern ${patternIdx + 1}: stock_type="${pattern.stock_type}", stock_length=${pattern.stock_length}`)
+                    return (
                     <div key={patternIdx} id={`stockbar-full-${profileIdx}-${patternIdx}`} className="mb-4 p-3 bg-white rounded-xl">
                       {/* Stockbar Title */}
                       <div className="mb-3 flex items-center gap-2">
-                        <h5 className="text-base font-medium text-muted-foreground">
-                          Stockbar {patternIdx + 1}
-                        </h5>
                         {pattern.stock_type === 'leftover' && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[#1CB97E]/10 text-[#1CB97E] border border-[#1CB97E]/20">
-                            <Recycle className="w-3 h-3" />
-                            Leftover
-                          </span>
+                          <Recycle className="w-5 h-5 text-[#1CB97E]" />
                         )}
+                        <h5 className="text-base font-medium text-muted-foreground">
+                          {pattern.stock_type === 'leftover' ? 'Leftover ' : ''}Stockbar {patternIdx + 1}
+                        </h5>
                       </div>
+                      
                       
                       <div className="flex justify-between items-center mb-3">
                         <div className="flex items-center gap-4">
@@ -2331,21 +2362,25 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                             
                             <div className="w-px h-4 bg-border"></div>
                             
-                            {/* Tolerance */}
-                            {((nestingReport.settings?.stock_tolerance ?? 0) > 0) && (
+                            {/* Tolerance - 0mm for leftovers, actual value for purchased */}
+                            {((pattern.stock_type === 'leftover' ? 0 : (nestingReport.settings?.stock_tolerance ?? 0)) > 0) && (
                               <>
                                 <div className="flex items-center gap-1.5">
                                   <img src="/Icons/tolerance for section.svg" alt="Tolerance" className="w-4 h-4" />
-                                  <span className="text-sm font-medium">{(nestingReport.settings?.stock_tolerance ?? 0).toFixed(0)}mm</span>
+                                  <span className="text-sm font-medium">
+                                    {pattern.stock_type === 'leftover' ? '0' : (nestingReport.settings?.stock_tolerance ?? 0).toFixed(0)}mm
+                                  </span>
                                 </div>
                                 <div className="w-px h-4 bg-border"></div>
                               </>
                             )}
                             
-                            {/* Trim */}
+                            {/* Trim - 0mm for leftovers, actual value for purchased */}
                             <div className="flex items-center gap-1.5">
                               <img src="/Icons/trim for section.svg" alt="Trim" className="w-4 h-4" />
-                              <span className="text-sm font-medium">{(nestingReport.settings?.trim ?? 5.0).toFixed(0)}mm</span>
+                              <span className="text-sm font-medium">
+                                {pattern.stock_type === 'leftover' ? '0' : (nestingReport.settings?.trim ?? 5.0).toFixed(0)}mm
+                              </span>
                             </div>
                             
                             <div className="w-px h-4 bg-border"></div>
@@ -4785,7 +4820,7 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                         </div>
                       </div>
                     </div>
-                  ))}
+                  )})}
                 </div>
                     )}
                   </div>
@@ -5210,7 +5245,10 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
               <Button
                 type="button"
                 onClick={() => {
+                  console.log('[MODAL] Run Nesting Engine clicked')
+                  console.log('[MODAL] nestingApproved:', nestingApproved)
                   setShowConfirmNestingModal(false)
+                  console.log('[MODAL] About to call generateNesting()')
                   generateNesting()
                 }}
                 disabled={!nestingApproved}

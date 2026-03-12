@@ -291,7 +291,7 @@ def find_complementary_pairs(
                 best_pairing_type, best_quality, best_savings = pairings[0]
                 
                 if log_func:
-                    log_func(f"[PAIR_DETECTOR]   ✓ MATCHED: part {part1.product_id} + part {part2.product_id} "
+                    log_func(f"[PAIR_DETECTOR]   MATCHED: part {part1.product_id} + part {part2.product_id} "
                             f"({best_pairing_type}, quality={best_quality:.3f}, savings={best_savings:.1f}mm)")
                 
                 pair = ComplementaryPair(
