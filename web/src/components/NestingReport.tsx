@@ -125,6 +125,7 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
   const [selectedParts, setSelectedParts] = useState<Map<string, Set<string>>>(new Map())
   const [partsData, setPartsData] = useState<Map<string, any[]>>(new Map())
   const [loadingParts, setLoadingParts] = useState(false)
+  const [stockConfiguration, setStockConfiguration] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState<number>(0)
   const [error, setError] = useState<string | null>(null)
@@ -877,15 +878,24 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
 
     try {
       const encodedFilename = encodeURIComponent(filename)
-      const params = new URLSearchParams({
-        stock_lengths: stockLengths.map(s => s.value).join(','),  // Convert array to comma-separated string
-        profiles: Array.from(selectedProfiles).join(','),  // Pass selected profiles
-        kerf: kerfValue.toString(),  // Pass kerf value
-        trim: trimValue.toString(),  // Pass trim value
-        stock_tolerance: stockToleranceEnabled ? stockToleranceValue.toString() : '0'  // Pass tolerance (0 if disabled)
+      
+      // Convert selectedParts Map to plain object
+      const selectedPartsObj: Record<string, string[]> = {}
+      selectedParts.forEach((parts, profile) => {
+        selectedPartsObj[profile] = Array.from(parts)
       })
-      const url = `/api/nesting/${encodedFilename}?${params.toString()}`
-
+      
+      // Convert stock configuration to backend format
+      const stockConfigObj: Record<string, { purchased: number[], leftovers: { length: number, quantity: number }[] }> = {}
+      stockConfiguration.forEach((config: any) => {
+        stockConfigObj[config.profileName] = {
+          purchased: config.purchasedStocks.map((s: any) => s.length),
+          leftovers: config.leftoverStocks.map((s: any) => ({ length: s.length, quantity: s.quantity || 1 }))
+        }
+      })
+      
+      const url = `/api/nesting/${encodedFilename}`
+      
       // Simulate progress while waiting for response
       setLoadingProgress(10)
       await new Promise(resolve => setTimeout(resolve, 100))
@@ -900,7 +910,20 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
         })
       }, 500)
 
-      const response = await apiRequest(url)
+      const response = await apiRequest(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          profiles: Array.from(selectedProfiles),
+          selected_parts: selectedPartsObj,
+          stock_config: stockConfigObj,
+          kerf: kerfValue,
+          trim: trimValue,
+          stock_tolerance: stockToleranceEnabled ? stockToleranceValue : 0
+        })
+      })
       clearInterval(progressInterval)
       
       if (!response.ok) {
@@ -1140,7 +1163,7 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
             ]}
             onBack={() => setCurrentStep('part-selection')}
             onContinue={(stockConfig) => {
-              // TODO: Store stock config and selected parts, use when generating report
+              setStockConfiguration(stockConfig)
               console.log('Stock configuration:', stockConfig)
               console.log('Selected parts:', selectedParts)
               setNestingApproved(false)
@@ -2281,10 +2304,16 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                   {profile.cutting_patterns.map((pattern, patternIdx) => (
                     <div key={patternIdx} id={`stockbar-full-${profileIdx}-${patternIdx}`} className="mb-4 p-3 bg-white rounded-xl">
                       {/* Stockbar Title */}
-                      <div className="mb-3">
-                        <h5 className="text-base font-medium text-muted-foreground mb-2">
+                      <div className="mb-3 flex items-center gap-2">
+                        <h5 className="text-base font-medium text-muted-foreground">
                           Stockbar {patternIdx + 1}
                         </h5>
+                        {pattern.stock_type === 'leftover' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[#1CB97E]/10 text-[#1CB97E] border border-[#1CB97E]/20">
+                            <Recycle className="w-3 h-3" />
+                            Leftover
+                          </span>
+                        )}
                       </div>
                       
                       <div className="flex justify-between items-center mb-3">

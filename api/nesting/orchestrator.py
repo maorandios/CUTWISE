@@ -420,3 +420,193 @@ def create_nesting_report(
         use_complementary_pairing
     )
 
+
+def create_nesting_report_v2(
+    filename: str,
+    ifc_file: any,
+    selected_profiles: List[str],
+    selected_parts: Dict[str, List[str]],
+    stock_config: Dict[str, Dict[str, any]],
+    kerf: float = 3.0,
+    trim: float = 5.0,
+    min_angle: float = 1.0,
+    stock_tolerance: float = 0.0,
+    extractor: Optional[any] = None,
+    use_complementary_pairing: bool = True,
+    log_func: Optional[Callable] = None
+) -> NestingReport:
+    """
+    Create a nesting report with per-profile stock configuration and part selection.
+    
+    Args:
+        filename: IFC filename
+        ifc_file: Opened IFC file
+        selected_profiles: List of profile names to nest
+        selected_parts: Dict mapping profile names to lists of selected part numbers
+        stock_config: Dict mapping profile names to their stock configuration
+                     (purchased: list of lengths, leftovers: list of {length, quantity})
+        kerf: Kerf width in mm
+        trim: Trim amount in mm (material removed from stock bar ends)
+        min_angle: Minimum angle to consider as slope (default: 1.0°)
+        stock_tolerance: Safety tolerance in mm (stock bars have 10-50mm excess, default: 0.0 = disabled)
+        extractor: Optional CutPieceExtractor for slope detection
+        use_complementary_pairing: Whether to use complementary slope pairing
+        log_func: Optional logging function
+    
+    Returns:
+        Complete NestingReport
+    """
+    if log_func is None:
+        log_func = logger.info
+    
+    log_func(f"[ORCHESTRATOR V2] Starting nesting for {filename}")
+    log_func(f"[ORCHESTRATOR V2] Selected profiles: {selected_profiles}")
+    log_func(f"[ORCHESTRATOR V2] Selected parts: {selected_parts}")
+    log_func(f"[ORCHESTRATOR V2] Stock config: {stock_config}")
+    
+    # Normalize profile names
+    base_profile_names = [extract_base_profile_name(p) for p in selected_profiles]
+    
+    # Extract ALL parts from IFC first
+    log_func(f"[ORCHESTRATOR V2] Extracting parts from IFC file")
+    parts_by_profile = extract_parts_from_ifc(
+        ifc_file,
+        base_profile_names,
+        extractor,
+        log_func
+    )
+    
+    # Filter parts based on selected_parts
+    log_func(f"[ORCHESTRATOR V2] Filtering parts based on selection")
+    filtered_parts_by_profile: Dict[str, List[Part]] = {}
+    
+    for profile_name in base_profile_names:
+        if profile_name not in parts_by_profile:
+            log_func(f"[ORCHESTRATOR V2] No parts found for profile {profile_name}")
+            continue
+        
+        all_parts = parts_by_profile[profile_name]
+        
+        # Get selected part numbers for this profile
+        selected_part_numbers = selected_parts.get(profile_name, [])
+        
+        if not selected_part_numbers:
+            log_func(f"[ORCHESTRATOR V2] No parts selected for profile {profile_name}, skipping")
+            continue
+        
+        # Filter parts - match by part_number or product_id
+        filtered_parts = []
+        for part in all_parts:
+            part_identifier = part.part_number if hasattr(part, 'part_number') and part.part_number else str(part.product_id)
+            if part_identifier in selected_part_numbers:
+                filtered_parts.append(part)
+        
+        log_func(f"[ORCHESTRATOR V2] Profile {profile_name}: {len(filtered_parts)}/{len(all_parts)} parts selected")
+        filtered_parts_by_profile[profile_name] = filtered_parts
+    
+    # Nest each profile with its specific stock configuration
+    profile_nestings: List[ProfileNesting] = []
+    
+    for profile_name in base_profile_names:
+        if profile_name not in filtered_parts_by_profile:
+            continue
+        
+        parts = filtered_parts_by_profile[profile_name]
+        if not parts:
+            continue
+        
+        # Get stock configuration for this profile
+        profile_stock_config = stock_config.get(profile_name, {})
+        purchased_stocks = profile_stock_config.get('purchased', [])
+        leftover_stocks = profile_stock_config.get('leftovers', [])
+        
+        log_func(f"[ORCHESTRATOR V2] Profile {profile_name}: {len(purchased_stocks)} purchased stocks, {len(leftover_stocks)} leftover stocks")
+        
+        # Combine all stock lengths (leftovers first for priority)
+        all_stock_lengths = []
+        stock_type_map = {}  # Map stock length to type
+        
+        # Add leftovers first (they get priority)
+        for leftover in leftover_stocks:
+            length = leftover['length']
+            quantity = leftover.get('quantity', 1)
+            for _ in range(quantity):
+                all_stock_lengths.append(length)
+                stock_type_map[len(all_stock_lengths) - 1] = 'leftover'
+        
+        # Add purchased stocks
+        for purchased_length in purchased_stocks:
+            all_stock_lengths.append(purchased_length)
+            stock_type_map[len(all_stock_lengths) - 1] = 'purchased'
+        
+        if not all_stock_lengths:
+            log_func(f"[ORCHESTRATOR V2] No stock lengths configured for profile {profile_name}, skipping")
+            continue
+        
+        log_func(f"[ORCHESTRATOR V2] Profile {profile_name}: Total {len(all_stock_lengths)} stock bars available")
+        
+        # Create orchestrator for this profile
+        orchestrator = NestingOrchestrator(
+            stock_lengths=all_stock_lengths,
+            kerf=kerf,
+            trim=trim,
+            min_angle=min_angle,
+            stock_tolerance=stock_tolerance,
+            log_func=log_func
+        )
+        
+        # Nest the profile
+        profile_nesting = orchestrator.nest_profile(
+            parts,
+            profile_name,
+            use_complementary_pairing
+        )
+        
+        # Mark stock types in cutting patterns
+        for i, pattern in enumerate(profile_nesting.cutting_patterns):
+            # Determine stock type based on the order (leftovers are used first)
+            if i < len(leftover_stocks):
+                pattern.stock_type = 'leftover'
+            else:
+                pattern.stock_type = 'purchased'
+        
+        # Calculate alternative waste
+        from .alternative_calculator import calculate_alternative_waste
+        alt_result = calculate_alternative_waste(
+            parts,
+            profile_name,
+            all_stock_lengths,
+            kerf,
+            trim,
+            stock_tolerance
+        )
+        profile_nesting.alternative_waste_percentage = alt_result["waste_percentage"]
+        
+        profile_nestings.append(profile_nesting)
+    
+    # Create report
+    # Use a representative stock length list for the report (from first profile)
+    representative_stock_lengths = []
+    if selected_profiles and selected_profiles[0] in stock_config:
+        config = stock_config[selected_profiles[0]]
+        representative_stock_lengths = config.get('purchased', [])
+    
+    report = NestingReport(
+        filename=filename,
+        profiles=profile_nestings,
+        kerf=kerf,
+        trim=trim,
+        stock_tolerance=stock_tolerance,
+        stock_lengths=representative_stock_lengths if representative_stock_lengths else [6000, 12000]
+    )
+    
+    # Log summary
+    total_patterns = sum(len(p.cutting_patterns) for p in profile_nestings)
+    total_waste = sum(p.total_waste for p in profile_nestings)
+    
+    log_func(f"[ORCHESTRATOR V2] Nesting complete!")
+    log_func(f"[ORCHESTRATOR V2] Summary: {len(profile_nestings)} profile(s), "
+             f"{total_patterns} pattern(s), {total_waste:.0f}mm total waste")
+    
+    return report
+

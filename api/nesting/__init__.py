@@ -73,7 +73,8 @@ from .bin_packer import (
 
 from .orchestrator import (
     NestingOrchestrator,
-    create_nesting_report
+    create_nesting_report,
+    create_nesting_report_v2
 )
 
 from .report_builder import (
@@ -145,6 +146,7 @@ __all__ = [
     # Orchestrator
     'NestingOrchestrator',
     'create_nesting_report',
+    'create_nesting_report_v2',
     # Report builder
     'build_report_dict',
     'build_report_summary',

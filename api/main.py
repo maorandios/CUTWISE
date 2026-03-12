@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from pydantic import BaseModel
 from pathlib import Path
 import ifcopenshell
 import ifcopenshell.util.element
@@ -2350,6 +2351,107 @@ async def get_assembly_mapping(filename: str):
         raise HTTPException(status_code=500, detail=f"Failed to get assembly mapping: {str(e)}")
 
 
+class NestingRequest(BaseModel):
+    profiles: List[str]
+    selected_parts: Dict[str, List[str]]
+    stock_config: Dict[str, Dict[str, Any]]
+    kerf: float = 3.0
+    trim: float = 5.0
+    stock_tolerance: float = 0.0
+
+@app.post("/api/nesting/{filename}")
+async def generate_nesting_v2(filename: str, request: NestingRequest):
+    """Generate nesting optimization report with per-profile stock configuration and part selection.
+    
+    Args:
+        filename: IFC filename
+        request: NestingRequest containing:
+            - profiles: List of profile names to nest
+            - selected_parts: Dict mapping profile names to lists of selected part numbers
+            - stock_config: Dict mapping profile names to their stock configuration
+                           (purchased: list of lengths, leftovers: list of {length, quantity})
+            - kerf: Kerf width in mm (default: 3.0mm)
+            - trim: Trim amount in mm (default: 5.0mm)
+            - stock_tolerance: Safety tolerance in mm (default: 0.0mm)
+    """
+    from urllib.parse import unquote
+    import sys
+    
+    decoded_filename = unquote(filename)
+    
+    # Force output to be flushed immediately
+    sys.stdout.flush()
+    sys.stderr.flush()
+    
+    nesting_log("=" * 60, flush=True)
+    nesting_log("[NESTING] ===== NESTING REQUEST RECEIVED (V2) =====", flush=True)
+    nesting_log(f"[NESTING] Filename: {decoded_filename}", flush=True)
+    nesting_log(f"[NESTING] Profiles: {request.profiles}", flush=True)
+    nesting_log(f"[NESTING] Selected parts: {request.selected_parts}", flush=True)
+    nesting_log(f"[NESTING] Stock config: {request.stock_config}", flush=True)
+    nesting_log(f"[NESTING] Kerf: {request.kerf}mm", flush=True)
+    nesting_log(f"[NESTING] Trim: {request.trim}mm", flush=True)
+    nesting_log(f"[NESTING] Stock tolerance: {request.stock_tolerance}mm {'(enabled)' if request.stock_tolerance > 0 else '(disabled)'}", flush=True)
+    nesting_log("=" * 60, flush=True)
+    
+    try:
+        from nesting import create_nesting_report_v2, export_to_json
+        
+        file_path = IFC_DIR / decoded_filename
+        
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="IFC file not found")
+        
+        nesting_log(f"[NESTING] Starting slope-aware nesting generation for {filename}")
+        
+        # Open IFC file
+        resolved_path = file_path.resolve()
+        ifc_file = ifcopenshell.open(str(resolved_path))
+        nesting_log(f"[NESTING] Opened IFC file: {decoded_filename}")
+        
+        # Initialize CutPieceExtractor for slope detection
+        extractor = None
+        try:
+            from cut_piece_extractor import CutPieceExtractor
+            extractor = CutPieceExtractor(ifc_file)
+            nesting_log(f"[NESTING] CutPieceExtractor initialized for slope-aware nesting")
+        except Exception as e:
+            nesting_log(f"[NESTING] Warning: Could not initialize CutPieceExtractor: {e}")
+            nesting_log(f"[NESTING] Falling back to basic nesting without slope detection")
+        
+        # Generate nesting report using the new orchestrator
+        nesting_log(f"[NESTING] Generating nesting report...")
+        report = create_nesting_report_v2(
+            filename=decoded_filename,
+            ifc_file=ifc_file,
+            selected_profiles=request.profiles,
+            selected_parts=request.selected_parts,
+            stock_config=request.stock_config,
+            kerf=request.kerf,
+            trim=request.trim,
+            stock_tolerance=request.stock_tolerance,
+            extractor=extractor,
+            use_complementary_pairing=True,
+            log_func=nesting_log
+        )
+        
+        # Export to JSON
+        result = export_to_json(report)
+        
+        nesting_log(f"[NESTING] Nesting complete!")
+        nesting_log(f"[NESTING] Summary: {result['summary']['total_profiles']} profile(s), "
+                   f"{result['summary']['total_patterns']} pattern(s), "
+                   f"{result['summary']['total_waste']:.0f}mm waste "
+                   f"({result['summary']['avg_waste_percentage']:.1f}%)")
+        
+        return result
+        
+    except Exception as e:
+        nesting_log(f"[NESTING] ERROR: {str(e)}", flush=True)
+        import traceback
+        nesting_log(traceback.format_exc(), flush=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/nesting/{filename}")
 async def generate_nesting(
     filename: str, 
@@ -2359,7 +2461,7 @@ async def generate_nesting(
     trim: float = 5.0,
     stock_tolerance: float = 0.0
 ):
-    """Generate nesting optimization report for selected profiles with slope-aware cutting.
+    """Generate nesting optimization report for selected profiles with slope-aware cutting (Legacy).
     
     Args:
         filename: IFC filename

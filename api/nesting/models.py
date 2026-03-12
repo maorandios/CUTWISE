@@ -248,24 +248,27 @@ class Part:
 @dataclass
 class CuttingPattern:
     """Represents a single cutting pattern on one stock bar."""
-    
+
     stock_length: float
     """Length of the stock bar in millimeters."""
-    
+
     parts: List[Part]
     """List of parts placed on this stock bar, in order."""
-    
+
     waste: float
     """Total waste for this pattern in millimeters."""
-    
+
     waste_percentage: float
     """Waste as percentage of stock length."""
-    
+
     cut_positions: List[float] = field(default_factory=list)
     """Positions of cuts along the stock bar."""
-    
+
     shared_cuts: int = 0
     """Number of cuts shared between complementary parts."""
+    
+    stock_type: str = "purchased"
+    """Type of stock bar: 'purchased' or 'leftover'."""
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -292,7 +295,8 @@ class CuttingPattern:
             "waste": self.waste,
             "waste_percentage": self.waste_percentage,
             "cut_positions": self.cut_positions,
-            "shared_cuts": self.shared_cuts
+            "shared_cuts": self.shared_cuts,
+            "stock_type": self.stock_type
         }
 
 
