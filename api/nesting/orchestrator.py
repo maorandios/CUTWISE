@@ -655,9 +655,19 @@ def create_nesting_report_v2(
             log_func(f"[ORCHESTRATOR V2] No patterns or rejected parts for profile {profile_name}, skipping")
             continue
         
+        # Exclude from rejected_parts any part that was successfully nested (e.g. rejected in Phase 1
+        # leftover but nested in Phase 2 purchased)
+        nested_product_ids = set()
+        for pattern in all_patterns:
+            for part in pattern.parts:
+                nested_product_ids.add(part.product_id)
+        
+        # Filter out parts that were actually nested
+        all_rejected_parts = [rp for rp in all_rejected_parts if rp.product_id not in nested_product_ids]
+        
         # Calculate totals
-        total_parts_nested = len(parts) - len(remaining_parts)
-        total_length = sum(p.length for p in parts if p.product_id not in [rp.product_id for rp in remaining_parts])
+        total_parts_nested = len(parts) - len(all_rejected_parts)
+        total_length = sum(p.length for p in parts if p.product_id not in [rp.product_id for rp in all_rejected_parts])
         total_waste = sum(p.waste for p in all_patterns)
         total_stock_used = sum(p.stock_length for p in all_patterns)
         total_waste_percentage = (total_waste / total_stock_used * 100.0) if total_stock_used > 0 else 0.0

@@ -855,7 +855,8 @@ def analyze_ifc(file_path: Path) -> Dict[str, Any]:
                         "profile_name": profile_name,
                         "element_type": element_type.replace("Ifc", "").lower(),  # Set initial type
                         "piece_count": 0,
-                        "total_weight": 0.0
+                        "total_weight": 0.0,
+                        "total_length": 0.0  # Track total length for weight/meter calculation
                     }
                     # print(f"[ANALYZE] Created new profile group: '{profile_name}' (type: {profiles[profile_key]['element_type']})")
                 else:
@@ -879,6 +880,37 @@ def analyze_ifc(file_path: Path) -> Dict[str, Any]:
                 
                 profiles[profile_key]["piece_count"] += 1
                 profiles[profile_key]["total_weight"] += weight
+                
+                # Calculate length from element
+                try:
+                    # Try to get length from Pset_BeamCommon or geometry
+                    length_mm = 0.0
+                    
+                    # Try property sets first
+                    for definition in element.IsDefinedBy:
+                        if definition.is_a('IfcRelDefinesByProperties'):
+                            property_set = definition.RelatingPropertyDefinition
+                            if property_set.is_a('IfcPropertySet') and 'Common' in property_set.Name:
+                                for prop in property_set.HasProperties:
+                                    if prop.is_a('IfcPropertySingleValue') and prop.Name in ['Length', 'NominalLength']:
+                                        if prop.NominalValue:
+                                            length_mm = float(prop.NominalValue.wrappedValue)
+                                            break
+                    
+                    # If no length in properties, try from shape/representation
+                    if length_mm == 0.0:
+                        # Fallback: use bounding box depth as length
+                        if element.Representation:
+                            for representation in element.Representation.Representations:
+                                if representation.is_a('IfcShapeRepresentation'):
+                                    for item in representation.Items:
+                                        if item.is_a('IfcExtrudedAreaSolid'):
+                                            length_mm = float(item.Depth)
+                                            break
+                    
+                    profiles[profile_key]["total_length"] += length_mm
+                except:
+                    pass  # If length calculation fails, just skip it
             
             # Plate grouping
             if element_type == "IfcPlate":
@@ -2549,6 +2581,9 @@ async def generate_nesting(
         
         # Export to JSON
         result = export_to_json(report)
+        
+        # DEBUG: Log profile names in nesting response for POST endpoint
+        nesting_log(f"[NESTING DEBUG POST] Profiles in nesting response: {[p.get('profile_name') for p in result.get('profiles', [])]}")
         
         nesting_log(f"[NESTING] Nesting complete!")
         nesting_log(f"[NESTING] Summary: {result['summary']['total_profiles']} profile(s), "
