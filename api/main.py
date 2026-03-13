@@ -5565,6 +5565,51 @@ async def generate_bom_excel(request: Request):
         raise HTTPException(status_code=500, detail=f"Failed to generate BOM Excel: {str(e) or repr(e)}")
 
 
+@app.post("/api/generate-cutting-list-excel")
+async def generate_cutting_list_excel(request: Request):
+    """Generate Cutting List Excel file."""
+    try:
+        data = await request.json()
+
+        nesting_report = data.get('nestingReport')
+        report = data.get('report')
+        project_name = data.get('projectName', 'Project')
+        company_details = data.get('companyDetails', {})
+        selected_profiles = data.get('selectedProfiles', [])
+
+        if not nesting_report or not report:
+            raise HTTPException(status_code=400, detail="Missing required data")
+
+        # Generate Excel
+        from pdf_generator import CuttingListExcelGenerator
+        generator = CuttingListExcelGenerator()
+        excel_bytes = generator.generate_excel(
+            nesting_report=nesting_report,
+            report=report,
+            project_name=project_name,
+            company_details=company_details,
+            selected_profiles=selected_profiles
+        )
+        
+        # Use URL encoding for filename to support international characters
+        from urllib.parse import quote
+        safe_filename = quote(f"{project_name}_Cutting_List.xlsx")
+        
+        return Response(
+            content=excel_bytes,
+            media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            headers={
+                'Content-Disposition': f"attachment; filename*=UTF-8''{safe_filename}"
+            }
+        )
+            
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        print(f"[ERROR] Cutting List Excel Generation failed:")
+        print(error_trace)
+        raise HTTPException(status_code=500, detail=f"Failed to generate Cutting List Excel: {str(e) or repr(e)}")
+
+
 @app.get("/api/health")
 async def health():
     """Health check endpoint."""

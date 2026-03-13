@@ -2075,3 +2075,198 @@ class BOMExcelGenerator:
         excel_buffer.seek(0)
         
         return excel_buffer.getvalue()
+
+
+class CuttingListExcelGenerator:
+    """Generates Cutting List Excel files using openpyxl."""
+
+    def generate_excel(
+        self,
+        nesting_report: Dict[str, Any],
+        report: Dict[str, Any],
+        project_name: str,
+        company_details: Dict[str, str],
+        selected_profiles: List[str]
+    ) -> bytes:
+        """Generate Cutting List Excel from nesting report data."""
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        from openpyxl.utils import get_column_letter
+        from datetime import datetime
+        from io import BytesIO
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Cutting List"
+
+        # Define styles
+        header_fill = PatternFill(start_color="1CB97E", end_color="1CB97E", fill_type="solid")
+        header_font = Font(name='Arial', size=12, bold=True, color="FFFFFF")
+        
+        title_font = Font(name='Arial', size=16, bold=True)
+        subtitle_font = Font(name='Arial', size=10, color="666666")
+        
+        table_header_fill = PatternFill(start_color="F3F4F6", end_color="F3F4F6", fill_type="solid")
+        table_header_font = Font(name='Arial', size=10, bold=True, color="6B7280")
+        
+        leftover_fill = PatternFill(start_color="FFF7ED", end_color="FFF7ED", fill_type="solid")
+        leftover_font = Font(name='Arial', size=10, color="F97316")
+        
+        cell_font = Font(name='Arial', size=10)
+        border = Border(
+            left=Side(style='thin', color='E5E7EB'),
+            right=Side(style='thin', color='E5E7EB'),
+            top=Side(style='thin', color='E5E7EB'),
+            bottom=Side(style='thin', color='E5E7EB')
+        )
+
+        current_row = 1
+
+        # Title
+        ws.merge_cells(f'A{current_row}:G{current_row}')
+        title_cell = ws[f'A{current_row}']
+        title_cell.value = "Cutting List"
+        title_cell.font = title_font
+        title_cell.alignment = Alignment(horizontal='left', vertical='center')
+        current_row += 2
+
+        # Company details
+        current_date = datetime.now().strftime("%d %B, %Y")
+        
+        company_info = [
+            ('Company name:', company_details.get('companyName', 'N/A')),
+            ('Address:', company_details.get('address', '')) if company_details.get('address') else None,
+            ('Email:', company_details.get('email', '')) if company_details.get('email') else None,
+            ('Phone:', company_details.get('phoneNumber', '')) if company_details.get('phoneNumber') else None,
+            ('Date:', current_date)
+        ]
+        
+        for info in company_info:
+            if info:
+                ws[f'A{current_row}'] = info[0]
+                ws[f'A{current_row}'].font = Font(name='Arial', size=9, bold=True)
+                ws[f'B{current_row}'] = info[1]
+                ws[f'B{current_row}'].font = Font(name='Arial', size=9)
+                current_row += 1
+        
+        current_row += 1
+
+        # Project name
+        ws[f'A{current_row}'] = "Project:"
+        ws[f'A{current_row}'].font = Font(name='Arial', size=10, bold=True)
+        ws[f'B{current_row}'] = project_name
+        ws[f'B{current_row}'].font = Font(name='Arial', size=10)
+        current_row += 2
+
+        # Filter profiles based on selected_profiles
+        profiles = [p for p in nesting_report.get('profiles', []) 
+                   if p.get('profile_name') in selected_profiles and len(p.get('cutting_patterns', [])) > 0]
+
+        # Process each profile
+        for profile in profiles:
+            profile_name = profile.get('profile_name', 'Unknown')
+            
+            # Profile header
+            ws.merge_cells(f'A{current_row}:G{current_row}')
+            profile_cell = ws[f'A{current_row}']
+            profile_cell.value = profile_name
+            profile_cell.font = Font(name='Arial', size=14, bold=True)
+            profile_cell.fill = PatternFill(start_color="E8F5F0", end_color="E8F5F0", fill_type="solid")
+            profile_cell.alignment = Alignment(horizontal='left', vertical='center')
+            current_row += 1
+
+            # Process each cutting pattern (stockbar)
+            for pattern_idx, pattern in enumerate(profile.get('cutting_patterns', [])):
+                stock_length = pattern.get('stock_length', 0)
+                waste = pattern.get('waste', 0)
+                stock_type = pattern.get('stock_type', 'purchased')
+                is_leftover = stock_type == 'leftover'
+                
+                # Stockbar header
+                stockbar_title = f"{'Leftover ' if is_leftover else ''}Stockbar {pattern_idx + 1}"
+                ws.merge_cells(f'A{current_row}:G{current_row}')
+                stockbar_cell = ws[f'A{current_row}']
+                stockbar_cell.value = stockbar_title
+                stockbar_cell.font = Font(name='Arial', size=11, bold=True, color="F97316" if is_leftover else "6B7280")
+                stockbar_cell.fill = leftover_fill if is_leftover else PatternFill(start_color="F9FAFB", end_color="F9FAFB", fill_type="solid")
+                stockbar_cell.alignment = Alignment(horizontal='left', vertical='center')
+                current_row += 1
+
+                # Stockbar info
+                settings = nesting_report.get('settings', {})
+                tolerance = 0 if is_leftover else settings.get('stock_tolerance', 0)
+                trim = 0 if is_leftover else settings.get('trim', 5.0)
+                kerf = settings.get('kerf', 3.0)
+                
+                ws[f'A{current_row}'] = f"Length: {stock_length:,.0f}mm"
+                ws[f'B{current_row}'] = f"Tolerance: {tolerance:.0f}mm"
+                ws[f'C{current_row}'] = f"Trim: {trim:.0f}mm"
+                ws[f'D{current_row}'] = f"Kerf: {kerf:.0f}mm"
+                ws[f'E{current_row}'] = f"Waste: {waste:,.0f}mm"
+                
+                for col in ['A', 'B', 'C', 'D', 'E']:
+                    ws[f'{col}{current_row}'].font = Font(name='Arial', size=9, italic=True)
+                    ws[f'{col}{current_row}'].fill = PatternFill(start_color="F9FAFB", end_color="F9FAFB", fill_type="solid")
+                
+                current_row += 1
+
+                # Parts table headers
+                headers = ['#', 'Profile Name', 'Part Name', 'Length (mm)', 'Quantity', 'Start Angle', 'End Angle']
+                for col_idx, header in enumerate(headers, start=1):
+                    cell = ws.cell(row=current_row, column=col_idx)
+                    cell.value = header
+                    cell.font = table_header_font
+                    cell.fill = table_header_fill
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
+                    cell.border = border
+                
+                current_row += 1
+
+                # Parts data
+                parts = pattern.get('parts', [])
+                for part_idx, part in enumerate(parts, start=1):
+                    part_name = part.get('part_name', 'Unknown')
+                    length = part.get('length', 0)
+                    quantity = part.get('quantity', 1)
+                    start_angle = part.get('start_angle', 0)
+                    end_angle = part.get('end_angle', 0)
+                    
+                    row_data = [
+                        part_idx,
+                        profile_name,
+                        part_name,
+                        f"{length:.0f}",
+                        quantity,
+                        f"{start_angle:.1f}°" if start_angle != 0 and start_angle != 90 else ("0.0°" if start_angle == 0 else "90.0°"),
+                        f"{end_angle:.1f}°" if end_angle != 0 and end_angle != 90 else ("0.0°" if end_angle == 0 else "90.0°")
+                    ]
+                    
+                    for col_idx, value in enumerate(row_data, start=1):
+                        cell = ws.cell(row=current_row, column=col_idx)
+                        cell.value = value
+                        cell.font = cell_font
+                        cell.alignment = Alignment(horizontal='center' if col_idx == 1 or col_idx >= 5 else 'left', vertical='center')
+                        cell.border = border
+                    
+                    current_row += 1
+
+                current_row += 1  # Add space between stockbars
+
+            current_row += 1  # Add space between profiles
+
+        # Adjust column widths
+        ws.column_dimensions['A'].width = 8
+        ws.column_dimensions['B'].width = 18
+        ws.column_dimensions['C'].width = 20
+        ws.column_dimensions['D'].width = 15
+        ws.column_dimensions['E'].width = 12
+        ws.column_dimensions['F'].width = 15
+        ws.column_dimensions['G'].width = 15
+
+        # Save to bytes
+        excel_buffer = BytesIO()
+        wb.save(excel_buffer)
+        excel_buffer.seek(0)
+        
+        return excel_buffer.getvalue()
+

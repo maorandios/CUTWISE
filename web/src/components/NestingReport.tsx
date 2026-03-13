@@ -703,6 +703,105 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
   // Kept for reference/fallback if needed
   // const captureStockbarImage = async (...) => { ... }
 
+  const handleExportCuttingListToExcel = async () => {
+    if (!nestingReport || !report || selectedProfilesForDisplay.size === 0) {
+      alert('Please select at least one profile to export.')
+      return
+    }
+
+    const startTime = Date.now()
+
+    try {
+      // Show Lottie loader with progress
+      setLoadingMessage('Generating Cutting List Excel')
+      setExportProgress({ show: true, current: 20, total: 100 })
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      setExportProgress({ show: true, current: 40, total: 100 })
+      
+      // Use company details from props (from Supabase) or fallback to localStorage
+      const finalCompanyDetails = companyDetails || ProjectStorage.getCompanyDetails() || {
+        companyName: 'Your Company Name',
+        address: 'Company Address',
+        country: '',
+        phoneNumber: 'Company Phone Number',
+        email: ''
+      }
+      
+      setExportProgress({ show: true, current: 60, total: 100 })
+      
+      // Filter nesting report to only include selected profiles with cutting patterns
+      const filteredNestingReport = {
+        ...nestingReport,
+        profiles: nestingReport.profiles.filter(p => 
+          selectedProfilesForDisplay.has(p.profile_name) && 
+          p.cutting_patterns.length > 0
+        )
+      }
+      
+      // Call backend to generate Excel
+      const response = await fetch(`${getBackendUrl()}/api/generate-cutting-list-excel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          nestingReport: filteredNestingReport,
+          report: report,
+          projectName: projectName || filename.replace('.ifc', ''),
+          companyDetails: {
+            companyName: finalCompanyDetails.companyName,
+            address: finalCompanyDetails.address,
+            email: finalCompanyDetails.email,
+            phoneNumber: finalCompanyDetails.phoneNumber
+          },
+          selectedProfiles: Array.from(selectedProfilesForDisplay)
+        }),
+      })
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Server returned ${response.status}: ${errorText}`)
+      }
+      
+      setExportProgress({ show: true, current: 85, total: 100 })
+      
+      // Download the Excel
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const downloadName = `${filename.replace('.ifc', '')}_Cutting_List.xlsx`
+      link.href = url
+      link.download = downloadName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      
+      setExportProgress({ show: true, current: 100, total: 100 })
+      
+      // Ensure minimum 3 seconds display time
+      const elapsedTime = Date.now() - startTime
+      const remainingTime = Math.max(0, 3000 - elapsedTime)
+      await new Promise(resolve => setTimeout(resolve, remainingTime))
+      
+      // Hide loader
+      setExportProgress({ show: false, current: 0, total: 0 })
+      setLoadingMessage('')
+    } catch (error) {
+      console.error('Error exporting Cutting List to Excel:', error)
+      
+      // Ensure minimum 3 seconds display time even on error
+      const elapsedTime = Date.now() - startTime
+      const remainingTime = Math.max(0, 3000 - elapsedTime)
+      await new Promise(resolve => setTimeout(resolve, remainingTime))
+      
+      alert('Failed to export Excel. Please try again.')
+      setExportProgress({ show: false, current: 0, total: 0 })
+      setLoadingMessage('')
+    }
+  }
+
   const loadIconAsBase64 = async (iconPath: string): Promise<string> => {
     try {
       const response = await fetch(iconPath)
@@ -1970,25 +2069,29 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
 
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold">Bill of Materials</h2>
-                <div className="flex gap-3">
-                  <Button
+                
+                {/* Combined Export Button */}
+                <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white">
+                  {/* Export to Excel - Left Side */}
+                  <button
                     onClick={handleExportBOMToExcel}
-                    variant="outline"
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 px-4 py-2.5 hover:bg-gray-50 transition-colors"
                   >
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z" />
-                      <path d="M3 8a2 2 0 012-2v10h8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
-                    </svg>
-                    Export to Excel
-                  </Button>
-                  <Button
+                    <img src="/Icons/Excel.svg" alt="Excel" className="w-6 h-6" />
+                    <span className="text-sm font-medium text-gray-700">Export to Excel</span>
+                  </button>
+                  
+                  {/* Vertical Divider */}
+                  <div className="w-px h-8 bg-gray-300"></div>
+                  
+                  {/* Export to PDF - Right Side */}
+                  <button
                     onClick={() => setShowBOMModal(true)}
-                    className="flex items-center gap-2 bg-[#00817A] hover:bg-[#00817A]/90 text-white"
+                    className="flex items-center gap-2 px-4 py-2.5 hover:bg-gray-50 transition-colors"
                   >
-                    <img src="/Icons/export icon.svg" alt="Export" className="h-5 w-5 brightness-0 invert" />
-                    Export to PDF
-                  </Button>
+                    <img src="/Icons/Pdf.svg" alt="PDF" className="w-6 h-6" />
+                    <span className="text-sm font-medium text-gray-700">Export to PDF</span>
+                  </button>
                 </div>
               </div>
               
@@ -2400,13 +2503,17 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                       </div>
                     </div>
                     <div className="ml-auto">
-                      <Button
-                        onClick={() => setShowCuttingPlanModal(true)}
-                        className="flex items-center gap-2 bg-[#00817A] hover:bg-[#00817A]/90 text-white"
-                      >
-                        <img src="/Icons/export icon.svg" alt="Export" className="h-5 w-5 brightness-0 invert" />
-                        Export Cutting Plan
-                      </Button>
+                      {/* Export Button - New Style (Excel hidden for now) */}
+                      <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white">
+                        <button
+                          onClick={() => setShowCuttingPlanModal(true)}
+                          disabled={selectedProfilesForDisplay.size === 0}
+                          className="flex items-center gap-2 px-4 py-2.5 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <img src="/Icons/Pdf.svg" alt="PDF" className="w-6 h-6" />
+                          <span className="text-sm font-medium text-gray-700">Export to PDF</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
               </div>
@@ -5554,9 +5661,6 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                 onClick={handleExportBOMToPDF}
                 disabled={bomSelectedProfiles.size === 0}
               >
-                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd" />
-                </svg>
                 Generate PDF
               </Button>
             </div>

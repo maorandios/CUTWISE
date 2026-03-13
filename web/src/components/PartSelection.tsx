@@ -388,26 +388,30 @@ export const PartSelection = ({ profilesData, filename, projectName, companyDeta
                 </Button>
               </div>
 
-              {/* Export Buttons */}
-              <div className="flex items-center gap-3">
-                <Button 
-                  size="sm"
+              {/* Export Buttons - Combined Style */}
+              <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white">
+                {/* Export to Excel - Left Side */}
+                <button
                   onClick={handleExportExcel}
                   disabled={totalSelectedParts === 0}
-                  className="flex items-center gap-2 bg-[#1CB97E] hover:bg-[#1CB97E]/90 text-white border-0"
+                  className="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <img src="/Icons/export icon.svg" alt="Export" className="h-4 w-4 brightness-0 invert" />
-                  Export Excel
-                </Button>
-                <Button 
-                  size="sm"
+                  <img src="/Icons/Excel.svg" alt="Excel" className="w-6 h-6" />
+                  <span className="text-sm font-medium text-gray-700">Export Excel</span>
+                </button>
+                
+                {/* Vertical Divider */}
+                <div className="w-px h-8 bg-gray-300"></div>
+                
+                {/* Export to PDF - Right Side */}
+                <button
                   onClick={handleExportPDF}
                   disabled={totalSelectedParts === 0}
-                  className="flex items-center gap-2 bg-[#00817A] hover:bg-[#00817A]/90 text-white border-0"
+                  className="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <img src="/Icons/export icon.svg" alt="Export" className="h-4 w-4 brightness-0 invert" />
-                  Export PDF
-                </Button>
+                  <img src="/Icons/Pdf.svg" alt="PDF" className="w-6 h-6" />
+                  <span className="text-sm font-medium text-gray-700">Export PDF</span>
+                </button>
               </div>
             </div>
           </div>
