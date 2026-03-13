@@ -2060,10 +2060,7 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                   profile.rejected_parts.forEach(rejectedPart => {
                     const r = (rejectedPart as any)
                     const ref = r.reference?.trim?.() || ''
-                    const am = (r.assembly_mark?.trim?.() || '').toUpperCase() !== 'N/A' ? (r.assembly_mark?.trim?.() || '') : ''
-                    const en = r.element_name?.trim?.() || ''
-                    const combined = [ref, am].filter(Boolean).join(' ')
-                    const partName = combined || en || `ID ${rejectedPart.product_id}`
+                    const partName = ref || `Part ${rejectedPart.product_id}`
                     
                     allErrorParts.push({
                       profile_name: profile.profile_name,

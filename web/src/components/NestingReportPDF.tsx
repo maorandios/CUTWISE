@@ -1260,13 +1260,7 @@ export const NestingReportPDF: React.FC<NestingReportPDFProps> = ({
     if (profile.rejected_parts && profile.rejected_parts.length > 0) {
       profile.rejected_parts.forEach(rejectedPart => {
         if (rejectedPart.length > 12001) {
-          const reference = rejectedPart.reference && rejectedPart.reference.trim() 
-            ? rejectedPart.reference 
-            : null
-          const elementName = rejectedPart.element_name && rejectedPart.element_name.trim() 
-            ? rejectedPart.element_name 
-            : null
-          const partName = reference || elementName || 'Unknown'
+          const partName = rejectedPart.reference?.trim() || `Part ${rejectedPart.product_id}`
           
           allErrorParts.push({
             profile_name: profile.profile_name,
