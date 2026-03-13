@@ -1419,7 +1419,7 @@ export const NestingReportPDF: React.FC<NestingReportPDFProps> = ({
             <Text style={[styles.tableCell, styles.tableCellHeader, { width: '15%', fontSize: 8 }]}>Profile Type</Text>
             <Text style={[styles.tableCell, styles.tableCellHeader, { width: '12%', fontSize: 8 }]}>Bar Stock Length</Text>
             <Text style={[styles.tableCell, styles.tableCellHeader, { width: '10%', fontSize: 8 }]}>Amount of Bars</Text>
-            <Text style={[styles.tableCell, styles.tableCellHeader, { width: '12%', fontSize: 8 }]}>Tonnage (tonnes)</Text>
+            <Text style={[styles.tableCell, styles.tableCellHeader, { width: '12%', fontSize: 8 }]}>WEIGHT (KG)</Text>
             <Text style={[styles.tableCell, styles.tableCellHeader, { width: '10%', fontSize: 8 }]}>Number of Cuts</Text>
             <Text style={[styles.tableCell, styles.tableCellHeader, { width: '12%', fontSize: 8 }]}>Total Waste Tonnage</Text>
             <Text style={[styles.tableCell, styles.tableCellHeader, { width: '12%', fontSize: 8 }]}>Total Waste in M</Text>
@@ -1493,7 +1493,7 @@ export const NestingReportPDF: React.FC<NestingReportPDFProps> = ({
                     {barCount}
                   </Text>
                   <Text style={[styles.tableCell, styles.textRight, { width: '12%', fontSize: 8 }]}>
-                    {tonnage > 0 ? tonnage.toFixed(3) : 'N/A'}
+                    {tonnage > 0 ? (tonnage * 1000).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : 'N/A'}
                   </Text>
                   <Text style={[styles.tableCell, styles.textRight, { width: '10%', fontSize: 8 }]}>
                     {totalCuts}

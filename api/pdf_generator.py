@@ -1228,7 +1228,7 @@ class BOMPDFGenerator:
                         <th>PROFILE NAME</th>
                         <th>STOCK LENGTH (M)</th>
                         <th>QUANTITY</th>
-                        <th>WEIGHT (T)</th>
+                        <th>WEIGHT (KG)</th>
                     </tr>
                 </thead>
                 <tbody>
