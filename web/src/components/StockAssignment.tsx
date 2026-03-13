@@ -704,19 +704,21 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
 
     {/* Incomplete Profiles Warning Modal */}
     <Dialog open={showIncompleteWarning} onOpenChange={setShowIncompleteWarning}>
-      <DialogContent className="sm:max-w-[450px]">
-        <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
-              <AlertCircle className="h-6 w-6 text-orange-600" />
+      <DialogContent className="sm:max-w-[520px] p-0 gap-0 overflow-hidden">
+        <div className="px-6 pt-6 pb-5">
+          <div className="flex items-start gap-4">
+            <div className="h-11 w-11 shrink-0 rounded-full bg-amber-50 flex items-center justify-center">
+              <AlertCircle className="h-6 w-6 text-amber-600" />
             </div>
-            <DialogTitle>Incomplete Configuration</DialogTitle>
+            <div className="space-y-3 min-w-0">
+              <DialogTitle className="text-xl font-semibold text-gray-900 tracking-tight">Incomplete Configuration</DialogTitle>
+              <DialogDescription className="text-base text-gray-600 leading-relaxed">
+                To generate the nesting report, mark all profile types as complete. For each profile, add stock lengths and toggle the &quot;Mark as Complete&quot; switch.
+              </DialogDescription>
+            </div>
           </div>
-        </DialogHeader>
-        <DialogDescription className="text-sm text-gray-600 pt-4">
-          To complete and generate the nesting report, please mark all profile types as complete by configuring their stock lengths and toggling the &quot;Mark as Complete&quot; switch.
-        </DialogDescription>
-        <div className="flex justify-end gap-3 pt-4">
+        </div>
+        <div className="px-6 py-4 bg-gray-50/50 border-t border-gray-100 flex justify-end">
           <Button onClick={() => setShowIncompleteWarning(false)}>
             Got it
           </Button>
@@ -726,43 +728,43 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
 
     {/* Stock Length Warning Modal */}
     <Dialog open={showStockWarning} onOpenChange={setShowStockWarning}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
-              <AlertCircle className="h-6 w-6 text-orange-600" />
+      <DialogContent className="sm:max-w-[440px] p-0 gap-0 overflow-hidden">
+        <div className="px-6 pt-6 pb-4">
+          <div className="flex items-start gap-4">
+            <div className="h-11 w-11 shrink-0 rounded-full bg-amber-50 flex items-center justify-center">
+              <AlertCircle className="h-6 w-6 text-amber-600" />
             </div>
-            <DialogTitle>Stock Length Insufficient</DialogTitle>
+            <div className="space-y-3 min-w-0">
+              <DialogTitle className="text-xl font-semibold text-gray-900 tracking-tight">Stock Length Insufficient</DialogTitle>
+              <DialogDescription className="text-base text-gray-600 leading-relaxed">
+                Some parts exceed your configured stock lengths. They will appear in the error table.
+              </DialogDescription>
+            </div>
           </div>
-        </DialogHeader>
-        <div className="space-y-4 pt-4">
-          <DialogDescription className="text-sm text-gray-600">
-            The following profiles have parts that exceed your configured stock lengths:
-          </DialogDescription>
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-2">
+        </div>
+        <div className="px-6 pb-4">
+          <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">Affected profiles</p>
+          <div className="rounded-lg border border-gray-200 bg-gray-50/60 divide-y divide-gray-200/80">
             {stockWarnings.map((warning, idx) => (
-              <div key={idx} className="text-sm">
-                <span className="font-semibold text-orange-900">{warning.profile}:</span>{' '}
-                <span className="text-orange-800">
-                  Longest part is {warning.maxPart.toLocaleString()}mm but max stock is {warning.maxStock.toLocaleString()}mm
+              <div key={idx} className="flex items-center justify-between py-3 px-4 text-sm">
+                <span className="font-medium text-gray-900">{warning.profile}</span>
+                <span className="text-gray-600 tabular-nums text-right">
+                  {warning.maxPart.toLocaleString()}mm part → {warning.maxStock.toLocaleString()}mm max stock
                 </span>
               </div>
             ))}
           </div>
-          <p className="text-sm text-gray-600">
-            These parts will not be nested and will appear in the error table. You can add longer stock lengths or proceed anyway.
-          </p>
         </div>
-        <div className="flex justify-end gap-3 pt-4">
+        <div className="px-6 py-4 bg-gray-50/50 border-t border-gray-100 flex justify-end gap-2">
           <Button variant="outline" onClick={() => setShowStockWarning(false)}>
             Go Back
           </Button>
-          <Button 
+          <Button
             onClick={() => {
               setShowStockWarning(false)
               onContinue(profileStocks)
             }}
-            className="bg-orange-600 hover:bg-orange-700"
+            className="bg-amber-600 hover:bg-amber-700 text-white"
           >
             Proceed Anyway
           </Button>

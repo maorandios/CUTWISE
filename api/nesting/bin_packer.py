@@ -354,7 +354,10 @@ def pack_parts_first_fit_decreasing(
                 product_id=part.product_id,
                 length=part.length,
                 profile_name=part.profile_name,
-                reason=f"Part length ({part.length:.0f}mm) exceeds maximum stock length ({max_stock_length:.0f}mm)"
+                reason=f"Part length ({part.length:.0f}mm) exceeds maximum stock length ({max_stock_length:.0f}mm)",
+                reference=part.reference or "",
+                assembly_mark=part.assembly_mark or "",
+                element_name=part.original_data.get("element_name", "") or ""
             ))
             continue
         
@@ -387,7 +390,10 @@ def pack_parts_first_fit_decreasing(
                     product_id=part.product_id,
                     length=part.length,
                     profile_name=part.profile_name,
-                    reason=f"Part length ({part.length:.0f}mm) exceeds all available stock lengths"
+                    reason=f"Part length ({part.length:.0f}mm) exceeds all available stock lengths",
+                    reference=part.reference or "",
+                    assembly_mark=part.assembly_mark or "",
+                    element_name=part.original_data.get("element_name", "") or ""
                 ))
                 continue
             
