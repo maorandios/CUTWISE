@@ -13,6 +13,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -1830,9 +1831,9 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                       const tonnage = (weightPerMeter * stockLengthM * barCount) / 1000.0
                       totalStockWeightT += tonnage
                       
-                      // Add to total cuts
+                      // Add to total cuts (only purchased patterns)
                       const patternsForThisStock = profile.cutting_patterns.filter(
-                        p => Math.abs(p.stock_length - stockLength) < 0.01
+                        p => Math.abs(p.stock_length - stockLength) < 0.01 && (p as any).stock_type !== 'leftover'
                       )
                       const cuts = patternsForThisStock.reduce((sum, pattern) => {
                         return sum + Math.max(0, pattern.parts.length - 1)
@@ -1904,9 +1905,9 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                           const tonnage = (weightPerMeter * stockLengthM * barCount) / 1000.0  // tonnes
                           
                           // Calculate number of cuts for this stock length
-                          // Count patterns that use this stock length
+                          // Count patterns that use this stock length (only purchased - BOM is for items to buy)
                           const patternsForThisStock = profile.cutting_patterns.filter(
-                            p => Math.abs(p.stock_length - stockLength) < 0.01
+                            p => Math.abs(p.stock_length - stockLength) < 0.01 && (p as any).stock_type !== 'leftover'
                           )
                           
                           // Number of cuts = sum of (parts per bar - 1) for each bar
@@ -1973,7 +1974,9 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                         <TableCell className="h-12 pl-6">Total</TableCell>
                         <TableCell className="text-right h-12">-</TableCell>
                         <TableCell className="text-right h-12">
-                          {nestingReport.summary.total_stock_bars}
+                          {nestingReport.profiles.reduce((sum, profile) => {
+                            return sum + Object.values(profile.stock_lengths_used || {}).reduce((a, b) => a + b, 0)
+                          }, 0)}
                         </TableCell>
                         <TableCell className="text-right h-12">
                             {nestingReport.profiles.reduce((total, profile) => {
@@ -1991,7 +1994,8 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                         </TableCell>
                         <TableCell className="text-right h-12">
                           {nestingReport.profiles.reduce((total, profile) => {
-                            return total + profile.cutting_patterns.reduce((sum, pattern) => {
+                            const purchasedPatterns = profile.cutting_patterns.filter((p: any) => p.stock_type !== 'leftover')
+                            return total + purchasedPatterns.reduce((sum, pattern) => {
                               return sum + Math.max(0, pattern.parts.length - 1)
                             }, 0)
                           }, 0)}
@@ -2002,7 +2006,8 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                               if (!profileData || profile.total_length === 0) return total
                               
                               const weightPerMeter = profileData.total_weight / (profile.total_length / 1000.0)
-                              const profileWasteTonnage = profile.cutting_patterns.reduce((sum, pattern) => {
+                              const purchasedPatterns = profile.cutting_patterns.filter((p: any) => p.stock_type !== 'leftover')
+                              const profileWasteTonnage = purchasedPatterns.reduce((sum, pattern) => {
                                 const wasteM = (pattern.waste || 0) / 1000.0
                                 return sum + (wasteM * weightPerMeter) / 1000.0
                               }, 0)
@@ -2012,14 +2017,26 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                         </TableCell>
                         <TableCell className="text-right h-12 bg-muted/80">
                           {nestingReport.profiles.reduce((total, profile) => {
-                            const profileWasteM = profile.cutting_patterns.reduce((sum, pattern) => {
-                            return sum + ((pattern.waste || 0) / 1000.0)
-                          }, 0)
-                          return total + profileWasteM
-                        }, 0).toFixed(2)}
+                            const purchasedPatterns = profile.cutting_patterns.filter((p: any) => p.stock_type !== 'leftover')
+                            const profileWasteM = purchasedPatterns.reduce((sum, pattern) => {
+                              return sum + ((pattern.waste || 0) / 1000.0)
+                            }, 0)
+                            return total + profileWasteM
+                          }, 0).toFixed(2)}
                       </TableCell>
                       <TableCell className="text-right h-12 text-foreground bg-muted/80 pr-6">
-                        {nestingReport.summary.avg_waste_percentage.toFixed(2)}%
+                        {(() => {
+                          const totalPurchasedWaste = nestingReport.profiles.reduce((sum, profile) => {
+                            const purchasedPatterns = profile.cutting_patterns.filter((p: any) => p.stock_type !== 'leftover')
+                            return sum + purchasedPatterns.reduce((s, p) => s + (p.waste || 0), 0)
+                          }, 0)
+                          const totalPurchasedStock = nestingReport.profiles.reduce((sum, profile) => {
+                            const purchasedPatterns = profile.cutting_patterns.filter((p: any) => p.stock_type !== 'leftover')
+                            return sum + purchasedPatterns.reduce((s, p) => s + p.stock_length, 0)
+                          }, 0)
+                          const avgWastePct = totalPurchasedStock > 0 ? (totalPurchasedWaste / totalPurchasedStock * 100) : 0
+                          return `${avgWastePct.toFixed(2)}%`
+                        })()}
                       </TableCell>
                     </TableRow>
                     </tfoot>
@@ -2030,73 +2047,37 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
 
             {/* Error Parts Table - Show all rejected parts that exceed stock lengths */}
             {(() => {
-              // Collect all rejected parts from all profiles
+              // Collect all rejected parts from all profiles - each part as separate row (no merging)
               const allErrorParts: Array<{
                 profile_name: string
                 reference: string
                 length: number
-                reason: string
+                product_id: number
               }> = []
               
-              console.log('[ERROR-PARTS] Checking for rejected parts...')
-              console.log('[ERROR-PARTS] Total profiles:', nestingReport.profiles.length)
-              
               nestingReport.profiles.forEach(profile => {
-                console.log(`[ERROR-PARTS] Profile ${profile.profile_name}: rejected_parts =`, profile.rejected_parts)
                 if (profile.rejected_parts && profile.rejected_parts.length > 0) {
-                  console.log(`[ERROR-PARTS] Found ${profile.rejected_parts.length} rejected parts in ${profile.profile_name}`)
                   profile.rejected_parts.forEach(rejectedPart => {
-                    // Include ALL rejected parts (removed 12001mm filter)
-                    const reference = rejectedPart.reference && rejectedPart.reference.trim() ? rejectedPart.reference : null
-                    const elementName = rejectedPart.element_name && rejectedPart.element_name.trim() ? rejectedPart.element_name : null
-                    const partName = reference || elementName || 'Unknown'
+                    const r = (rejectedPart as any)
+                    const ref = r.reference?.trim?.() || ''
+                    const am = (r.assembly_mark?.trim?.() || '').toUpperCase() !== 'N/A' ? (r.assembly_mark?.trim?.() || '') : ''
+                    const en = r.element_name?.trim?.() || ''
+                    const combined = [ref, am].filter(Boolean).join(' ')
+                    const partName = combined || en || `ID ${rejectedPart.product_id}`
                     
                     allErrorParts.push({
                       profile_name: profile.profile_name,
                       reference: partName,
                       length: rejectedPart.length,
-                      reason: rejectedPart.reason || 'Exceeds stock length'
+                      product_id: rejectedPart.product_id
                     })
                   })
                 }
               })
 
-              // Group by profile_name, reference, and length to count quantity
-              const groupedErrorParts = new Map<string, {
-                profile_name: string
-                reference: string
-                length: number
-                quantity: number
-                reason: string
-              }>()
-
-              allErrorParts.forEach(part => {
-                const key = `${part.profile_name}|${part.reference}|${part.length.toFixed(2)}`
-                if (groupedErrorParts.has(key)) {
-                  groupedErrorParts.get(key)!.quantity++
-                } else {
-                  groupedErrorParts.set(key, {
-                    profile_name: part.profile_name,
-                    reference: part.reference,
-                    length: part.length,
-                    quantity: 1,
-                    reason: part.reason
-                  })
-                }
-              })
-
-              const errorPartsList = Array.from(groupedErrorParts.values())
-
-              console.log('[ERROR-PARTS] Total error parts after grouping:', errorPartsList.length)
-              console.log('[ERROR-PARTS] Error parts list:', errorPartsList)
-
-              // Only render table if there are error parts
-              if (errorPartsList.length === 0) {
-                console.log('[ERROR-PARTS] No error parts to display')
+              if (allErrorParts.length === 0) {
                 return null
               }
-              
-              console.log('[ERROR-PARTS] Rendering Error Parts Table with', errorPartsList.length, 'parts')
 
               return (
                 <div className="mb-8 page-break-after">
@@ -2109,14 +2090,14 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                           <TableRow className="bg-gray-100 hover:bg-gray-100 h-16">
                             <TableHead className="text-gray-700 font-semibold h-16 text-base w-[20%] pl-6">Profile Type</TableHead>
                             <TableHead className="text-gray-700 font-semibold h-16 text-base w-[20%]">Part Name</TableHead>
-                            <TableHead className="text-gray-700 text-right font-semibold h-16 text-base w-[15%]">Cut Length (mm)</TableHead>
-                            <TableHead className="text-gray-700 text-right font-semibold h-16 text-base w-[10%]">Quantity</TableHead>
-                            <TableHead className="text-gray-700 font-semibold h-16 text-base w-[35%] pr-6">Reason</TableHead>
+                            <TableHead className="text-gray-700 text-right font-semibold h-16 text-base w-[20%]">Cut Length (mm)</TableHead>
+                            <TableHead className="text-gray-700 text-right font-semibold h-16 text-base w-[20%] pr-4">Quantity</TableHead>
+                            <TableHead className="text-gray-700 font-semibold h-16 text-base w-[20%] pl-6 pr-6">Reason</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {errorPartsList.map((part, idx) => (
-                            <TableRow key={`${part.profile_name}-${part.reference}-${idx}`}>
+                          {allErrorParts.map((part, idx) => (
+                            <TableRow key={`${part.profile_name}-${part.product_id}-${idx}`}>
                               <TableCell className="font-medium pl-6">
                                 {part.profile_name}
                               </TableCell>
@@ -2126,11 +2107,11 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                               <TableCell className="text-right">
                                 {Math.round(part.length)}
                               </TableCell>
-                              <TableCell className="text-right">
-                                {part.quantity}
+                              <TableCell className="text-right pr-4">
+                                1
                               </TableCell>
-                              <TableCell className="text-sm text-red-600 pr-6">
-                                {part.reason}
+                              <TableCell className="text-sm pl-6 pr-6">
+                                Part Length &gt; stock length
                               </TableCell>
                             </TableRow>
                           ))}
@@ -2308,7 +2289,9 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
               {(() => {
                 const profilesToShow = selectedProfilesForDisplay.size === 0 
                   ? [] 
-                  : nestingReport.profiles.filter(profile => selectedProfilesForDisplay.has(profile.profile_name))
+                  : nestingReport.profiles
+                      .filter(profile => selectedProfilesForDisplay.has(profile.profile_name))
+                      .filter(profile => profile.cutting_patterns.length > 0)
                 
                 if (profilesToShow.length === 0) {
                   return (
@@ -5121,37 +5104,42 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
 
         {/* Confirm Nesting Modal */}
         <Dialog open={showConfirmNestingModal} onOpenChange={setShowConfirmNestingModal}>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Confirm Nesting Configuration</DialogTitle>
-            </DialogHeader>
+          <DialogContent className="sm:max-w-[680px] max-h-[90vh] overflow-y-auto p-0 gap-0">
+            <div className="px-6 pt-6 pb-4">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-semibold text-gray-900 tracking-tight">Confirm Nesting Configuration</DialogTitle>
+                <DialogDescription className="text-base text-gray-600 mt-2 leading-relaxed">
+                  Review your selection and technical settings before running the nesting engine.
+                </DialogDescription>
+              </DialogHeader>
+            </div>
 
-            <div className="space-y-6 py-4">
+            <div className="px-6 space-y-6 pb-6">
               {/* Profile Summary */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-gray-900">Selected Profiles Summary</h3>
+              <div className="space-y-4">
+                <h3 className="text-base font-semibold text-gray-900">Selected Profiles Summary</h3>
                 <div className="grid grid-cols-3 divide-x divide-gray-200">
                   {/* Profile Types Card */}
-                  <div className="flex flex-col items-center justify-center py-4">
-                    <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#00817A15' }}>
+                  <div className="flex flex-col items-center justify-center py-6">
+                    <div className="h-12 w-12 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#00817A15' }}>
                       <img 
                         src="/Icons/Profile qty.svg" 
                         alt="Profile Types" 
-                        className="h-6 w-6"
+                        className="h-7 w-7"
                         style={{ filter: 'brightness(0) saturate(100%) invert(34%) sepia(46%) saturate(1234%) hue-rotate(141deg) brightness(94%) contrast(101%)' }}
                       />
                     </div>
                     <div className="text-2xl font-semibold text-primary">{selectedProfiles.size}</div>
-                    <div className="text-xs text-gray-600 mt-1">Profile Types</div>
+                    <div className="text-sm text-gray-600 mt-1">Profile Types</div>
                   </div>
 
                   {/* Weight Card */}
-                  <div className="flex flex-col items-center justify-center py-4">
-                    <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#00817A15' }}>
+                  <div className="flex flex-col items-center justify-center py-6">
+                    <div className="h-12 w-12 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#00817A15' }}>
                       <img 
                         src="/Icons/pdf-Weight.svg" 
                         alt="Weight" 
-                        className="h-6 w-6"
+                        className="h-7 w-7"
                         style={{ filter: 'brightness(0) saturate(100%) invert(34%) sepia(46%) saturate(1234%) hue-rotate(141deg) brightness(94%) contrast(101%)' }}
                       />
                     </div>
@@ -5163,16 +5151,16 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                         : '0.00'
                       }
                     </div>
-                    <div className="text-xs text-gray-600 mt-1">Weight (t)</div>
+                    <div className="text-sm text-gray-600 mt-1">Weight (t)</div>
                   </div>
 
                   {/* Cuts Quantity Card */}
-                  <div className="flex flex-col items-center justify-center py-4">
-                    <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#00817A15' }}>
+                  <div className="flex flex-col items-center justify-center py-6">
+                    <div className="h-12 w-12 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#00817A15' }}>
                       <img 
                         src="/Icons/pdf-Cuttinqty.svg" 
                         alt="Cuts" 
-                        className="h-6 w-6"
+                        className="h-7 w-7"
                         style={{ filter: 'brightness(0) saturate(100%) invert(34%) sepia(46%) saturate(1234%) hue-rotate(141deg) brightness(94%) contrast(101%)' }}
                       />
                     </div>
@@ -5185,54 +5173,53 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                         : '0'
                       }
                     </div>
-                    <div className="text-xs text-gray-600 mt-1">Cuts Quantity</div>
+                    <div className="text-sm text-gray-600 mt-1">Cuts Quantity</div>
                   </div>
                 </div>
               </div>
 
               {/* Technical Settings */}
-              <div className="space-y-3 border-t pt-4">
-                <h3 className="text-sm font-semibold text-gray-900">Technical Settings</h3>
-                <div className="space-y-3 text-sm">
+              <div className="space-y-4 border-t border-gray-200 pt-6">
+                <h3 className="text-base font-semibold text-gray-900">Technical Settings</h3>
+                <div className="space-y-4 text-base">
                   <div className="flex items-center gap-3">
-                    <img src="/Icons/kerf for section.svg" alt="Kerf" className="h-4 w-4 opacity-60" />
+                    <img src="/Icons/kerf for section.svg" alt="Kerf" className="h-5 w-5 opacity-70" />
                     <span className="text-gray-600">Saw Kerf:</span>
-                    <span className="font-medium">{kerfValue} (mm)</span>
+                    <span className="font-medium text-gray-900">{kerfValue} (mm)</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <img src="/Icons/trim for section.svg" alt="Trim" className="h-4 w-4 opacity-60" />
+                    <img src="/Icons/trim for section.svg" alt="Trim" className="h-5 w-5 opacity-70" />
                     <span className="text-gray-600">Trim:</span>
-                    <span className="font-medium">{trimValue} (mm)</span>
+                    <span className="font-medium text-gray-900">{trimValue} (mm)</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <img src="/Icons/tolerance for section.svg" alt="Tolerance" className="h-4 w-4 opacity-60" />
+                    <img src="/Icons/tolerance for section.svg" alt="Tolerance" className="h-5 w-5 opacity-70" />
                     <span className="text-gray-600">Tolerance Stockbar:</span>
-                    <span className="font-medium">
+                    <span className="font-medium text-gray-900">
                       {stockToleranceEnabled ? `${stockToleranceValue} (mm)` : 'Disabled'}
                     </span>
                   </div>
                 </div>
-                <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                  <p className="text-xs text-orange-800">
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-sm text-amber-900 leading-relaxed">
                     <span className="font-semibold">Note:</span> For leftover stock bars, only kerf is applied during nesting calculations. Trim and tolerance are not applied as these bars are already cut to exact lengths.
                   </p>
                 </div>
               </div>
 
-
               {/* Approval Checkbox */}
-              <div className="border-t pt-4">
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <div className="relative flex-shrink-0 w-5 h-5 mt-0.5">
+              <div className="border-t border-gray-200 pt-6">
+                <label className="flex items-start gap-4 cursor-pointer">
+                  <div className="relative flex-shrink-0 w-6 h-6 mt-0.5">
                     <input
                       type="checkbox"
                       checked={nestingApproved}
                       onChange={(e) => setNestingApproved(e.target.checked)}
-                      className="appearance-none w-5 h-5 border-2 border-gray-300 rounded-full cursor-pointer transition-all checked:bg-[#00817A] checked:border-[#00817A] focus:ring-2 focus:ring-[#00817A] focus:ring-offset-1"
+                      className="appearance-none w-6 h-6 border-2 border-gray-300 rounded-full cursor-pointer transition-all checked:bg-[#00817A] checked:border-[#00817A] focus:ring-2 focus:ring-[#00817A] focus:ring-offset-1"
                     />
                     {nestingApproved && (
                       <svg 
-                        className="absolute inset-0 w-5 h-5 text-white pointer-events-none p-1"
+                        className="absolute inset-0 w-6 h-6 text-white pointer-events-none p-1"
                         fill="none" 
                         stroke="currentColor" 
                         viewBox="0 0 24 24"
@@ -5241,9 +5228,9 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                       </svg>
                     )}
                   </div>
-                  <div className="text-sm">
-                    <p className="font-medium text-gray-900">I confirm the nesting configuration</p>
-                    <p className="text-gray-500 mt-1">
+                  <div>
+                    <p className="font-semibold text-gray-900 text-base">I confirm the nesting configuration</p>
+                    <p className="text-gray-600 mt-1.5 text-base leading-relaxed">
                       I have reviewed the selected profiles and technical settings and approve running the nesting engine with this configuration.
                     </p>
                   </div>
@@ -5251,7 +5238,7 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t">
+            <div className="px-6 py-4 bg-gray-50/50 border-t border-gray-100 flex justify-end gap-3">
               <Button
                 type="button"
                 variant="outline"

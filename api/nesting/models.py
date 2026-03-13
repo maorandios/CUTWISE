@@ -316,13 +316,25 @@ class RejectedPart:
     reason: str
     """Reason why this part was rejected (e.g., "exceeds maximum stock length")."""
     
+    reference: str = ""
+    """Part reference/name from IFC (e.g., "b27", "c2")."""
+    
+    assembly_mark: str = ""
+    """Assembly mark for grouping (e.g., "c100")."""
+    
+    element_name: str = ""
+    """Element name from IFC Name attribute."""
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "product_id": self.product_id,
             "length": self.length,
             "profile_name": self.profile_name,
-            "reason": self.reason
+            "reason": self.reason,
+            "reference": self.reference,
+            "assembly_mark": self.assembly_mark,
+            "element_name": self.element_name
         }
 
 
