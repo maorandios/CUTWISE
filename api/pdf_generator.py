@@ -633,20 +633,45 @@ class CuttingPlanPDFGenerator:
         waste = pattern.get('waste', 0)
         waste_percentage = pattern.get('waste_percentage', 0)
         parts = pattern.get('parts', [])
+        stock_type = pattern.get('stock_type', 'purchased')
+        is_leftover = stock_type == 'leftover'
         
-        # Tolerance row
+        # For leftover stockbars, set trim and tolerance to 0
+        display_trim = 0 if is_leftover else trim
+        display_tolerance = 0 if is_leftover else tolerance
+        
+        # Tolerance row - always show, but with 0 for leftovers
         tolerance_html = ""
         if tolerance_enabled:
             tolerance_html = f"""
                 <div class="info-box">
                     <img src="data:image/svg+xml;base64,{icons.get('tolerance_section', '')}" class="info-icon" />
-                    <span class="info-text">{tolerance:.0f}mm</span>
+                    <span class="info-text">{display_tolerance:.0f}mm</span>
                 </div>
                 <div class="divider"></div>
             """
         
         # Waste box styling
         waste_class = "waste-box good" if waste_percentage <= 20 else "waste-box"
+        
+        # Title styling for leftover stockbars
+        if is_leftover:
+            # Recycle icon SVG (orange) - smaller size to match title
+            recycle_icon = '''<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M7 19H4.815a1.83 1.83 0 0 1-1.57-.881 1.785 1.785 0 0 1-.004-1.784L7.196 9.5"/>
+                <path d="M11 19h8.203a1.83 1.83 0 0 0 1.556-.89 1.784 1.784 0 0 0 0-1.775l-1.226-2.12"/>
+                <path d="m14 16-3 3 3 3"/>
+                <path d="M8.293 13.596 7.196 9.5 3.1 10.598"/>
+                <path d="m9.344 5.811 1.093-1.892A1.83 1.83 0 0 1 11.985 3a1.784 1.784 0 0 1 1.546.888l3.943 6.843"/>
+                <path d="m13.378 9.633 4.096 1.098 1.097-4.096"/>
+            </svg>'''
+            recycle_icon_base64 = base64.b64encode(recycle_icon.encode()).decode()
+            stockbar_title = f'''<div style="display: flex; align-items: center; gap: 4px; margin-bottom: 6px;">
+                <img src="data:image/svg+xml;base64,{recycle_icon_base64}" style="width: 14px; height: 14px;" />
+                <div style="color: #f97316; font-size: 10px; font-weight: 500;">Leftover Stockbar {pattern_idx + 1}</div>
+            </div>'''
+        else:
+            stockbar_title = f'<div class="stockbar-title">Stockbar {pattern_idx + 1}</div>'
         
         # Generate SVG visualization using extracted data from browser
         svg_html = self._generate_stockbar_svg(
@@ -664,7 +689,7 @@ class CuttingPlanPDFGenerator:
         
         return f"""
 <div class="stockbar-section">
-    <div class="stockbar-title">Stockbar {pattern_idx + 1}</div>
+    {stockbar_title}
     
     <div class="stockbar-info">
         <div class="info-boxes">
@@ -676,7 +701,7 @@ class CuttingPlanPDFGenerator:
             {tolerance_html}
             <div class="info-box">
                 <img src="data:image/svg+xml;base64,{icons.get('trim_section', icons.get('trim', ''))}" class="info-icon" />
-                <span class="info-text">{trim:.0f}mm</span>
+                <span class="info-text">{display_trim:.0f}mm</span>
             </div>
             <div class="divider"></div>
             <div class="info-box">
@@ -1851,6 +1876,198 @@ class PartsListExcelGenerator:
         ws.column_dimensions['D'].width = 12
         ws.column_dimensions['E'].width = 15
         ws.column_dimensions['F'].width = 18
+
+        # Save to bytes
+        excel_buffer = BytesIO()
+        wb.save(excel_buffer)
+        excel_buffer.seek(0)
+        
+        return excel_buffer.getvalue()
+
+
+class BOMExcelGenerator:
+    """Generates Bill of Materials Excel files using openpyxl."""
+
+    def generate_excel(
+        self,
+        nesting_report: Dict[str, Any],
+        report: Dict[str, Any],
+        project_name: str,
+        company_details: Dict[str, str]
+    ) -> bytes:
+        """Generate BOM Excel from nesting report data."""
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        from openpyxl.utils import get_column_letter
+        from datetime import datetime
+        from io import BytesIO
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Bill of Materials"
+
+        # Define styles
+        header_fill = PatternFill(start_color="1CB97E", end_color="1CB97E", fill_type="solid")
+        header_font = Font(name='Arial', size=12, bold=True, color="FFFFFF")
+        
+        title_font = Font(name='Arial', size=16, bold=True)
+        subtitle_font = Font(name='Arial', size=10, color="666666")
+        
+        table_header_fill = PatternFill(start_color="F3F4F6", end_color="F3F4F6", fill_type="solid")
+        table_header_font = Font(name='Arial', size=10, bold=True, color="6B7280")
+        
+        cell_font = Font(name='Arial', size=10)
+        border = Border(
+            left=Side(style='thin', color='E5E7EB'),
+            right=Side(style='thin', color='E5E7EB'),
+            top=Side(style='thin', color='E5E7EB'),
+            bottom=Side(style='thin', color='E5E7EB')
+        )
+
+        current_row = 1
+
+        # Title
+        ws.merge_cells(f'A{current_row}:D{current_row}')
+        title_cell = ws[f'A{current_row}']
+        title_cell.value = "Bill of materials"
+        title_cell.font = title_font
+        title_cell.alignment = Alignment(horizontal='left', vertical='center')
+        current_row += 2
+
+        # Company details
+        current_date = datetime.now().strftime("%d %B, %Y")
+        
+        company_info = [
+            ('Company name:', company_details.get('companyName', 'N/A')),
+            ('Address:', company_details.get('address', '')) if company_details.get('address') else None,
+            ('Email:', company_details.get('email', '')) if company_details.get('email') else None,
+            ('Phone:', company_details.get('phoneNumber', '')) if company_details.get('phoneNumber') else None,
+            ('Date:', current_date)
+        ]
+        
+        for info in company_info:
+            if info:
+                ws[f'A{current_row}'] = info[0]
+                ws[f'A{current_row}'].font = Font(name='Arial', size=9, bold=True)
+                ws[f'B{current_row}'] = info[1]
+                ws[f'B{current_row}'].font = Font(name='Arial', size=9)
+                current_row += 1
+        
+        current_row += 1
+
+        # Project name
+        ws[f'A{current_row}'] = "Project:"
+        ws[f'A{current_row}'].font = Font(name='Arial', size=10, bold=True)
+        ws[f'B{current_row}'] = project_name
+        ws[f'B{current_row}'].font = Font(name='Arial', size=10)
+        current_row += 2
+
+        # Calculate BOM data
+        bom_rows = []
+        profiles = nesting_report.get('profiles', [])
+        
+        for profile in profiles:
+            profile_name = profile.get('profile_name', 'Unknown')
+            
+            # Get profile data from report to calculate weight per meter
+            profile_data = None
+            for p in report.get('profiles', []):
+                if p.get('profile_name') == profile_name:
+                    profile_data = p
+                    break
+            
+            # Calculate weight per meter (kg/m)
+            weight_per_meter = 0
+            if profile_data:
+                total_length_m = profile.get('total_length', 0) / 1000.0
+                if total_length_m > 0:
+                    weight_per_meter = profile_data.get('total_weight', 0) / total_length_m
+            
+            # Group by stock length
+            stock_lengths_used = profile.get('stock_lengths_used', {})
+            
+            for stock_length_str, bar_count in stock_lengths_used.items():
+                if bar_count > 0:
+                    stock_length = float(stock_length_str)
+                    stock_length_m = stock_length / 1000.0
+                    
+                    # Calculate weight in kg for this row
+                    stock_weight_kg = weight_per_meter * stock_length_m * bar_count
+                    
+                    bom_rows.append({
+                        'profile_name': profile_name,
+                        'stock_length_m': stock_length_m,
+                        'quantity': bar_count,
+                        'weight_kg': stock_weight_kg
+                    })
+
+        # Calculate totals
+        total_weight_kg = sum(row['weight_kg'] for row in bom_rows)
+        total_length_m = sum(row['stock_length_m'] * row['quantity'] for row in bom_rows)
+        profile_types = len(set(row['profile_name'] for row in bom_rows))
+
+        # Summary box
+        ws[f'A{current_row}'] = "Total weight:"
+        ws[f'A{current_row}'].font = Font(name='Arial', size=9, bold=True)
+        ws[f'A{current_row}'].fill = PatternFill(start_color="E8F5F0", end_color="E8F5F0", fill_type="solid")
+        
+        ws[f'A{current_row + 1}'] = "Total length:"
+        ws[f'A{current_row + 1}'].font = Font(name='Arial', size=9, bold=True)
+        ws[f'A{current_row + 1}'].fill = PatternFill(start_color="E8F5F0", end_color="E8F5F0", fill_type="solid")
+        
+        ws[f'A{current_row + 2}'] = "Profile Type:"
+        ws[f'A{current_row + 2}'].font = Font(name='Arial', size=9, bold=True)
+        ws[f'A{current_row + 2}'].fill = PatternFill(start_color="E8F5F0", end_color="E8F5F0", fill_type="solid")
+
+        ws[f'B{current_row}'] = f"{total_weight_kg:.2f} kg"
+        ws[f'B{current_row}'].font = Font(name='Arial', size=9)
+        ws[f'B{current_row}'].fill = PatternFill(start_color="E8F5F0", end_color="E8F5F0", fill_type="solid")
+        
+        ws[f'B{current_row + 1}'] = f"{total_length_m:.0f} m"
+        ws[f'B{current_row + 1}'].font = Font(name='Arial', size=9)
+        ws[f'B{current_row + 1}'].fill = PatternFill(start_color="E8F5F0", end_color="E8F5F0", fill_type="solid")
+        
+        ws[f'B{current_row + 2}'] = profile_types
+        ws[f'B{current_row + 2}'].font = Font(name='Arial', size=9)
+        ws[f'B{current_row + 2}'].fill = PatternFill(start_color="E8F5F0", end_color="E8F5F0", fill_type="solid")
+
+        current_row += 4
+
+        # Table headers
+        headers = ['Profile Name', 'Stock Length (m)', 'Quantity', 'Weight (kg)']
+        for col_idx, header in enumerate(headers, start=1):
+            cell = ws.cell(row=current_row, column=col_idx)
+            cell.value = header
+            cell.font = table_header_font
+            cell.fill = table_header_fill
+            cell.alignment = Alignment(horizontal='center' if col_idx > 1 else 'left', vertical='center')
+            cell.border = border
+        
+        current_row += 1
+
+        # Table data
+        for row_data in bom_rows:
+            row_values = [
+                row_data['profile_name'],
+                f"{row_data['stock_length_m']:.2f}",
+                row_data['quantity'],
+                f"{row_data['weight_kg']:.0f}"
+            ]
+
+            for col_idx, value in enumerate(row_values, start=1):
+                cell = ws.cell(row=current_row, column=col_idx)
+                cell.value = value
+                cell.font = cell_font
+                cell.alignment = Alignment(horizontal='right' if col_idx > 1 else 'left', vertical='center')
+                cell.border = border
+            
+            current_row += 1
+
+        # Set column widths
+        ws.column_dimensions['A'].width = 20
+        ws.column_dimensions['B'].width = 18
+        ws.column_dimensions['C'].width = 12
+        ws.column_dimensions['D'].width = 15
 
         # Save to bytes
         excel_buffer = BytesIO()

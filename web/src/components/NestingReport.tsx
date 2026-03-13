@@ -608,6 +608,97 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
     }
   }
 
+  const handleExportBOMToExcel = async () => {
+    if (!nestingReport || !report) {
+      alert('No nesting report available to export.')
+      return
+    }
+
+    const startTime = Date.now()
+
+    try {
+      // Show Lottie loader with progress
+      setLoadingMessage('Generating Bill of materials Excel')
+      setExportProgress({ show: true, current: 20, total: 100 })
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      setExportProgress({ show: true, current: 40, total: 100 })
+      
+      // Use company details from props (from Supabase) or fallback to localStorage
+      const finalCompanyDetails = companyDetails || ProjectStorage.getCompanyDetails() || {
+        companyName: 'Your Company Name',
+        address: 'Company Address',
+        country: '',
+        phoneNumber: 'Company Phone Number',
+        email: ''
+      }
+      
+      setExportProgress({ show: true, current: 60, total: 100 })
+      
+      // Call backend to generate Excel (export all profiles)
+      const response = await fetch(`${getBackendUrl()}/api/generate-bom-excel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          nestingReport: nestingReport,
+          report: report,
+          projectName: projectName || filename.replace('.ifc', ''),
+          companyDetails: {
+            companyName: finalCompanyDetails.companyName,
+            address: finalCompanyDetails.address,
+            email: finalCompanyDetails.email,
+            phoneNumber: finalCompanyDetails.phoneNumber
+          }
+        }),
+      })
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Server returned ${response.status}: ${errorText}`)
+      }
+      
+      setExportProgress({ show: true, current: 85, total: 100 })
+      
+      // Download the Excel
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const downloadName = `${filename.replace('.ifc', '')}_BOM.xlsx`
+      link.href = url
+      link.download = downloadName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      
+      setExportProgress({ show: true, current: 100, total: 100 })
+      
+      // Ensure minimum 3 seconds display time
+      const elapsedTime = Date.now() - startTime
+      const remainingTime = Math.max(0, 3000 - elapsedTime)
+      await new Promise(resolve => setTimeout(resolve, remainingTime))
+      
+      // Hide loader
+      setExportProgress({ show: false, current: 0, total: 0 })
+      setLoadingMessage('')
+    } catch (error) {
+      console.error('Error exporting BOM to Excel:', error)
+      
+      // Ensure minimum 3 seconds display time even on error
+      const elapsedTime = Date.now() - startTime
+      const remainingTime = Math.max(0, 3000 - elapsedTime)
+      await new Promise(resolve => setTimeout(resolve, remainingTime))
+      
+      alert('Failed to export BOM Excel. Please try again.')
+      
+      // Hide loader
+      setExportProgress({ show: false, current: 0, total: 0 })
+      setLoadingMessage('')
+    }
+  }
+
   // Old client-side capture function - no longer used with server-side generation
   // Kept for reference/fallback if needed
   // const captureStockbarImage = async (...) => { ... }
@@ -674,9 +765,8 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
       
       // Extract SVG polygon data from DOM
       const stockbarSvgData: Array<{
-        profileIdx: number
-        patternIdx: number
         profileName: string
+        patternIdx: number
         svgData: {
           viewBox: string
           parts: Array<{
@@ -691,6 +781,8 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
         const profile = nestingReport.profiles[profileIdx]
         if (!cuttingPlanSelectedProfiles.has(profile.profile_name)) continue
         
+        console.log(`[SVG-EXPORT] Processing profile: ${profile.profile_name} (index ${profileIdx}), ${profile.cutting_patterns.length} patterns`)
+        
         for (let patternIdx = 0; patternIdx < profile.cutting_patterns.length; patternIdx++) {
           const svgElement = document.getElementById(`stockbar-svg-${profileIdx}-${patternIdx}`)
           const containerElement = document.getElementById(`stockbar-container-${profileIdx}-${patternIdx}`)
@@ -698,6 +790,8 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
           if (svgElement && containerElement) {
             const viewBox = svgElement.getAttribute('viewBox') || '0 0 1000 60'
             const polygons = svgElement.querySelectorAll('polygon')
+            
+            console.log(`[SVG-EXPORT] Found SVG for ${profile.profile_name} pattern ${patternIdx}: ${polygons.length} polygons`)
             
             // Create mapping from part name to table number (same logic as rendering)
             const partNameToNumber = new Map<string, number>()
@@ -726,30 +820,51 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
             
             const parts: Array<{points: string, fill: string, partName: string}> = []
             
-            polygons.forEach((polygon, idx) => {
+            // Extract only the polygons that actually exist in the SVG
+            // The number of polygons may not match the number of parts in the data
+            // This can happen when multiple parts are grouped together or parts aren't rendered
+            const numPolygons = polygons.length
+            const numParts = profile.cutting_patterns[patternIdx].parts.length
+            
+            console.log(`[SVG-EXPORT] Pattern has ${numParts} parts in data, ${numPolygons} polygons in SVG`)
+            
+            // Extract each polygon and try to match it with a part
+            for (let polyIdx = 0; polyIdx < numPolygons; polyIdx++) {
+              const polygon = polygons[polyIdx]
               const points = polygon.getAttribute('points') || ''
               const fill = polygon.getAttribute('fill') || '#ccc'
               
-              // Get the actual part from the pattern
-              const part = profile.cutting_patterns[patternIdx].parts[idx]
+              if (!points) {
+                console.warn(`[SVG-EXPORT] No points data for polygon ${polyIdx}`)
+                continue
+              }
+              
+              // Try to get the corresponding part (if it exists at this index)
+              const part = profile.cutting_patterns[patternIdx].parts[polyIdx]
               if (part) {
                 const partName = getDisplayPartName(part)
                 const partNumber = partNameToNumber.get(partName)
                 const displayLabel = partNumber ? String(partNumber) : partName
                 
-                // Skip if no points data
-                if (!points) return
-                
+                // Polygons are already in viewBox coordinate system (0 0 1000 60)
+                // No scaling needed - pass them directly to PDF
                 parts.push({ points, fill, partName: displayLabel })
+              } else {
+                // Polygon exists but no corresponding part data - use a generic label
+                parts.push({ points, fill, partName: String(polyIdx + 1) })
               }
-            })
+            }
             
+            console.log(`[SVG-EXPORT] Extracted ${parts.length} parts for ${profile.profile_name} pattern ${patternIdx}`)
+            
+            // Store by profile name instead of index so backend can match correctly
             stockbarSvgData.push({
-              profileIdx,
-              patternIdx,
               profileName: profile.profile_name,
+              patternIdx,
               svgData: { viewBox, parts }
             })
+          } else {
+            console.warn(`[SVG-EXPORT] SVG element not found for profile ${profileIdx} pattern ${patternIdx}`)
           }
         }
       }
@@ -1855,13 +1970,26 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
 
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold">Bill of Materials</h2>
-                <Button
-                  onClick={() => setShowBOMModal(true)}
-                  className="flex items-center gap-2 bg-[#00817A] hover:bg-[#00817A]/90 text-white"
-                >
-                  <img src="/Icons/export icon.svg" alt="Export" className="h-5 w-5 brightness-0 invert" />
-                  Export Bill of Materials
-                </Button>
+                <div className="flex gap-3">
+                  <Button
+                    onClick={handleExportBOMToExcel}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z" />
+                      <path d="M3 8a2 2 0 012-2v10h8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+                    </svg>
+                    Export to Excel
+                  </Button>
+                  <Button
+                    onClick={() => setShowBOMModal(true)}
+                    className="flex items-center gap-2 bg-[#00817A] hover:bg-[#00817A]/90 text-white"
+                  >
+                    <img src="/Icons/export icon.svg" alt="Export" className="h-5 w-5 brightness-0 invert" />
+                    Export to PDF
+                  </Button>
+                </div>
               </div>
               
               <div className="rounded-lg border overflow-hidden">
@@ -2299,8 +2427,10 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                   )
                 }
                 
-                return profilesToShow.map((profile, profileIdx) => {
+                return profilesToShow.map((profile) => {
                 const profileKey = profile.profile_name
+                // Get original index from nestingReport.profiles for consistent SVG IDs
+                const originalProfileIdx = nestingReport.profiles.findIndex(p => p.profile_name === profile.profile_name)
                 const isExpanded = expandedProfiles.has(profileKey)
                 
                 const toggleProfile = () => {
@@ -2314,7 +2444,7 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                 }
                 
                 return (
-                  <div key={profileIdx} className="mb-4 border rounded-xl">
+                  <div key={originalProfileIdx} className="mb-4 border rounded-xl">
                     {/* Collapsible header */}
                     <button
                       onClick={toggleProfile}
@@ -2336,13 +2466,13 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                   {profile.cutting_patterns.map((pattern, patternIdx) => {
                     console.log(`[STOCKBAR] Pattern ${patternIdx + 1}: stock_type="${pattern.stock_type}", stock_length=${pattern.stock_length}`)
                     return (
-                    <div key={patternIdx} id={`stockbar-full-${profileIdx}-${patternIdx}`} className="mb-4 p-3 bg-white rounded-xl">
+                    <div key={patternIdx} id={`stockbar-full-${originalProfileIdx}-${patternIdx}`} className="mb-4 p-3 bg-white rounded-xl">
                       {/* Stockbar Title */}
                       <div className="mb-3 flex items-center gap-2">
                         {pattern.stock_type === 'leftover' && (
                           <Recycle className="w-5 h-5 text-orange-500" />
                         )}
-                        <h5 className="text-base font-medium text-muted-foreground">
+                        <h5 className={`text-base font-medium ${pattern.stock_type === 'leftover' ? 'text-orange-500' : 'text-muted-foreground'}`}>
                           {pattern.stock_type === 'leftover' ? 'Leftover ' : ''}Stockbar {patternIdx + 1}
                         </h5>
                       </div>
@@ -2426,12 +2556,12 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                         <div className="relative">
                           {/* Stock bar visualization - boundary-based cut lines */}
                           {/* Container with border matching the SVG border style */}
-                          <div id={`stockbar-container-${profileIdx}-${patternIdx}`} className="relative bg-white rounded mb-3 border border-gray-300" style={{ height: '60px', overflow: 'hidden' }}>
+                          <div id={`stockbar-container-${originalProfileIdx}-${patternIdx}`} className="relative bg-white rounded mb-3 border border-gray-300" style={{ height: '60px', overflow: 'hidden' }}>
                             {/* Text labels rendered as absolute positioned divs to prevent SVG scaling */}
                             {/* Labels are rendered inside the SVG function to access partPositions */}
-                            <svg key={`svg-${profileIdx}-${patternIdx}`} id={`stockbar-svg-${profileIdx}-${patternIdx}`} className="absolute inset-0 w-full h-full" viewBox="0 0 1000 60" preserveAspectRatio="none" shapeRendering="crispEdges">
+                            <svg key={`svg-${originalProfileIdx}-${patternIdx}`} id={`stockbar-svg-${originalProfileIdx}-${patternIdx}`} className="absolute inset-0 w-full h-full" viewBox="0 0 1000 60" preserveAspectRatio="none" shapeRendering="crispEdges">
                               <defs>
-                                <clipPath id={`clip-${profileIdx}-${patternIdx}`}>
+                                <clipPath id={`clip-${originalProfileIdx}-${patternIdx}`}>
                                   <rect x="0" y="0" width="1000" height="60" />
                                 </clipPath>
                               </defs>
@@ -3506,7 +3636,7 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                                   }
                                 
                                 return (
-                                  <g clipPath={`url(#clip-${profileIdx}-${patternIdx})`}>
+                                  <g clipPath={`url(#clip-${originalProfileIdx}-${patternIdx})`}>
                                     {/* Stock bar background - white */}
                                     <rect
                                       x="0"
@@ -3677,7 +3807,7 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                                       
                                       // Only create clip path for the last part to prevent overflow into waste
                                       const isLastPart = partIdx === lastPartIdx && pattern.waste > 0
-                                      const partClipId = isLastPart ? `part-clip-${profileIdx}-${patternIdx}-${partIdx}` : null
+                                      const partClipId = isLastPart ? `part-clip-${originalProfileIdx}-${patternIdx}-${partIdx}` : null
                                       
                                       return (
                                         <g key={partIdx}>
@@ -5424,6 +5554,9 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                 onClick={handleExportBOMToPDF}
                 disabled={bomSelectedProfiles.size === 0}
               >
+                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd" />
+                </svg>
                 Generate PDF
               </Button>
             </div>
@@ -5506,7 +5639,9 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                   Select Profiles to Include
                 </Label>
                 <div className="space-y-2 max-h-80 overflow-y-auto border rounded-lg p-3">
-                  {nestingReport && nestingReport.profiles.map((profile) => {
+                  {nestingReport && nestingReport.profiles
+                    .filter(profile => profile.cutting_patterns.length > 0)
+                    .map((profile) => {
                     const profileData = report?.profiles.find(p => p.profile_name === profile.profile_name)
                     const tonnage = profileData ? (profileData.total_weight / 1000).toFixed(3) : '0.000'
                     
@@ -5558,15 +5693,19 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                   size="sm"
                   onClick={() => {
                     if (nestingReport) {
-                      if (cuttingPlanSelectedProfiles.size === nestingReport.profiles.length) {
+                      const profilesWithPatterns = nestingReport.profiles.filter(p => p.cutting_patterns.length > 0)
+                      if (cuttingPlanSelectedProfiles.size === profilesWithPatterns.length) {
                         setCuttingPlanSelectedProfiles(new Set())
                       } else {
-                        setCuttingPlanSelectedProfiles(new Set(nestingReport.profiles.map(p => p.profile_name)))
+                        setCuttingPlanSelectedProfiles(new Set(profilesWithPatterns.map(p => p.profile_name)))
                       }
                     }
                   }}
                 >
-                  {cuttingPlanSelectedProfiles.size === nestingReport?.profiles.length ? 'Deselect All' : 'Select All'}
+                  {(() => {
+                    const profilesWithPatterns = nestingReport?.profiles.filter(p => p.cutting_patterns.length > 0) || []
+                    return cuttingPlanSelectedProfiles.size === profilesWithPatterns.length ? 'Deselect All' : 'Select All'
+                  })()}
                 </Button>
               </div>
             </div>
