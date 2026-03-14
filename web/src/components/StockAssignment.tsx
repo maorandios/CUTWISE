@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { ChevronDown, ChevronUp, Plus, X, Package, Recycle, CheckCircle2, AlertCircle } from 'lucide-react'
 import {
   Dialog,
@@ -212,13 +211,61 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
   }
 
   const toggleComplete = (profileName: string) => {
-    setProfileStocks(prev =>
-      prev.map(profile =>
-        profile.profileName === profileName
-          ? { ...profile, isComplete: !profile.isComplete }
-          : profile
+    const profile = profileStocks.find(p => p.profileName === profileName)
+    if (!profile) return
+
+    // If already complete, just toggle to incomplete (allow editing again)
+    if (profile.isComplete) {
+      setProfileStocks(prev =>
+        prev.map(p =>
+          p.profileName === profileName
+            ? { ...p, isComplete: false }
+            : p
+        )
       )
-    )
+      return
+    }
+
+    // If marking as complete, validate stock lengths first
+    if (!profile.maxPartLength) {
+      // No validation needed, just mark complete
+      setProfileStocks(prev =>
+        prev.map(p =>
+          p.profileName === profileName
+            ? { ...p, isComplete: true }
+            : p
+        )
+      )
+      return
+    }
+
+    const allStocks = [
+      ...profile.purchasedStocks.map(s => s.length),
+      ...profile.leftoverStocks.map(s => s.length)
+    ]
+
+    if (allStocks.length === 0) return
+
+    const maxStock = Math.max(...allStocks)
+
+    if (profile.maxPartLength > maxStock) {
+      // Show warning modal
+      setStockWarnings([{
+        profile: profile.profileName,
+        maxPart: profile.maxPartLength,
+        maxStock
+      }])
+      setShowStockWarning(true)
+    } else {
+      // Valid, mark as complete
+      setProfileStocks(prev =>
+        prev.map(p =>
+          p.profileName === profileName
+            ? { ...p, isComplete: true }
+            : p
+        )
+      )
+    }
   }
 
   const useDefaultsForAll = () => {
@@ -513,43 +560,49 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
                           className="inline-flex items-center gap-2 px-3 py-2 bg-green-50 border border-gray-200 rounded-lg text-sm font-medium text-green-700"
                         >
                           <span>{stock.length.toLocaleString()}mm</span>
-                          <button
-                            onClick={() => removeStock(profile.profileName, stock.id, 'purchased')}
-                            className="hover:bg-green-200 rounded p-0.5 transition-colors"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
+                          {!profile.isComplete && (
+                            <button
+                              onClick={() => removeStock(profile.profileName, stock.id, 'purchased')}
+                              className="hover:bg-green-200 rounded p-0.5 transition-colors"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       ))}
 
                       {/* Add Purchased Stock */}
-                      {addingStock?.profileName === profile.profileName &&
-                      addingStock?.type === 'purchased' ? (
-                        <div ref={addStockRef} className="inline-flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus-within:border-gray-300">
-                          <Input
-                            type="number"
-                            placeholder="Length (mm)"
-                            value={newStockLength}
-                            onChange={(e) => setNewStockLength(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                addStock(profile.profileName, 'purchased')
+                      {!profile.isComplete && (
+                        <>
+                          {addingStock?.profileName === profile.profileName &&
+                          addingStock?.type === 'purchased' ? (
+                            <div ref={addStockRef} className="inline-flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus-within:border-gray-300">
+                              <Input
+                                type="number"
+                                placeholder="Length (mm)"
+                                value={newStockLength}
+                                onChange={(e) => setNewStockLength(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    addStock(profile.profileName, 'purchased')
+                                  }
+                                }}
+                                className="w-28 h-7 text-sm border-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent p-0 shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-gray-400"
+                                autoFocus
+                              />
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() =>
+                                setAddingStock({ profileName: profile.profileName, type: 'purchased' })
                               }
-                            }}
-                            className="w-28 h-7 text-sm border-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent p-0 shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-gray-400"
-                            autoFocus
-                          />
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() =>
-                            setAddingStock({ profileName: profile.profileName, type: 'purchased' })
-                          }
-                          className="inline-flex items-center gap-1 px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-primary hover:text-primary transition-colors"
-                        >
-                          <Plus className="w-4 h-4" />
-                          Add
-                        </button>
+                              className="inline-flex items-center gap-1 px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-primary hover:text-primary transition-colors"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Add
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -576,81 +629,94 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
                           <span className="text-xs bg-orange-200 px-1.5 py-0.5 rounded">
                             ×{stock.quantity}
                           </span>
-                          <button
-                            onClick={() => removeStock(profile.profileName, stock.id, 'leftover')}
-                            className="hover:bg-orange-200 rounded p-0.5 transition-colors"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
+                          {!profile.isComplete && (
+                            <button
+                              onClick={() => removeStock(profile.profileName, stock.id, 'leftover')}
+                              className="hover:bg-orange-200 rounded p-0.5 transition-colors"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       ))}
 
                       {/* Add Leftover Stock */}
-                      {addingStock?.profileName === profile.profileName &&
-                      addingStock?.type === 'leftover' ? (
-                        <div ref={addStockRef} className="inline-flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus-within:border-gray-300">
-                          <Input
-                            type="number"
-                            placeholder="Length (mm)"
-                            value={newStockLength}
-                            onChange={(e) => setNewStockLength(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                addStock(profile.profileName, 'leftover')
+                      {!profile.isComplete && (
+                        <>
+                          {addingStock?.profileName === profile.profileName &&
+                          addingStock?.type === 'leftover' ? (
+                            <div ref={addStockRef} className="inline-flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus-within:border-gray-300">
+                              <Input
+                                type="number"
+                                placeholder="Length (mm)"
+                                value={newStockLength}
+                                onChange={(e) => setNewStockLength(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    addStock(profile.profileName, 'leftover')
+                                  }
+                                }}
+                                className="w-28 h-7 text-sm border-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent p-0 shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-gray-400"
+                                autoFocus
+                              />
+                              <span className="text-gray-300">|</span>
+                              <span className="text-sm text-gray-500">Qty:</span>
+                              <Input
+                                type="number"
+                                placeholder="1"
+                                value={newStockQuantity}
+                                onChange={(e) => setNewStockQuantity(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    addStock(profile.profileName, 'leftover')
+                                  }
+                                }}
+                                className="w-12 h-7 text-sm border-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent p-0 shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-gray-400"
+                                min="1"
+                              />
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() =>
+                                setAddingStock({ profileName: profile.profileName, type: 'leftover' })
                               }
-                            }}
-                            className="w-28 h-7 text-sm border-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent p-0 shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-gray-400"
-                            autoFocus
-                          />
-                          <span className="text-gray-300">|</span>
-                          <span className="text-sm text-gray-500">Qty:</span>
-                          <Input
-                            type="number"
-                            placeholder="1"
-                            value={newStockQuantity}
-                            onChange={(e) => setNewStockQuantity(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                addStock(profile.profileName, 'leftover')
-                              }
-                            }}
-                            className="w-12 h-7 text-sm border-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent p-0 shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-gray-400"
-                            min="1"
-                          />
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() =>
-                            setAddingStock({ profileName: profile.profileName, type: 'leftover' })
-                          }
-                          className="inline-flex items-center gap-1 px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-primary hover:text-primary transition-colors"
-                        >
-                          <Plus className="w-4 h-4" />
-                          Add Leftover
-                        </button>
+                              className="inline-flex items-center gap-1 px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-primary hover:text-primary transition-colors"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Add Leftover
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
 
-                  {/* Complete Toggle */}
+                  {/* Complete Button */}
                   <div className="pt-6 border-t">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <CheckCircle2 className={`w-5 h-5 ${hasNoStocks ? 'text-gray-300' : 'text-gray-400'}`} />
+                        <CheckCircle2 className={`w-5 h-5 ${hasNoStocks ? 'text-gray-300' : profile.isComplete ? 'text-green-600' : 'text-gray-400'}`} />
                         <div>
                           <Label className={`text-sm font-semibold ${hasNoStocks ? 'text-gray-400' : 'text-gray-700'}`}>
-                            Mark as Complete
+                            {profile.isComplete ? 'Configuration Complete' : 'Mark as Complete'}
                           </Label>
                           <p className="text-xs text-gray-500 mt-1">
-                            {hasNoStocks ? 'Add at least one stock length to mark as complete' : 'Confirm you\'ve finished configuring stock for this profile'}
+                            {hasNoStocks 
+                              ? 'Add at least one stock length to mark as complete' 
+                              : profile.isComplete 
+                                ? 'Click Edit to modify this configuration'
+                                : 'Confirm you\'ve finished configuring stock for this profile'}
                           </p>
                         </div>
                       </div>
-                      <Switch
-                        checked={profile.isComplete}
-                        onCheckedChange={() => toggleComplete(profile.profileName)}
+                      <Button
+                        onClick={() => toggleComplete(profile.profileName)}
                         disabled={hasNoStocks}
-                      />
+                        variant={profile.isComplete ? "outline" : "default"}
+                        size="sm"
+                      >
+                        {profile.isComplete ? 'Edit' : 'Complete'}
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -672,7 +738,7 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
             <div className="space-y-3 min-w-0">
               <DialogTitle className="text-xl font-semibold text-gray-900 tracking-tight">Incomplete Configuration</DialogTitle>
               <DialogDescription className="text-base text-gray-600 leading-relaxed">
-                To generate the nesting report, mark all profile types as complete. For each profile, add stock lengths and toggle the &quot;Mark as Complete&quot; switch.
+                To generate the nesting report, mark all profile types as complete. For each profile, add stock lengths and click the &quot;Complete&quot; button.
               </DialogDescription>
             </div>
           </div>
@@ -720,8 +786,18 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
           </Button>
           <Button
             onClick={() => {
+              // Mark the profile as complete even though stock length is insufficient
+              if (stockWarnings.length > 0) {
+                const profileName = stockWarnings[0].profile
+                setProfileStocks(prev =>
+                  prev.map(p =>
+                    p.profileName === profileName
+                      ? { ...p, isComplete: true }
+                      : p
+                  )
+                )
+              }
               setShowStockWarning(false)
-              onContinue(profileStocks)
             }}
             className="bg-amber-600 hover:bg-amber-700 text-white"
           >
