@@ -514,6 +514,7 @@ export const PartSelection = ({ profilesData, filename, projectName, companyDeta
           </div>
         </div>
         </div>
+        </div>
       </div>
 
       {/* Bottom Navigation */}
