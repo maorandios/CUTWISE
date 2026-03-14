@@ -17,8 +17,8 @@ export const NestingProgressBar = ({ currentStep }: NestingProgressBarProps) => 
   ]
 
   return (
-    <div className="w-full py-6">
-      <div className="max-w-3xl mx-auto">
+    <div className="w-full py-4 bg-gray-50">
+      <div className="max-w-2xl mx-auto px-6">
         <div className="flex items-center justify-between relative">
           {steps.map((step, index) => {
             const isCompleted = step.number < currentStep
@@ -32,7 +32,7 @@ export const NestingProgressBar = ({ currentStep }: NestingProgressBarProps) => 
                   {/* Circle */}
                   <div
                     className={`
-                      w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg
+                      w-10 h-10 rounded-full flex items-center justify-center font-bold text-base
                       transition-all duration-300
                       ${isCompleted ? 'bg-primary text-white' : ''}
                       ${isCurrent ? 'bg-primary text-white ring-4 ring-primary/20' : ''}
@@ -40,7 +40,7 @@ export const NestingProgressBar = ({ currentStep }: NestingProgressBarProps) => 
                     `}
                   >
                     {isCompleted ? (
-                      <Check className="w-6 h-6" />
+                      <Check className="w-5 h-5" />
                     ) : (
                       step.number
                     )}
@@ -49,7 +49,7 @@ export const NestingProgressBar = ({ currentStep }: NestingProgressBarProps) => 
                   {/* Title */}
                   <div
                     className={`
-                      mt-3 text-sm font-medium text-center whitespace-nowrap
+                      mt-2 text-xs font-medium text-center whitespace-nowrap
                       ${isCompleted || isCurrent ? 'text-gray-900' : 'text-gray-400'}
                     `}
                   >
@@ -59,7 +59,7 @@ export const NestingProgressBar = ({ currentStep }: NestingProgressBarProps) => 
 
                 {/* Connecting Line (don't show after last step) */}
                 {index < steps.length - 1 && (
-                  <div className="flex-1 h-1 mx-4 relative" style={{ top: '-20px' }}>
+                  <div className="flex-1 h-1 mx-3 relative" style={{ top: '-16px' }}>
                     <div className="absolute inset-0 bg-gray-200 rounded-full"></div>
                     <div
                       className={`

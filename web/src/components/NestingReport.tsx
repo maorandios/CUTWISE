@@ -1227,9 +1227,7 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
         {/* Step 1: Profile Selection with Split Screen */}
         <div className={`flex-1 flex flex-col overflow-hidden bg-gray-50 ${currentStep !== 'select' ? 'hidden' : ''}`}>
           {/* Progress Bar at Top */}
-          <div className="bg-white border-b">
-            <NestingProgressBar currentStep={1} />
-          </div>
+          <NestingProgressBar currentStep={1} />
 
           {/* Main Content */}
           <div className="flex-1 flex justify-center overflow-hidden">
