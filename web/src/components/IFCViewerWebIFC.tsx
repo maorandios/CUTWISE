@@ -5,6 +5,7 @@ import * as WebIFC from 'web-ifc'
 import { ContextMenu } from './IFCViewer/components'
 import { ContextMenuState, ElementData, SelectionMode } from './IFCViewer/types'
 import { LottieLoader } from './LottieLoader'
+import { getBackendUrl } from '../utils/api'
 
 interface IFCViewerWebIFCProps {
   filename: string | null
@@ -536,7 +537,7 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
         const ifcApi = ifcApiRef.current
 
         // Fetch IFC file
-        const response = await fetch(`/api/ifc/${encodeURIComponent(filename)}`)
+        const response = await fetch(`${getBackendUrl()}/api/ifc/${encodeURIComponent(filename)}`)
         if (!response.ok) {
           throw new Error(`Failed to fetch IFC file: ${response.statusText}`)
         }
