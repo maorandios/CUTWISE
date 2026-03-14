@@ -503,6 +503,9 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
                         Purchased Stock Lengths
                       </Label>
                     </div>
+                    <p className="text-xs text-gray-500 mb-3">
+                      Standard lengths available from your supplier (e.g., 6m, 12m bars)
+                    </p>
                     <div className="flex flex-wrap gap-2">
                       {profile.purchasedStocks.map((stock) => (
                         <div
@@ -560,6 +563,9 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
                       </Label>
                       <span className="text-xs text-gray-500">(Priority usage)</span>
                     </div>
+                    <p className="text-xs text-gray-500 mb-3">
+                      Existing pieces from inventory that will be used first to minimize waste
+                    </p>
                     <div className="flex flex-wrap gap-2">
                       {profile.leftoverStocks.map((stock) => (
                         <div
@@ -624,11 +630,6 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
                         </button>
                       )}
                     </div>
-                    {profile.leftoverStocks.length === 0 && (
-                      <p className="text-xs text-gray-500 mt-2">
-                        Add leftover pieces from your yard to reduce waste
-                      </p>
-                    )}
                   </div>
 
                   {/* Complete Toggle */}
