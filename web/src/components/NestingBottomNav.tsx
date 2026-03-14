@@ -54,7 +54,7 @@ export const NestingBottomNav = ({
 
               return (
                 <div key={step.number} className="flex items-center">
-                  {/* Step Circle */}
+                  {/* Step Circle and Title */}
                   <div className="flex flex-col items-center">
                     <div
                       className={`
@@ -85,12 +85,12 @@ export const NestingBottomNav = ({
 
                   {/* Connecting Line (don't show after last step) */}
                   {index < steps.length - 1 && (
-                    <div className="w-16 h-1 mx-3 relative" style={{ top: '-12px' }}>
-                      <div className="absolute inset-0 bg-gray-200 rounded-full"></div>
+                    <div className="w-16 h-1 mx-3" style={{ marginBottom: '32px' }}>
+                      <div className="absolute h-1 w-16 bg-gray-200 rounded-full"></div>
                       <div
                         className={`
-                          absolute inset-0 rounded-full transition-all duration-500
-                          ${step.number < currentStep ? 'bg-primary w-full' : 'bg-gray-200 w-0'}
+                          absolute h-1 rounded-full transition-all duration-500
+                          ${step.number < currentStep ? 'bg-primary w-16' : 'bg-gray-200 w-0'}
                         `}
                       ></div>
                     </div>

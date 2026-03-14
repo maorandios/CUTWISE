@@ -1278,6 +1278,11 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                   >
                     {selectedProfiles.size === availableProfiles.length ? 'Deselect All' : 'Select All'}
                   </Button>
+
+                  {/* Summary info */}
+                  <div className="text-sm text-center text-gray-500 mt-3">
+                    {selectedProfiles.size} of {availableProfiles.length} profiles selected
+                  </div>
                 </div>
 
                 {/* Profile List */}
@@ -1298,13 +1303,6 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                       ))}
                     </div>
                   )}
-                </div>
-
-                {/* Summary info (removed button - now in bottom nav) */}
-                <div className="p-4 border-t bg-white">
-                  <div className="text-sm text-center text-gray-500">
-                    {selectedProfiles.size} of {availableProfiles.length} profiles selected
-                  </div>
                 </div>
               </div>
 
