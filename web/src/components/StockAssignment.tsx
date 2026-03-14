@@ -11,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { NestingProgressBar } from './NestingProgressBar'
 import { NestingBottomNav } from './NestingBottomNav'
 
 interface StockLength {
@@ -309,9 +308,6 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
 
   return (
     <div className="h-full bg-gray-50 flex flex-col">
-      {/* Progress Bar at Top */}
-      <NestingProgressBar currentStep={3} />
-
       {/* Profile Cards */}
       <div className="flex-1 overflow-y-auto" style={{ paddingBottom: '80px' }}>
         <div className="max-w-[1200px] mx-auto px-6 py-6 space-y-4">
@@ -736,6 +732,7 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
 
     {/* Bottom Navigation */}
     <NestingBottomNav
+      currentStep={3}
       onBack={onBack}
       onContinue={() => {
         if (!hasValidStocks) {

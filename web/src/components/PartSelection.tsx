@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/input'
 import { ChevronRight, Search } from 'lucide-react'
 import { LottieLoader } from './LottieLoader'
-import { NestingProgressBar } from './NestingProgressBar'
 import { NestingBottomNav } from './NestingBottomNav'
 
 interface Part {
@@ -289,9 +288,6 @@ export const PartSelection = ({ profilesData, filename, projectName, companyDeta
 
   return (
     <div className="flex flex-col h-full">
-      {/* Progress Bar at Top */}
-      <NestingProgressBar currentStep={2} />
-      
       <div className="flex-1 overflow-auto" style={{ paddingBottom: '80px' }}>
         <div className="max-w-[1200px] mx-auto px-6 py-6">
 
@@ -496,6 +492,7 @@ export const PartSelection = ({ profilesData, filename, projectName, companyDeta
 
       {/* Bottom Navigation */}
       <NestingBottomNav
+        currentStep={2}
         onBack={onBack}
         onContinue={() => onContinue(selectedParts)}
         continueDisabled={totalSelectedParts === 0}

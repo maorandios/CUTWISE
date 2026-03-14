@@ -40,7 +40,6 @@ import { AnimatedBOMMetricCards } from './AnimatedBOMMetricCards'
 import { AnimatedCuttingMetricCards } from './AnimatedCuttingMetricCards'
 import { PartSelection } from './PartSelection'
 import { StockAssignment } from './StockAssignment'
-import { NestingProgressBar } from './NestingProgressBar'
 import { NestingBottomNav } from './NestingBottomNav'
 
 interface NestingReportProps {
@@ -1226,9 +1225,6 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
 
         {/* Step 1: Profile Selection with Split Screen */}
         <div className={`flex-1 flex flex-col overflow-hidden bg-gray-50 ${currentStep !== 'select' ? 'hidden' : ''}`}>
-          {/* Progress Bar at Top */}
-          <NestingProgressBar currentStep={1} />
-
           {/* Main Content */}
           <div className="flex-1 flex justify-center overflow-hidden">
             <div className="w-full max-w-[1200px] flex overflow-hidden h-full">
@@ -1326,6 +1322,7 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
 
           {/* Bottom Navigation */}
           <NestingBottomNav
+            currentStep={1}
             showBack={false}
             onContinue={fetchPartsForProfiles}
             continueDisabled={selectedProfiles.size === 0 || loading || loadingParts}
