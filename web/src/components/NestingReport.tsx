@@ -2019,7 +2019,13 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
               {/* Summary Cards */}
               {(() => {
                 // Calculate totals for metric cards
-                let totalProfiles = nestingReport.profiles.length
+                // Count only profiles that have successfully nested parts (not just error parts)
+                let totalProfiles = nestingReport.profiles.filter(profile => {
+                  // Check if profile has any actual nested parts (stock lengths used > 0)
+                  const hasNestedParts = Object.values(profile.stock_lengths_used || {}).some(count => count > 0)
+                  return hasNestedParts
+                }).length
+                
                 let totalStockLengthM = 0
                 let totalStockWeightT = 0
                 let totalCutsQty = 0
@@ -2203,7 +2209,17 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                     <tfoot>
                       <TableRow className="bg-muted/50 font-semibold hover:bg-muted/50 h-12">
                         <TableCell className="h-12 pl-6">Total</TableCell>
-                        <TableCell className="text-right h-12">-</TableCell>
+                        <TableCell className="text-right h-12">
+                          {/* Calculate total stock length in meters */}
+                          {nestingReport.profiles.reduce((total, profile) => {
+                            return total + Object.entries(profile.stock_lengths_used || {})
+                              .filter(([_, barCount]) => barCount > 0)
+                              .reduce((sum, [stockLengthStr, barCount]) => {
+                                const stockLengthM = parseFloat(stockLengthStr) / 1000.0
+                                return sum + (stockLengthM * barCount)
+                              }, 0)
+                          }, 0).toFixed(2)}
+                        </TableCell>
                         <TableCell className="text-right h-12">
                           {nestingReport.profiles.reduce((sum, profile) => {
                             return sum + Object.values(profile.stock_lengths_used || {}).reduce((a, b) => a + b, 0)
