@@ -84,6 +84,7 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
     maxPart: number
     maxStock: number
   }>>([])
+  const [approvedWarnings, setApprovedWarnings] = useState<Set<string>>(new Set())
 
   const toggleProfile = (profileName: string) => {
     setExpandedProfiles(prev => {
@@ -223,6 +224,12 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
             : p
         )
       )
+      // Clear approved warning when user edits again
+      setApprovedWarnings(prev => {
+        const next = new Set(prev)
+        next.delete(profileName)
+        return next
+      })
       return
     }
 
@@ -305,6 +312,9 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
     const issues: Array<{profile: string, maxPart: number, maxStock: number}> = []
     
     profileStocks.forEach(profile => {
+      // Skip profiles that user already approved
+      if (approvedWarnings.has(profile.profileName)) return
+      
       if (!profile.maxPartLength) return
       
       const allStocks = [
@@ -796,6 +806,8 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
                       : p
                   )
                 )
+                // Track that user approved this warning
+                setApprovedWarnings(prev => new Set(prev).add(profileName))
               }
               setShowStockWarning(false)
             }}
