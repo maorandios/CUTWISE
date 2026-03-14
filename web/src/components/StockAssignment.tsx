@@ -11,6 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { NestingProgressBar } from './NestingProgressBar'
+import { NestingBottomNav } from './NestingBottomNav'
 
 interface StockLength {
   id: string
@@ -307,8 +309,13 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
 
   return (
     <div className="h-full bg-gray-50 flex flex-col">
+      {/* Progress Bar at Top */}
+      <div className="bg-white border-b">
+        <NestingProgressBar currentStep={3} />
+      </div>
+
       {/* Header */}
-      <div className="bg-gray-100 border-b sticky top-0 z-10 flex-shrink-0">
+      <div className="bg-gray-100 border-b flex-shrink-0">
         <div className="max-w-[1200px] mx-auto px-6 py-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
@@ -322,36 +329,12 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
                 </p>
               </div>
             </div>
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-3">
-              <Button variant="outline" onClick={onBack}>
-                Back
-              </Button>
-              <Button
-                onClick={() => {
-                  if (!hasValidStocks) {
-                    setShowIncompleteWarning(true)
-                  } else {
-                    const warnings = validateStockLengths()
-                    if (warnings.length > 0) {
-                      setStockWarnings(warnings)
-                      setShowStockWarning(true)
-                    } else {
-                      onContinue(profileStocks)
-                    }
-                  }
-                }}
-              >
-                Complete
-              </Button>
-            </div>
           </div>
         </div>
       </div>
 
       {/* Profile Cards */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto" style={{ paddingBottom: '80px' }}>
         <div className="max-w-[1200px] mx-auto px-6 py-6 space-y-4">
         {/* Filter and Quick Actions */}
         <div className="flex items-center justify-between gap-3 mb-4">
@@ -771,6 +754,25 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Bottom Navigation */}
+    <NestingBottomNav
+      onBack={onBack}
+      onContinue={() => {
+        if (!hasValidStocks) {
+          setShowIncompleteWarning(true)
+        } else {
+          const warnings = validateStockLengths()
+          if (warnings.length > 0) {
+            setStockWarnings(warnings)
+            setShowStockWarning(true)
+          } else {
+            onContinue(profileStocks)
+          }
+        }
+      }}
+      continueText="Complete"
+    />
     </div>
   )
 }

@@ -40,6 +40,8 @@ import { AnimatedBOMMetricCards } from './AnimatedBOMMetricCards'
 import { AnimatedCuttingMetricCards } from './AnimatedCuttingMetricCards'
 import { PartSelection } from './PartSelection'
 import { StockAssignment } from './StockAssignment'
+import { NestingProgressBar } from './NestingProgressBar'
+import { NestingBottomNav } from './NestingBottomNav'
 
 interface NestingReportProps {
   filename: string
@@ -1223,106 +1225,114 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
         )}
 
         {/* Step 1: Profile Selection with Split Screen */}
-        <div className={`flex-1 flex justify-center overflow-hidden bg-gray-50 ${currentStep !== 'select' ? 'hidden' : ''}`}>
-          <div className="w-full max-w-[1200px] flex overflow-hidden h-full">
-            {/* Left Panel - Profile List (max 30% width) */}
-            <div className="w-full max-w-[30%] border-r flex flex-col">
-              {/* Header */}
-              <div className="p-4 border-b">
-                {/* Metric Cards */}
-                <div className="grid grid-cols-3 divide-x divide-gray-200 mb-4">
-                  {/* Profile Types Card */}
-                  <div className="flex flex-col items-center justify-center text-center py-4">
-                    <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#00817A15' }}>
-                      <img src="/Icons/Profile qty.svg" alt="Profile Types" className="h-6 w-6" style={{ filter: 'brightness(0) saturate(100%) invert(34%) sepia(46%) saturate(1234%) hue-rotate(141deg) brightness(94%) contrast(101%)' }} />
+        <div className={`flex-1 flex flex-col overflow-hidden bg-gray-50 ${currentStep !== 'select' ? 'hidden' : ''}`}>
+          {/* Progress Bar at Top */}
+          <div className="bg-white border-b">
+            <NestingProgressBar currentStep={1} />
+          </div>
+
+          {/* Main Content */}
+          <div className="flex-1 flex justify-center overflow-hidden">
+            <div className="w-full max-w-[1200px] flex overflow-hidden h-full">
+              {/* Left Panel - Profile List (max 30% width) */}
+              <div className="w-full max-w-[30%] border-r flex flex-col">
+                {/* Header */}
+                <div className="p-4 border-b">
+                  {/* Metric Cards */}
+                  <div className="grid grid-cols-3 divide-x divide-gray-200 mb-4">
+                    {/* Profile Types Card */}
+                    <div className="flex flex-col items-center justify-center text-center py-4">
+                      <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#00817A15' }}>
+                        <img src="/Icons/Profile qty.svg" alt="Profile Types" className="h-6 w-6" style={{ filter: 'brightness(0) saturate(100%) invert(34%) sepia(46%) saturate(1234%) hue-rotate(141deg) brightness(94%) contrast(101%)' }} />
+                      </div>
+                      <p className="text-2xl font-bold text-primary mb-1">{selectedProfiles.size}</p>
+                      <p className="text-xs text-muted-foreground leading-tight">Profile Types</p>
                     </div>
-                    <p className="text-2xl font-bold text-primary mb-1">{selectedProfiles.size}</p>
-                    <p className="text-xs text-muted-foreground leading-tight">Profile Types</p>
+
+                    {/* Weight Card */}
+                    <div className="flex flex-col items-center justify-center text-center py-4">
+                      <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#00817A15' }}>
+                        <img src="/Icons/pdf-Weight.svg" alt="Weight" className="h-6 w-6" style={{ filter: 'brightness(0) saturate(100%) invert(34%) sepia(46%) saturate(1234%) hue-rotate(141deg) brightness(94%) contrast(101%)' }} />
+                      </div>
+                      <p className="text-2xl font-bold text-primary mb-1">
+                        {(availableProfiles
+                          .filter(p => selectedProfiles.has(p.profile_name))
+                          .reduce((sum, p) => sum + p.total_weight, 0) / 1000).toFixed(2)}
+                      </p>
+                      <p className="text-xs text-muted-foreground leading-tight">Weight (t)</p>
+                    </div>
+
+                    {/* Cuts Quantity Card */}
+                    <div className="flex flex-col items-center justify-center text-center py-4">
+                      <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#00817A15' }}>
+                        <img src="/Icons/pdf-Cuttinqty.svg" alt="Cuts" className="h-6 w-6" style={{ filter: 'brightness(0) saturate(100%) invert(34%) sepia(46%) saturate(1234%) hue-rotate(141deg) brightness(94%) contrast(101%)' }} />
+                      </div>
+                      <p className="text-2xl font-bold text-primary mb-1">
+                        {availableProfiles
+                          .filter(p => selectedProfiles.has(p.profile_name))
+                          .reduce((sum, p) => sum + p.piece_count, 0)}
+                      </p>
+                      <p className="text-xs text-muted-foreground leading-tight">Cuts Quantity</p>
+                    </div>
                   </div>
 
-                  {/* Weight Card */}
-                  <div className="flex flex-col items-center justify-center text-center py-4">
-                    <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#00817A15' }}>
-                      <img src="/Icons/pdf-Weight.svg" alt="Weight" className="h-6 w-6" style={{ filter: 'brightness(0) saturate(100%) invert(34%) sepia(46%) saturate(1234%) hue-rotate(141deg) brightness(94%) contrast(101%)' }} />
-                    </div>
-                    <p className="text-2xl font-bold text-primary mb-1">
-                      {(availableProfiles
-                        .filter(p => selectedProfiles.has(p.profile_name))
-                        .reduce((sum, p) => sum + p.total_weight, 0) / 1000).toFixed(2)}
-                    </p>
-                    <p className="text-xs text-muted-foreground leading-tight">Weight (t)</p>
-                  </div>
-
-                  {/* Cuts Quantity Card */}
-                  <div className="flex flex-col items-center justify-center text-center py-4">
-                    <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: '#00817A15' }}>
-                      <img src="/Icons/pdf-Cuttinqty.svg" alt="Cuts" className="h-6 w-6" style={{ filter: 'brightness(0) saturate(100%) invert(34%) sepia(46%) saturate(1234%) hue-rotate(141deg) brightness(94%) contrast(101%)' }} />
-                    </div>
-                    <p className="text-2xl font-bold text-primary mb-1">
-                      {availableProfiles
-                        .filter(p => selectedProfiles.has(p.profile_name))
-                        .reduce((sum, p) => sum + p.piece_count, 0)}
-                    </p>
-                    <p className="text-xs text-muted-foreground leading-tight">Cuts Quantity</p>
-                  </div>
+                  {/* Select All Button */}
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={handleSelectAll}
+                  >
+                    {selectedProfiles.size === availableProfiles.length ? 'Deselect All' : 'Select All'}
+                  </Button>
                 </div>
 
-                {/* Select All Button */}
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleSelectAll}
-                >
-                  {selectedProfiles.size === availableProfiles.length ? 'Deselect All' : 'Select All'}
-                </Button>
-              </div>
-
-              {/* Profile List */}
-              <div className="flex-1 overflow-y-auto p-4">
-                {availableProfiles.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <p className="text-sm">No profiles found</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {availableProfiles.map((profile, idx) => (
-                      <ProfileItem
-                        key={profile.profile_name}
-                        profile={profile}
-                        isSelected={selectedProfiles.has(profile.profile_name)}
-                        onToggle={handleProfileToggle}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Summary and Generate Button */}
-              <div className="p-4 border-t">
-                <div className="mb-3 text-sm text-center text-gray-500">
-                  {selectedProfiles.size} of {availableProfiles.length} profiles selected
+                {/* Profile List */}
+                <div className="flex-1 overflow-y-auto p-4" style={{ paddingBottom: '80px' }}>
+                  {availableProfiles.length === 0 ? (
+                    <div className="text-center py-12 text-gray-500">
+                      <p className="text-sm">No profiles found</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {availableProfiles.map((profile, idx) => (
+                        <ProfileItem
+                          key={profile.profile_name}
+                          profile={profile}
+                          isSelected={selectedProfiles.has(profile.profile_name)}
+                          onToggle={handleProfileToggle}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <Button
-                  onClick={fetchPartsForProfiles}
-                  disabled={selectedProfiles.size === 0 || loading || loadingParts}
-                  className="w-full"
-                  size="lg"
-                >
-                  {loadingParts ? 'Loading Parts...' : 'Continue'}
-                </Button>
-              </div>
-            </div>
 
-            {/* Right Panel - IFC Viewer (70% width) */}
-            <div className="flex-1" style={{ willChange: 'transform', contain: 'layout style paint' }}>
-              <IFCViewerWebIFC 
-                filename={filename}
-                isVisible={currentStep === 'select'}
-                selectedProfiles={selectedProfiles}
-                onModelReady={onModelReady}
-              />
+                {/* Summary info (removed button - now in bottom nav) */}
+                <div className="p-4 border-t bg-white">
+                  <div className="text-sm text-center text-gray-500">
+                    {selectedProfiles.size} of {availableProfiles.length} profiles selected
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Panel - IFC Viewer (70% width) */}
+              <div className="flex-1" style={{ willChange: 'transform', contain: 'layout style paint', paddingBottom: '80px' }}>
+                <IFCViewerWebIFC 
+                  filename={filename}
+                  isVisible={currentStep === 'select'}
+                  selectedProfiles={selectedProfiles}
+                  onModelReady={onModelReady}
+                />
+              </div>
             </div>
           </div>
+
+          {/* Bottom Navigation */}
+          <NestingBottomNav
+            showBack={false}
+            onContinue={fetchPartsForProfiles}
+            continueDisabled={selectedProfiles.size === 0 || loading || loadingParts}
+            continueText={loadingParts ? 'Loading Parts...' : 'Continue'}
+          />
         </div>
 
         {/* Step 2: Part Selection */}

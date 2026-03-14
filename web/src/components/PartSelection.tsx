@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/input'
 import { ChevronRight, Search } from 'lucide-react'
 import { LottieLoader } from './LottieLoader'
+import { NestingProgressBar } from './NestingProgressBar'
+import { NestingBottomNav } from './NestingBottomNav'
 
 interface Part {
   partNumber: string
@@ -286,7 +288,12 @@ export const PartSelection = ({ profilesData, filename, projectName, companyDeta
   console.log('[EXPORT] Button states - PDF:', exportingPDF, 'Excel:', exportingExcel)
 
   return (
-    <div className="min-h-screen">
+    <div className="flex flex-col h-full">
+      {/* Progress Bar at Top */}
+      <div className="bg-white border-b">
+        <NestingProgressBar currentStep={2} />
+      </div>
+
       {/* Header with full-width background */}
       <div className="bg-gray-50 border-b border-gray-200">
         <div className="max-w-[1200px] mx-auto px-6 py-6">
@@ -304,29 +311,17 @@ export const PartSelection = ({ profilesData, filename, projectName, companyDeta
                 </p>
               </div>
             </div>
-            
-            {/* Action Buttons */}
-            <div className="flex items-center gap-3">
-              <Button variant="outline" onClick={onBack}>
-                Back
-              </Button>
-              <Button
-                onClick={() => onContinue(selectedParts)}
-                disabled={totalSelectedParts === 0}
-              >
-                Continue →
-              </Button>
-            </div>
           </div>
         </div>
       </div>
       
-      <div className="max-w-[1200px] mx-auto px-6 py-6 pb-12">
+      <div className="flex-1 overflow-auto" style={{ paddingBottom: '80px' }}>
+        <div className="max-w-[1200px] mx-auto px-6 py-6">
 
-        {/* Split Screen Content */}
-        <div className="flex gap-0">
-        {/* Left Panel - Profile List */}
-        <div className="w-80 flex flex-col border-r border-gray-200 pr-6">
+          {/* Split Screen Content */}
+          <div className="flex gap-0">
+          {/* Left Panel - Profile List */}
+          <div className="w-80 flex flex-col border-r border-gray-200 pr-6">
           <div className="space-y-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 310px)' }}>
               {profilesData.map(profile => {
                 const selectedCount = getSelectedCount(profile.profileName)
@@ -520,6 +515,14 @@ export const PartSelection = ({ profilesData, filename, projectName, companyDeta
         </div>
         </div>
       </div>
+
+      {/* Bottom Navigation */}
+      <NestingBottomNav
+        onBack={onBack}
+        onContinue={() => onContinue(selectedParts)}
+        continueDisabled={totalSelectedParts === 0}
+        continueText="Continue"
+      />
 
       {/* Lottie Loading Animation */}
       {exportProgress.show && (
