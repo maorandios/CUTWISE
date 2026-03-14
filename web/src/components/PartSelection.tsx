@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { ChevronRight, Search } from 'lucide-react'
 import { LottieLoader } from './LottieLoader'
 import { NestingBottomNav } from './NestingBottomNav'
+import { getBackendUrl } from '../utils/api'
 
 interface Part {
   partNumber: string
@@ -165,7 +166,7 @@ export const PartSelection = ({ profilesData, filename, projectName, companyDeta
       setExportProgress({ show: true, current: 50, total: 100 })
 
       // Call backend API
-      const response = await fetch('http://localhost:8000/api/generate-parts-list-pdf', {
+      const response = await fetch(`${getBackendUrl()}/api/generate-parts-list-pdf`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -237,7 +238,7 @@ export const PartSelection = ({ profilesData, filename, projectName, companyDeta
       setExportProgress({ show: true, current: 60, total: 100 })
 
       // Call backend API
-      const response = await fetch('http://localhost:8000/api/generate-parts-list-excel', {
+      const response = await fetch(`${getBackendUrl()}/api/generate-parts-list-excel`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
