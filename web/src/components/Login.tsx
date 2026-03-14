@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -30,7 +30,23 @@ const Login = ({ onLoginSuccess, onSwitchToSignup }: LoginProps) => {
   const [showTermsModal, setShowTermsModal] = useState(false)
   const [showPrivacyModal, setShowPrivacyModal] = useState(false)
   const [showCookieModal, setShowCookieModal] = useState(false)
+  const [currentSlide, setCurrentSlide] = useState(0)
   const { signIn, signInWithGoogle, signInWithMagicLink } = useAuth()
+
+  const FEATURE_SLIDES = [
+    <WasteOptimizationPreview key="waste" />,
+    <NestingPreview key="nesting" />,
+    <BOMPreview key="bom" />,
+    <ModelViewerPreview key="model" />
+  ]
+  const SLIDE_COUNT = FEATURE_SLIDES.length
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentSlide(prev => (prev + 1) % SLIDE_COUNT)
+    }, 4000)
+    return () => clearInterval(timer)
+  }, [SLIDE_COUNT])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -244,64 +260,41 @@ const Login = ({ onLoginSuccess, onSwitchToSignup }: LoginProps) => {
         </div>
       </div>
 
-      {/* Right Side - Preview Cards */}
-      <div className="w-1/2 overflow-y-auto scroll-smooth">
-        <div className="h-screen relative">
-          <WasteOptimizationPreview />
-          {/* Scroll Indicator */}
-          <div className="absolute bottom-12 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-3 z-50">
-            <span className="text-gray-300 text-sm font-medium">Scroll for more</span>
-            <div className="w-10 h-10 rounded-full border-2 border-[#00FF9F] flex items-center justify-center bg-[#00817A]/20 animate-scroll-hint">
-              <svg className="w-5 h-5 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-              </svg>
+      {/* Right Side - Feature Carousel */}
+      <div className="w-1/2 relative overflow-hidden bg-[#00817A]">
+        <div className="h-full w-full relative">
+          {FEATURE_SLIDES.map((slide, idx) => (
+            <div
+              key={idx}
+              className={`absolute inset-0 transition-all duration-700 ease-in-out ${
+                idx === currentSlide ? 'opacity-100 scale-100 z-10' : 'opacity-0 scale-95 pointer-events-none'
+              }`}
+              style={{ transitionProperty: 'opacity, transform' }}
+            >
+              {slide}
             </div>
-          </div>
+          ))}
         </div>
-        <div className="h-screen relative">
-          <NestingPreview />
-          {/* Scroll Indicator */}
-          <div className="absolute bottom-12 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-3 z-50">
-            <span className="text-gray-300 text-sm font-medium">Scroll for more</span>
-            <div className="w-10 h-10 rounded-full border-2 border-[#00FF9F] flex items-center justify-center bg-[#00817A]/20 animate-scroll-hint">
-              <svg className="w-5 h-5 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-              </svg>
-            </div>
-          </div>
-        </div>
-        <div className="h-screen relative">
-          <BOMPreview />
-          {/* Scroll Indicator */}
-          <div className="absolute bottom-12 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-3 z-50">
-            <span className="text-gray-300 text-sm font-medium">Scroll for more</span>
-            <div className="w-10 h-10 rounded-full border-2 border-[#00FF9F] flex items-center justify-center bg-[#00817A]/20 animate-scroll-hint">
-              <svg className="w-5 h-5 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-              </svg>
-            </div>
-          </div>
-        </div>
-        <div className="h-screen relative">
-          <ModelViewerPreview />
+        {/* Animated Dots */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-3 z-50">
+          {FEATURE_SLIDES.map((_, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => setCurrentSlide(idx)}
+              className={`rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#00FF9F]/50 ${
+                idx === currentSlide ? 'w-8 h-3 bg-[#00FF9F]' : 'w-3 h-3 bg-white/40 hover:bg-white/60'
+              }`}
+              aria-label={`Go to slide ${idx + 1}`}
+            />
+          ))}
         </div>
       </div>
       
-      {/* Add scroll hint animation */}
       <style>{`
-        @keyframes scroll-hint {
-          0%, 100% {
-            transform: translateY(0);
-            opacity: 1;
-          }
-          50% {
-            transform: translateY(8px);
-            opacity: 0.7;
-          }
-        }
-
-        .animate-scroll-hint {
-          animation: scroll-hint 2s ease-in-out infinite;
+        @keyframes dot-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.8; transform: scale(1.05); }
         }
       `}</style>
 

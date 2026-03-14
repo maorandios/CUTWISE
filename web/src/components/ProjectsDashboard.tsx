@@ -211,7 +211,7 @@ const ProjectsDashboard = ({ onSelectProject, onUploadNew, onLogout, userName = 
           {/* Greeting Section with Upload Button */}
           <div className="mb-8 flex items-center justify-between">
             <div>
-              <p className="text-white/70 text-sm mb-1">Hello,</p>
+              <p className="text-white/70 text-sm mb-1">Welcome,</p>
               <h1 className="text-3xl font-bold text-white">
                 {userName}
               </h1>

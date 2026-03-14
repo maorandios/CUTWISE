@@ -801,7 +801,7 @@ export const StockAssignment = ({ profiles, defaultStockLengths, onBack, onConti
             }}
             className="bg-amber-600 hover:bg-amber-700 text-white"
           >
-            Proceed Anyway
+            Save anyway
           </Button>
         </div>
       </DialogContent>
