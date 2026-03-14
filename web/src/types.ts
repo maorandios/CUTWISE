@@ -50,6 +50,7 @@ export interface NestingPart {
 
 export interface CuttingPattern {
   stock_length: number  // in mm
+  stock_type?: 'new' | 'leftover'  // Type of stock bar
   parts: Array<{
     part: NestingPart
     cut_position: number  // Start position on stock bar in mm

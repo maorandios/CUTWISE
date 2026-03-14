@@ -2297,7 +2297,7 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
                       profile_name: profile.profile_name,
                       reference: partName,
                       length: rejectedPart.length,
-                      product_id: rejectedPart.product_id
+                      product_id: rejectedPart.product_id || 0
                     })
                   })
                 }

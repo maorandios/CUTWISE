@@ -75,7 +75,7 @@ export const PartSelection = ({ profilesData, filename, projectName, companyDeta
   const togglePart = (profileName: string, partNumber: string) => {
     setSelectedParts(prev => {
       const newMap = new Map(prev)
-      const profileParts = new Set(newMap.get(profileName) || new Set())
+      const profileParts = new Set<string>(newMap.get(profileName) || new Set<string>())
       
       if (profileParts.has(partNumber)) {
         profileParts.delete(partNumber)
