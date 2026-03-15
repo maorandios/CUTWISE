@@ -15,6 +15,8 @@ import re
 import traceback
 import multiprocessing
 import sys
+import requests
+from urllib.parse import quote
 
 # Import auth module (optional authentication)
 try:
@@ -139,6 +141,74 @@ GLTF_DIR = STORAGE_DIR / "gltf"
 IFC_DIR.mkdir(parents=True, exist_ok=True)
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 GLTF_DIR.mkdir(parents=True, exist_ok=True)
+
+# Supabase object storage (persistent IFC storage for Railway/ephemeral disks)
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+IFC_STORAGE_BUCKET = os.getenv("IFC_STORAGE_BUCKET", "ifc-files")
+
+
+def _get_supabase_storage_key() -> str:
+    """Prefer service role key; fall back to anon key if available."""
+    return SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY
+
+
+def _supabase_storage_enabled() -> bool:
+    return bool(SUPABASE_URL and _get_supabase_storage_key())
+
+
+def upload_ifc_to_supabase(filename: str, content: bytes) -> bool:
+    """Upload IFC bytes to Supabase Storage bucket."""
+    if not _supabase_storage_enabled():
+        safe_print("[SUPABASE-STORAGE] Not configured, skipping upload")
+        return False
+
+    key = _get_supabase_storage_key()
+    encoded_name = quote(filename, safe="")
+    url = f"{SUPABASE_URL}/storage/v1/object/{IFC_STORAGE_BUCKET}/{encoded_name}"
+    headers = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/octet-stream",
+        "x-upsert": "true",
+    }
+
+    try:
+        resp = requests.post(url, headers=headers, data=content, timeout=30)
+        if 200 <= resp.status_code < 300:
+            safe_print(f"[SUPABASE-STORAGE] Uploaded IFC to bucket '{IFC_STORAGE_BUCKET}': {filename}")
+            return True
+        safe_print(f"[SUPABASE-STORAGE] Upload failed ({resp.status_code}): {resp.text[:300]}")
+        return False
+    except Exception as e:
+        safe_print(f"[SUPABASE-STORAGE] Upload exception: {e}")
+        return False
+
+
+def download_ifc_from_supabase(filename: str) -> Optional[bytes]:
+    """Download IFC bytes from Supabase Storage bucket."""
+    if not _supabase_storage_enabled():
+        return None
+
+    key = _get_supabase_storage_key()
+    encoded_name = quote(filename, safe="")
+    url = f"{SUPABASE_URL}/storage/v1/object/{IFC_STORAGE_BUCKET}/{encoded_name}"
+    headers = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+    }
+
+    try:
+        resp = requests.get(url, headers=headers, timeout=30)
+        if resp.status_code == 200:
+            safe_print(f"[SUPABASE-STORAGE] Downloaded IFC from bucket '{IFC_STORAGE_BUCKET}': {filename}")
+            return resp.content
+        safe_print(f"[SUPABASE-STORAGE] Download miss/fail ({resp.status_code}) for: {filename}")
+        return None
+    except Exception as e:
+        safe_print(f"[SUPABASE-STORAGE] Download exception: {e}")
+        return None
 
 # Steel element types
 STEEL_TYPES = {"IfcBeam", "IfcColumn", "IfcMember", "IfcPlate"}
@@ -1128,6 +1198,12 @@ async def upload_ifc(file: UploadFile = File(...)):
             import traceback
             traceback.print_exc()
             raise
+
+        # Persist IFC in Supabase Storage as durable copy (best effort when configured)
+        if _supabase_storage_enabled():
+            uploaded = upload_ifc_to_supabase(safe_filename, content)
+            if not uploaded:
+                safe_print("[UPLOAD] WARNING: Supabase storage upload failed; relying on local disk only")
         
         # Analyze IFC
         safe_print(f"[UPLOAD] About to call analyze_ifc for: {file_path}")
@@ -1503,7 +1579,18 @@ async def get_ifc_file(filename: str):
     file_path = IFC_DIR / decoded_filename
     
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="IFC file not found")
+        # Railway/local disks can be ephemeral; recover from durable Supabase Storage.
+        remote_bytes = download_ifc_from_supabase(decoded_filename)
+        if remote_bytes:
+            try:
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(file_path, "wb") as f:
+                    f.write(remote_bytes)
+                safe_print(f"[IFC] Restored missing local IFC from Supabase: {decoded_filename}")
+            except Exception as e:
+                safe_print(f"[IFC] Failed to restore local cache from Supabase: {e}")
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="IFC file not found")
     
     return FileResponse(
         file_path,
