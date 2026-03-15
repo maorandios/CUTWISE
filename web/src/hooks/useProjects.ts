@@ -9,6 +9,8 @@ export interface SupabaseProject {
   user_id: string
   name: string
   filename: string
+  ifc_storage_key?: string
+  original_filename?: string
   date_created: string
   date_modified: string
   status: 'uploaded' | 'analyzed' | 'nested' | 'completed'
@@ -58,6 +60,8 @@ export const useProjects = () => {
         userId: p.user_id,
         name: p.name,
         filename: p.filename,
+        ifcStorageKey: p.ifc_storage_key,
+        originalFilename: p.original_filename,
         dateCreated: p.date_created,
         dateModified: p.date_modified,
         steelReport: p.steel_report,
@@ -104,7 +108,10 @@ export const useProjects = () => {
   const createProject = async (
     name: string,
     filename: string,
-    steelReport: SteelReport
+    steelReport: SteelReport,
+    ifcStorageKey?: string,
+    originalFilename?: string,
+    projectId?: string
   ): Promise<ProjectData | null> => {
     if (!user) {
       setError('User not authenticated')
@@ -112,10 +119,12 @@ export const useProjects = () => {
     }
 
     try {
-      const newProject = {
+      const newProject: any = {
         user_id: user.id,
         name,
         filename,
+        ifc_storage_key: ifcStorageKey || null,
+        original_filename: originalFilename || filename,
         date_created: new Date().toISOString(),
         date_modified: new Date().toISOString(),
         status: 'analyzed' as const,
@@ -128,6 +137,11 @@ export const useProjects = () => {
         total_waste_meters: 0,
         steel_report: steelReport,
         nesting_report: null
+      }
+      
+      // Use pre-generated project ID if provided (for storage key generation)
+      if (projectId) {
+        newProject.id = projectId
       }
 
       const { data, error } = await supabase
@@ -143,6 +157,8 @@ export const useProjects = () => {
         userId: data.user_id,
         name: data.name,
         filename: data.filename,
+        ifcStorageKey: data.ifc_storage_key,
+        originalFilename: data.original_filename,
         dateCreated: data.date_created,
         dateModified: data.date_modified,
         steelReport: data.steel_report,
@@ -211,6 +227,8 @@ export const useProjects = () => {
         userId: data.user_id,
         name: data.name,
         filename: data.filename,
+        ifcStorageKey: data.ifc_storage_key,
+        originalFilename: data.original_filename,
         dateCreated: data.date_created,
         dateModified: data.date_modified,
         steelReport: data.steel_report,
@@ -279,6 +297,8 @@ export const useProjects = () => {
         userId: data.user_id,
         name: data.name,
         filename: data.filename,
+        ifcStorageKey: data.ifc_storage_key,
+        originalFilename: data.original_filename,
         dateCreated: data.date_created,
         dateModified: data.date_modified,
         steelReport: data.steel_report,

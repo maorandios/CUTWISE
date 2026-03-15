@@ -1,307 +1,128 @@
-# Implementation Summary - Online3DViewer Integration
+# IFC Unique Storage Key Implementation Summary
 
-## Date: February 2, 2026
+## What Was Implemented
 
-## Objective
-Integrate the Online3DViewer library into the IFC2026 application to provide fast, client-side IFC viewing without server-side GLTF conversion.
+A complete end-to-end solution for storing IFC files in Supabase Storage with unique keys to prevent filename collisions.
 
-## ✅ Completed Tasks
+## Files Modified
 
-### 1. Created Online3DViewer Component
-**File**: `web/src/components/Online3DViewer.tsx`
+### Backend (api/main.py)
+1. **Added imports**: `uuid`, `datetime`
+2. **New function**: `generate_unique_storage_key()` - generates unique storage paths
+3. **Updated**: `upload_ifc_to_supabase()` - now accepts `storage_key` instead of `filename`
+4. **Updated**: `download_ifc_from_supabase()` - now accepts `storage_key` instead of `filename`
+5. **Updated**: `/api/upload` endpoint:
+   - Accepts `user_id` and `project_id` as form fields
+   - Generates unique storage key
+   - Returns `ifc_storage_key` and `original_filename` in response
+6. **Updated**: `/api/ifc/{filename}` endpoint:
+   - Accepts optional `storage_key` query parameter
+   - Uses storage key for Supabase lookup if provided
+   - Falls back to filename for backward compatibility
 
-```typescript
-// Key implementation details:
-- EmbeddedViewer initialization with custom settings
-- File loading from uploaded IFC files
-- Loading state management with visual feedback
-- Error handling with user-friendly messages
-- Proper cleanup on component unmount
-- Responsive container (100% width, min 600px height)
+### Frontend
+
+#### web/src/utils/projectStorage.ts
+- Added `ifcStorageKey?: string` to `ProjectData` interface
+- Added `originalFilename?: string` to `ProjectData` interface
+
+#### web/src/hooks/useProjects.ts
+- Added `ifc_storage_key` and `original_filename` to `SupabaseProject` interface
+- Updated `createProject()` to accept and store `ifcStorageKey`, `originalFilename`, and `projectId`
+- Updated all data transformations to include new fields
+
+#### web/src/App.tsx
+- Added `currentIfcStorageKey` state variable
+- Updated `proceedWithUpload()` to:
+  - Pre-generate project UUID
+  - Send `user_id` and `project_id` with upload
+  - Store storage key from response
+- Updated `handleSelectProject()` to load and set storage key
+- Updated `handleBackToDashboard()` to clear storage key
+- Pass storage key to `NestingReport` components
+
+#### web/src/components/IFCViewerWebIFC.tsx
+- Added `ifcStorageKey` prop to interface
+- Updated fetch URL to include storage key as query parameter when available
+
+#### web/src/components/NestingReport.tsx
+- Added `ifcStorageKey` prop to interface
+- Pass storage key to `IFCViewerWebIFC` components
+
+### Database
+
+#### database/add_ifc_storage_columns.sql
+- Adds `ifc_storage_key` column to `projects` table
+- Adds `original_filename` column to `projects` table
+- Creates index on `ifc_storage_key`
+- Adds documentation comments
+
+#### database/SUPABASE_MIGRATION_COMMANDS.sql
+- Complete migration script with instructions
+- Verification queries
+- Rollback commands
+- Post-migration checklist
+
+## How It Works
+
+### Upload Flow
+```
+1. User uploads IFC file in frontend
+2. Frontend pre-generates project UUID
+3. Frontend sends: file + user_id + project_id to /api/upload
+4. Backend generates unique storage key: user_id/project_id/timestamp_uuid_filename.ifc
+5. Backend saves file locally AND uploads to Supabase with unique key
+6. Backend returns: filename, ifc_storage_key, original_filename, report
+7. Frontend creates project in database with all fields including storage key
 ```
 
-**Features Implemented:**
-- ✅ Initialize EmbeddedViewer with backgroundColor and defaultColor
-- ✅ Load models using `viewer.LoadModelFromFileList([file])`
-- ✅ `onModelLoaded` callback for success handling
-- ✅ `onModelLoadFailed` callback for error handling
-- ✅ Loading overlay with spinner and message
-- ✅ Error display with reload option
-- ✅ Empty state for when no file is loaded
-- ✅ Proper cleanup with `viewer.Destroy()` on unmount
-
-### 2. Updated App.tsx
-**File**: `web/src/App.tsx`
-
-**Changes Made:**
-1. ✅ Added import for `Online3DViewer` component
-2. ✅ Updated `activeTab` type to include `'viewer3d'`
-3. ✅ Added "3D Viewer" tab button (between Model and Profiles)
-4. ✅ Added tab content section for viewer3d
-5. ✅ Modified `handleFileUploaded` to switch to 'viewer3d' tab automatically
-
-**Navigation Order:**
+### Project Reopen Flow
 ```
-Dashboard → Model → 3D Viewer → Profiles → Plates → ... → Management
+1. User clicks on project in dashboard
+2. Frontend loads project from Supabase (includes ifc_storage_key)
+3. Frontend passes storage key to IFCViewerWebIFC component
+4. Viewer fetches: /api/ifc/{filename}?storage_key={unique_key}
+5. Backend checks local cache first
+6. If missing, backend downloads from Supabase using storage key
+7. Backend restores local cache and serves file
 ```
 
-### 3. Library Integration
-**Location**: `web/src/lib/` (already present from user's copy)
+## Storage Key Format
 
-**Structure:**
 ```
-lib/
-├── engine/
-│   ├── viewer/embeddedviewer.js    ← Used by component
-│   ├── model/color.js              ← RGBColor, RGBAColor classes
-│   ├── import/importerifc.js       ← IFC parsing logic
-│   └── ... (other modules)
-└── website/
-    └── ... (website modules)
-```
+{user_id}/{project_id}/{timestamp}_{uuid}_{sanitized_filename}
 
-**External Dependencies:**
-- web-ifc (v0.0.68) - Loaded automatically from CDN
-- URL: `https://cdn.jsdelivr.net/npm/web-ifc@0.0.68/web-ifc-api-iife.js`
+Example:
+550e8400-e29b-41d4-a716-446655440000/abc123-def456/20260315_143022_a1b2c3d4_Building_Model.ifc
 
-### 4. Documentation Created
-1. ✅ `ONLINE3D_VIEWER_INTEGRATION.md` - Technical documentation
-2. ✅ `ONLINE3D_VIEWER_QUICKSTART.md` - User guide
-3. ✅ `IMPLEMENTATION_SUMMARY.md` - This file
-
-## Technical Architecture
-
-### Component Flow
-```
-User Uploads IFC File
-        ↓
-handleFileUploaded() called
-        ↓
-currentFile state updated
-        ↓
-activeTab set to 'viewer3d'
-        ↓
-Online3DViewer component renders
-        ↓
-EmbeddedViewer initialized
-        ↓
-IFC file fetched from /storage/ifc/{filename}
-        ↓
-File loaded via LoadModelFromFileList()
-        ↓
-web-ifc loaded from CDN (if needed)
-        ↓
-Model parsed and displayed
-        ↓
-onModelLoaded callback fired
-        ↓
-Loading state cleared, user can interact
+Components:
+- user_id: UUID of the user who uploaded the file
+- project_id: UUID of the project
+- timestamp: Upload time in YYYYMMDD_HHMMSS format
+- uuid: 8-character unique identifier
+- sanitized_filename: Original filename with invalid characters removed
 ```
 
-### State Management
-```typescript
-// Component-level state
-const [isLoading, setIsLoading] = useState(false)
-const [loadError, setLoadError] = useState<string | null>(null)
-const [isInitialized, setIsInitialized] = useState(false)
+## Backward Compatibility
 
-// Refs for persistent objects
-const containerRef = useRef<HTMLDivElement>(null)
-const viewerRef = useRef<EmbeddedViewer | null>(null)
+- **Old projects**: Continue to work with filename-based lookup
+- **New projects**: Use unique storage key
+- **No breaking changes**: All existing functionality preserved
+- **Gradual migration**: Old projects can be migrated on-demand or left as-is
 
-// Props from parent
-interface Online3DViewerProps {
-  filename: string | null
-}
-```
+## Benefits
 
-### Lifecycle Hooks
-```typescript
-// 1. Initialize viewer once (on mount)
-useEffect(() => {
-  if (!containerRef.current || isInitialized) return
-  const viewer = new EmbeddedViewer(container, settings)
-  return () => viewer.Destroy()
-}, [isInitialized])
+1. **No Collisions**: Each file gets a globally unique key
+2. **Multi-tenant Safe**: User IDs prevent cross-user conflicts
+3. **Reliable**: Files persist across server restarts
+4. **Auditable**: Timestamp in key shows when file was uploaded
+5. **Organized**: Files grouped by user and project in storage
+6. **Display-friendly**: Original filename preserved for UI
 
-// 2. Load model when filename changes
-useEffect(() => {
-  if (!viewerRef.current || !filename) return
-  loadModel()
-}, [filename])
-```
+## Next Steps
 
-## File Changes Summary
-
-### Created Files (1)
-1. `web/src/components/Online3DViewer.tsx` (220 lines)
-
-### Modified Files (1)
-1. `web/src/App.tsx` (Updated imports, tab navigation, and routing)
-
-### Documentation Files (3)
-1. `ONLINE3D_VIEWER_INTEGRATION.md` (Technical guide)
-2. `ONLINE3D_VIEWER_QUICKSTART.md` (User guide)
-3. `IMPLEMENTATION_SUMMARY.md` (This file)
-
-## Configuration
-
-### No Additional Configuration Required
-- ✅ Vite config already handles .js imports
-- ✅ TypeScript config has `skipLibCheck: true`
-- ✅ Library already in correct location
-- ✅ No package.json changes needed
-- ✅ No build process modifications needed
-
-## Testing Checklist
-
-### ✅ Pre-Testing Verification
-- [x] No TypeScript errors
-- [x] No linting errors
-- [x] All imports use correct relative paths
-- [x] Component cleanup implemented
-- [x] Error handling in place
-- [x] Loading states implemented
-
-### 🧪 Testing Steps (For User)
-1. [ ] Start application: `.\start-app-auto.ps1`
-2. [ ] Open browser to `http://localhost:5180`
-3. [ ] Upload an IFC file
-4. [ ] Verify automatic switch to "3D Viewer" tab
-5. [ ] Confirm model loads within 5 seconds
-6. [ ] Test camera controls (orbit, pan, zoom)
-7. [ ] Verify no console errors
-8. [ ] Switch to other tabs and back
-9. [ ] Upload different IFC file
-10. [ ] Verify viewer updates correctly
-
-## Browser Support
-
-| Browser | Version | Status |
-|---------|---------|--------|
-| Chrome | 90+ | ✅ Fully Supported |
-| Edge | 90+ | ✅ Fully Supported |
-| Firefox | 88+ | ✅ Fully Supported |
-| Safari | 14+ | ✅ Fully Supported |
-
-**Requirements:**
-- WebGL support (standard in all modern browsers)
-- WebAssembly support (for web-ifc)
-- ES2020 features
-
-## Performance Characteristics
-
-### Expected Performance
-| Model Size | Load Time | Memory | FPS |
-|------------|-----------|--------|-----|
-| Small (< 10MB) | 1-2s | ~100MB | 60 |
-| Medium (10-50MB) | 2-5s | ~300MB | 60 |
-| Large (50-100MB) | 5-10s | ~500MB | 30-60 |
-| Very Large (> 100MB) | 10-20s | ~1GB | 30 |
-
-### Comparison with GLTF Viewer
-| Metric | 3D Viewer | GLTF Viewer |
-|--------|-----------|-------------|
-| Load Time | 2-5s | 30-60s |
-| Server Processing | None | Heavy |
-| Memory | ~300MB | ~400MB |
-| Client-side Only | Yes | No |
-| Geometry Accuracy | High | High |
-
-## Known Limitations
-
-1. **Feature Set**: Currently basic 3D viewing only
-   - No measurement tools (yet)
-   - No element selection (yet)
-   - No properties panel (yet)
-
-2. **Customization**: Limited to EmbeddedViewer API
-   - Material customization is basic
-   - No clipping planes (yet)
-
-3. **Integration**: Standalone viewer
-   - Not integrated with analysis panel
-   - No filter synchronization
-
-## Future Enhancements
-
-### Phase 1 (Quick Wins)
-- [ ] Add screenshot/export functionality
-- [ ] Add fullscreen toggle
-- [ ] Add camera reset button
-- [ ] Display loading progress percentage
-
-### Phase 2 (Feature Parity)
-- [ ] Add measurement tools
-- [ ] Implement element selection
-- [ ] Add properties panel
-- [ ] Sync with analysis filters
-
-### Phase 3 (Advanced Features)
-- [ ] Add clipping planes
-- [ ] Implement section views
-- [ ] Add material editor
-- [ ] Support multiple models
-
-## Success Metrics
-
-### Implementation Success ✅
-- [x] Component renders without errors
-- [x] Files load successfully
-- [x] Navigation works smoothly
-- [x] No console errors
-- [x] Proper cleanup on unmount
-- [x] Type safety maintained
-
-### User Experience Goals
-- [ ] Load time < 5 seconds for typical files
-- [ ] Smooth 60 FPS navigation
-- [ ] Intuitive controls (no training needed)
-- [ ] Clear error messages
-- [ ] Professional appearance
-
-## Rollback Plan
-
-If issues arise:
-1. Comment out the "3D Viewer" tab button in App.tsx
-2. Remove the tab content section
-3. Component remains but is not accessible
-4. Can be re-enabled after fixes
-
-## Support Resources
-
-### Documentation
-- `ONLINE3D_VIEWER_INTEGRATION.md` - Full technical details
-- `ONLINE3D_VIEWER_QUICKSTART.md` - User-facing guide
-- Library source code in `web/src/lib/engine/`
-
-### External Resources
-- Online3DViewer GitHub: https://github.com/kovacsv/Online3DViewer
-- Demo website: https://3dviewer.net
-- web-ifc: https://github.com/IFCjs/web-ifc
-
-## Conclusion
-
-The Online3DViewer integration is **complete and ready for testing**. The implementation:
-- ✅ Follows React best practices
-- ✅ Uses TypeScript for type safety
-- ✅ Includes proper error handling
-- ✅ Has clean state management
-- ✅ Implements lifecycle management
-- ✅ Provides good user experience
-- ✅ Is fully documented
-
-**Next Steps:**
-1. Start the application
-2. Test with various IFC files
-3. Verify performance meets expectations
-4. Gather user feedback
-5. Plan Phase 1 enhancements
-
----
-
-**Implementation Date**: February 2, 2026  
-**Status**: ✅ Complete - Ready for Testing  
-**Developer**: AI Assistant  
-**Review Required**: User Testing
-
+1. Run the SQL migration in Supabase
+2. Verify environment variables in Railway
+3. Deploy updated code to Railway
+4. Test the upload flow with a new project
+5. Verify files appear in Supabase Storage with correct structure

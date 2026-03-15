@@ -44,6 +44,7 @@ import { NestingBottomNav } from './NestingBottomNav'
 
 interface NestingReportProps {
   filename: string
+  ifcStorageKey?: string | null
   projectName?: string // Custom project name (overrides filename)
   nestingReport: NestingReportType | null
   onNestingReportChange: (report: NestingReportType | null) => void
@@ -120,7 +121,7 @@ const ProfileItem = memo(({ profile, isSelected, onToggle }: ProfileItemProps) =
   )
 })
 
-export default function NestingReport({ filename, projectName, nestingReport: propNestingReport, onNestingReportChange, report, initialView, onSettingsClick, onModelReady, companyDetails, nestingSettings }: NestingReportProps) {
+export default function NestingReport({ filename, ifcStorageKey, projectName, nestingReport: propNestingReport, onNestingReportChange, report, initialView, onSettingsClick, onModelReady, companyDetails, nestingSettings }: NestingReportProps) {
   // Use prop as source of truth, but maintain local state for updates
   const nestingReport = propNestingReport
   const [currentStep, setCurrentStep] = useState<Step>(initialView || 'select')
@@ -1308,8 +1309,9 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
 
               {/* Right Panel - IFC Viewer (70% width) */}
               <div className="flex-1" style={{ willChange: 'transform', contain: 'layout style paint', paddingBottom: '80px' }}>
-                <IFCViewerWebIFC 
+                <IFCViewerWebIFC
                   filename={filename}
+                  ifcStorageKey={ifcStorageKey}
                   isVisible={currentStep === 'select'}
                   selectedProfiles={selectedProfiles}
                   onModelReady={onModelReady}
@@ -5157,8 +5159,9 @@ export default function NestingReport({ filename, projectName, nestingReport: pr
 
                         {/* Right Panel - IFC Viewer */}
                         <div className="flex-1 overflow-hidden h-full">
-                          <IFCViewerWebIFC 
+                          <IFCViewerWebIFC
                             filename={filename}
+                            ifcStorageKey={ifcStorageKey}
                             isVisible={true}
                             selectedProfiles={modelViewSelectedProfiles}
                             backgroundColor="#F9FAFB"

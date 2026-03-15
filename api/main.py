@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Depends
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Depends, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.exceptions import RequestValidationError
@@ -17,6 +17,8 @@ import multiprocessing
 import sys
 import requests
 from urllib.parse import quote
+import uuid
+from datetime import datetime
 
 # Import auth module (optional authentication)
 try:
@@ -158,15 +160,35 @@ def _supabase_storage_enabled() -> bool:
     return bool(SUPABASE_URL and _get_supabase_storage_key())
 
 
-def upload_ifc_to_supabase(filename: str, content: bytes) -> bool:
-    """Upload IFC bytes to Supabase Storage bucket."""
+def generate_unique_storage_key(original_filename: str, user_id: Optional[str] = None, project_id: Optional[str] = None) -> str:
+    """Generate a unique storage key for IFC files to prevent collisions.
+    
+    Format: {user_id}/{project_id}/{timestamp}_{uuid}_{sanitized_filename}
+    If user_id/project_id are not available, uses 'anonymous' and generates a temp ID.
+    """
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    unique_id = str(uuid.uuid4())[:8]
+    sanitized = sanitize_filename(original_filename)
+    
+    # Construct path components
+    user_part = user_id if user_id else "anonymous"
+    project_part = project_id if project_id else f"temp_{unique_id}"
+    
+    # Final key: user_id/project_id/timestamp_uuid_filename.ifc
+    storage_key = f"{user_part}/{project_part}/{timestamp}_{unique_id}_{sanitized}"
+    
+    return storage_key
+
+
+def upload_ifc_to_supabase(storage_key: str, content: bytes) -> bool:
+    """Upload IFC bytes to Supabase Storage bucket using a unique storage key."""
     if not _supabase_storage_enabled():
         safe_print("[SUPABASE-STORAGE] Not configured, skipping upload")
         return False
 
     key = _get_supabase_storage_key()
-    encoded_name = quote(filename, safe="")
-    url = f"{SUPABASE_URL}/storage/v1/object/{IFC_STORAGE_BUCKET}/{encoded_name}"
+    encoded_path = quote(storage_key, safe="")
+    url = f"{SUPABASE_URL}/storage/v1/object/{IFC_STORAGE_BUCKET}/{encoded_path}"
     headers = {
         "apikey": key,
         "Authorization": f"Bearer {key}",
@@ -177,7 +199,7 @@ def upload_ifc_to_supabase(filename: str, content: bytes) -> bool:
     try:
         resp = requests.post(url, headers=headers, data=content, timeout=30)
         if 200 <= resp.status_code < 300:
-            safe_print(f"[SUPABASE-STORAGE] Uploaded IFC to bucket '{IFC_STORAGE_BUCKET}': {filename}")
+            safe_print(f"[SUPABASE-STORAGE] Uploaded IFC to bucket '{IFC_STORAGE_BUCKET}': {storage_key}")
             return True
         safe_print(f"[SUPABASE-STORAGE] Upload failed ({resp.status_code}): {resp.text[:300]}")
         return False
@@ -186,14 +208,14 @@ def upload_ifc_to_supabase(filename: str, content: bytes) -> bool:
         return False
 
 
-def download_ifc_from_supabase(filename: str) -> Optional[bytes]:
-    """Download IFC bytes from Supabase Storage bucket."""
+def download_ifc_from_supabase(storage_key: str) -> Optional[bytes]:
+    """Download IFC bytes from Supabase Storage bucket using the unique storage key."""
     if not _supabase_storage_enabled():
         return None
 
     key = _get_supabase_storage_key()
-    encoded_name = quote(filename, safe="")
-    url = f"{SUPABASE_URL}/storage/v1/object/{IFC_STORAGE_BUCKET}/{encoded_name}"
+    encoded_path = quote(storage_key, safe="")
+    url = f"{SUPABASE_URL}/storage/v1/object/{IFC_STORAGE_BUCKET}/{encoded_path}"
     headers = {
         "apikey": key,
         "Authorization": f"Bearer {key}",
@@ -202,9 +224,9 @@ def download_ifc_from_supabase(filename: str) -> Optional[bytes]:
     try:
         resp = requests.get(url, headers=headers, timeout=30)
         if resp.status_code == 200:
-            safe_print(f"[SUPABASE-STORAGE] Downloaded IFC from bucket '{IFC_STORAGE_BUCKET}': {filename}")
+            safe_print(f"[SUPABASE-STORAGE] Downloaded IFC from bucket '{IFC_STORAGE_BUCKET}': {storage_key}")
             return resp.content
-        safe_print(f"[SUPABASE-STORAGE] Download miss/fail ({resp.status_code}) for: {filename}")
+        safe_print(f"[SUPABASE-STORAGE] Download miss/fail ({resp.status_code}) for: {storage_key}")
         return None
     except Exception as e:
         safe_print(f"[SUPABASE-STORAGE] Download exception: {e}")
@@ -1118,14 +1140,25 @@ async def validate_ifc(file: UploadFile = File(...)):
 
 
 @app.post("/api/upload")
-async def upload_ifc(file: UploadFile = File(...)):
-    """Upload an IFC file."""
+async def upload_ifc(
+    file: UploadFile = File(...),
+    user_id: Optional[str] = Form(None),
+    project_id: Optional[str] = Form(None)
+):
+    """Upload an IFC file.
+    
+    Args:
+        file: The IFC file to upload
+        user_id: Optional user ID for generating unique storage keys (passed as form field)
+        project_id: Optional project ID for generating unique storage keys (passed as form field)
+    """
     import time
     upload_start = time.time()
     
     safe_print("=" * 60)
     safe_print(f"[UPLOAD] ===== UPLOAD ENDPOINT CALLED at {time.strftime('%H:%M:%S')} =====")
     safe_print(f"[UPLOAD] File: {file.filename}")
+    safe_print(f"[UPLOAD] User ID: {user_id}, Project ID: {project_id}")
     safe_print("=" * 60)
     try:
         if not file.filename or not file.filename.endswith((".ifc", ".IFC")):
@@ -1134,6 +1167,10 @@ async def upload_ifc(file: UploadFile = File(...)):
         # Sanitize filename for Windows compatibility
         safe_filename = sanitize_filename(file.filename)
         safe_print(f"[UPLOAD] Received upload request: {file.filename} -> sanitized to: {safe_filename}")
+        
+        # Generate unique storage key for Supabase (prevents filename collisions)
+        storage_key = generate_unique_storage_key(safe_filename, user_id, project_id)
+        safe_print(f"[UPLOAD] Generated unique storage key: {storage_key}")
         
         file_path = IFC_DIR / safe_filename
         report_path = REPORTS_DIR / f"{safe_filename}.json"
@@ -1174,6 +1211,7 @@ async def upload_ifc(file: UploadFile = File(...)):
             response_data = {
                 "filename": safe_filename,
                 "original_filename": file.filename,
+                "ifc_storage_key": storage_key,  # Return unique storage key even for cached files
                 "report": report,
                 "gltf_available": False,  # GLTF disabled - using IFCM viewer
                 "gltf_path": f"/api/gltf/{gltf_filename}",
@@ -1201,7 +1239,7 @@ async def upload_ifc(file: UploadFile = File(...)):
 
         # Persist IFC in Supabase Storage as durable copy (best effort when configured)
         if _supabase_storage_enabled():
-            uploaded = upload_ifc_to_supabase(safe_filename, content)
+            uploaded = upload_ifc_to_supabase(storage_key, content)
             if not uploaded:
                 safe_print("[UPLOAD] WARNING: Supabase storage upload failed; relying on local disk only")
         
@@ -1310,6 +1348,7 @@ async def upload_ifc(file: UploadFile = File(...)):
             response_data = {
                 "filename": safe_filename,  # Return sanitized filename
                 "original_filename": file.filename,  # Keep original for display
+                "ifc_storage_key": storage_key,  # Unique key for Supabase Storage
                 "report": report,
                 "gltf_available": bool(gltf_available),  # Ensure it's always a boolean
                 "gltf_path": f"/api/gltf/{gltf_filename}",  # Always include this
@@ -1572,26 +1611,35 @@ async def get_refined_geometry(filename: str, request: Request):
 
 @app.get("/api/ifc/{filename}")
 @app.head("/api/ifc/{filename}")
-async def get_ifc_file(filename: str):
-    """Serve IFC file for viewer."""
+async def get_ifc_file(filename: str, storage_key: Optional[str] = None):
+    """Serve IFC file for viewer.
+    
+    Args:
+        filename: The sanitized filename (for local cache and backward compatibility)
+        storage_key: Optional unique storage key for Supabase Storage (takes precedence)
+    """
     from urllib.parse import unquote
     decoded_filename = unquote(filename)
     file_path = IFC_DIR / decoded_filename
-    
+
     if not file_path.exists():
         # Railway/local disks can be ephemeral; recover from durable Supabase Storage.
-        remote_bytes = download_ifc_from_supabase(decoded_filename)
+        # Use storage_key if provided (new flow), otherwise fall back to filename (old flow)
+        lookup_key = storage_key if storage_key else decoded_filename
+        safe_print(f"[IFC] Local file missing, attempting Supabase download with key: {lookup_key}")
+        
+        remote_bytes = download_ifc_from_supabase(lookup_key)
         if remote_bytes:
             try:
                 file_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(file_path, "wb") as f:
                     f.write(remote_bytes)
-                safe_print(f"[IFC] Restored missing local IFC from Supabase: {decoded_filename}")
+                safe_print(f"[IFC] Restored missing local IFC from Supabase: {decoded_filename} (key: {lookup_key})")
             except Exception as e:
                 safe_print(f"[IFC] Failed to restore local cache from Supabase: {e}")
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="IFC file not found")
-    
+
     return FileResponse(
         file_path,
         media_type="application/octet-stream",

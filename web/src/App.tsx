@@ -100,6 +100,7 @@ function App() {
   
   // Always start with no file - user must upload
   const [currentFile, setCurrentFile] = useState<string | null>(null)
+  const [currentIfcStorageKey, setCurrentIfcStorageKey] = useState<string | null>(null)
   const [report, setReport] = useState<SteelReport | null>(null)
   const [gltfPath, setGltfPath] = useState<string | undefined>(undefined)
   const [gltfAvailable, setGltfAvailable] = useState<boolean>(false)
@@ -335,9 +336,14 @@ function App() {
     setShowValidationModal(false)
 
     try {
+      // Pre-generate project ID for unique storage key
+      const tempProjectId = crypto.randomUUID()
+      
       // Upload file to backend
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('user_id', user?.id || 'anonymous')
+      formData.append('project_id', tempProjectId)
 
       // Smooth progress: 0-20% for upload
       setUploadProgress(5)
@@ -371,6 +377,7 @@ function App() {
       // Create project with custom name
       setNestingReport(null)
       setCurrentFile(data.filename)
+      setCurrentIfcStorageKey(data.ifc_storage_key || null)
       setReport(data.report)
       setGltfPath(data.gltf_path)
       setGltfAvailable(data.gltf_available || false)
@@ -382,8 +389,15 @@ function App() {
       setActiveTab('ifcm')
       setTabDataCache({})
 
-      // Create project with custom name in Supabase
-      const project = await createProject(projectName, data.filename, data.report)
+      // Create project with custom name in Supabase (using pre-generated ID)
+      const project = await createProject(
+        projectName, 
+        data.filename, 
+        data.report,
+        data.ifc_storage_key,  // Pass unique storage key from backend
+        data.original_filename,  // Pass original filename
+        tempProjectId  // Use the same ID we sent to backend
+      )
       if (project) {
         setCurrentProjectId(project.id)
         setCurrentProjectName(projectName) // Store the custom project name
@@ -613,6 +627,7 @@ function App() {
       })
       
       setCurrentFile(fullProject.filename)
+      setCurrentIfcStorageKey(fullProject.ifcStorageKey || null)
       setCurrentProjectName(fullProject.name) // Store the project name
       setReport(fullProject.steelReport)
       setNestingReport(fullProject.nestingReport)
@@ -652,6 +667,7 @@ function App() {
   const handleBackToDashboard = () => {
     setCurrentView('dashboard')
     setCurrentFile(null)
+    setCurrentIfcStorageKey(null)
     setReport(null)
     setNestingReport(null)
     setCurrentProjectId(null)
@@ -877,6 +893,7 @@ function App() {
                   <NestingReport
                     key={`split-${currentFile}`}
                     filename={currentFile}
+                    ifcStorageKey={currentIfcStorageKey}
                     projectName={currentProjectName}
                     nestingReport={nestingReport}
                     onNestingReportChange={handleNestingReportChange}
@@ -947,6 +964,7 @@ function App() {
                   <NestingReport
                     key={`report-${currentFile}`}
                     filename={currentFile}
+                    ifcStorageKey={currentIfcStorageKey}
                     projectName={currentProjectName}
                     nestingReport={nestingReport}
                     onNestingReportChange={handleNestingReportChange}
@@ -1129,6 +1147,7 @@ function App() {
             <div className="flex-1">
               <NestingReport
                 filename={currentFile}
+                ifcStorageKey={currentIfcStorageKey}
                 projectName={currentProjectName}
                 nestingReport={nestingReport}
                 onNestingReportChange={handleNestingReportChange}

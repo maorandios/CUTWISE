@@ -6,6 +6,8 @@ export interface ProjectData {
   userId?: string // For future database integration
   name: string
   filename: string
+  ifcStorageKey?: string // Unique key for Supabase Storage (prevents filename collisions)
+  originalFilename?: string // Original filename before sanitization
   dateCreated: string
   dateModified: string
   

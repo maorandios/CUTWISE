@@ -8,13 +8,14 @@ import { LottieLoader } from './LottieLoader'
 
 interface IFCViewerWebIFCProps {
   filename: string | null
+  ifcStorageKey?: string | null
   isVisible?: boolean
   selectedProfiles?: Set<string>
   backgroundColor?: string
   onModelReady?: () => void
 }
 
-const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = true, selectedProfiles = new Set(), backgroundColor = '#F9FAFB', onModelReady }: IFCViewerWebIFCProps) {
+const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, ifcStorageKey, isVisible = true, selectedProfiles = new Set(), backgroundColor = '#F9FAFB', onModelReady }: IFCViewerWebIFCProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
@@ -535,8 +536,12 @@ const IFCViewerWebIFC = memo(function IFCViewerWebIFC({ filename, isVisible = tr
 
         const ifcApi = ifcApiRef.current
 
-        // Fetch IFC file
-        const response = await fetch(`/api/ifc/${encodeURIComponent(filename)}`)
+        // Fetch IFC file (pass storage_key if available for Supabase lookup)
+        const url = ifcStorageKey 
+          ? `/api/ifc/${encodeURIComponent(filename)}?storage_key=${encodeURIComponent(ifcStorageKey)}`
+          : `/api/ifc/${encodeURIComponent(filename)}`
+        
+        const response = await fetch(url)
         if (!response.ok) {
           throw new Error(`Failed to fetch IFC file: ${response.statusText}`)
         }
