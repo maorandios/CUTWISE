@@ -15,24 +15,24 @@ function App() {
 
   const faqs = [
     {
-      question: "What types of steel profiles does Cutwise support?",
-      answer: "Cutwise supports all standard steel profile types including HEA, HEB, IPE, UPN, channels, and custom sections. Simply upload your IFC file and our system will automatically detect and optimize all profile types."
+      question: "Which steel profile categories are currently supported by Cutwise?",
+      answer: "Cutwise supports standard structural profile families including IPE, HEA, HEB, UPN, channels, angles, and user-defined/custom sections. Profile grouping is based on section metadata from the IFC model, so optimization is executed per compatible profile type."
     },
     {
-      question: "How does the optimization algorithm work?",
-      answer: "Our advanced algorithms analyze your parts and available stock lengths to create optimal cutting patterns. The system minimizes waste by intelligently arranging parts and prioritizing leftover stock usage."
+      question: "What input file format is required for processing?",
+      answer: "Cutwise currently accepts IFC (Industry Foundation Classes) files as the primary input format. The IFC model is parsed to extract profile geometry, element attributes, and quantities required for nesting, BOM generation, and stock planning."
     },
     {
-      question: "Can I use my existing leftover stock?",
-      answer: "Yes! You can input your leftover stock pieces and Cutwise will prioritize using them first, helping you reduce waste and save money on new material purchases."
+      question: "What parameters are considered by the optimization engine?",
+      answer: "The optimizer evaluates part lengths, profile compatibility, available stock lengths, and cut constraints (kerf, trim allowance, and tolerance). It computes feasible cutting combinations and ranks them by waste minimization and stock utilization, while maintaining production-ready output."
     },
     {
-      question: "What file formats do you support?",
-      answer: "Currently, we support IFC (Industry Foundation Classes) files, which are the industry standard for BIM models. You can export IFC files from most CAD and BIM software including Tekla, Revit, and AutoCAD."
+      question: "How are purchased stock and leftover stock lengths handled?",
+      answer: "Both purchased stock and reusable leftover pieces can be included in the stock pool. The solver can prioritize leftovers first, then allocate purchased stock to satisfy unmet demand. This mixed-stock strategy improves residual reuse and reduces new material consumption."
     },
     {
-      question: "How quickly can I get my optimization results?",
-      answer: "Most projects are processed in seconds. Upload your IFC file, select your profiles, configure stock lengths, and receive your complete nesting report with cutting plans instantly."
+      question: "Through which mechanisms does Cutwise reduce total fabrication cost?",
+      answer: "Cost reduction comes from multiple levers: lower scrap ratio, higher reuse of remnants, fewer stock procurement inefficiencies, and reduced manual planning effort. In practice, this improves material yield, shortens planning cycles, and reduces avoidable operational overhead."
     }
   ]
 
@@ -47,14 +47,13 @@ function App() {
               <img src="/Icons/cutwise manu logo.svg" alt="Cutwise" className="h-10" />
             </div>
             <nav className="flex items-center gap-6">
-              <a href="#features" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Features</a>
+              <a href="#about" className="text-sm font-medium text-white/70 hover:text-white transition-colors">About us</a>
+              <a href="#features" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Powerful features</a>
               <a href="#pricing" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Pricing</a>
-              <a href="#faq" className="text-sm font-medium text-white/70 hover:text-white transition-colors">FAQ</a>
-              <a href="https://app.cutwise.pro/login">
-                <Button variant="ghost" className="rounded-full text-white hover:bg-white/10">Sign In</Button>
-              </a>
+              <a href="#faq" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Faq&apos;s</a>
+              <a href="#contact" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Contact</a>
               <a href="https://app.cutwise.pro/signup">
-                <Button className="rounded-full bg-[#00FF9F] text-primary hover:bg-[#00FF9F]/90">Try Free</Button>
+                <Button className="rounded-full bg-[#111827] text-[#00FF9F] hover:bg-white hover:text-gray-800 h-11 px-7 text-sm font-bold shadow-lg">Start Free</Button>
               </a>
             </nav>
           </div>
@@ -127,7 +126,7 @@ function App() {
       </div>
 
       {/* Advantages Section */}
-      <section className="py-16 bg-background">
+      <section id="about" className="py-16 bg-background">
         <div className="container max-w-app mx-auto px-6">
           <div className="max-w-6xl mx-auto mb-16 px-8 md:px-14">
             <p className="text-center text-3xl md:text-5xl font-semibold leading-[1.35] tracking-[-1.3px] text-[#002D2A]">
@@ -496,19 +495,19 @@ function App() {
       </section>
 
       {/* FAQ Section */}
-      <section id="faq" className="py-16 bg-muted">
+      <section id="faq" className="py-20 bg-[#F4F6F9]">
         <div className="container max-w-app mx-auto px-6">
-          <h2 className="text-4xl font-bold text-center mb-12">Frequently Asked Questions</h2>
-          <div className="max-w-3xl mx-auto space-y-3">
+          <h2 className="text-5xl font-bold text-center mb-14">Frequently Asked Questions</h2>
+          <div className="max-w-4xl mx-auto space-y-4">
             {faqs.map((faq, index) => (
               <Card key={index} className="border shadow-sm">
                 <button
                   onClick={() => toggleFaq(index)}
-                  className="w-full px-6 py-4 text-left flex justify-between items-center hover:bg-muted/50 transition-colors"
+                  className="w-full px-8 py-5 text-left flex justify-between items-center hover:bg-muted/50 transition-colors"
                 >
-                  <span className="font-semibold text-base">{faq.question}</span>
+                  <span className="font-semibold text-xl">{faq.question}</span>
                   <svg
-                    className={`w-5 h-5 text-primary transition-transform ${activeFaq === index ? 'rotate-180' : ''}`}
+                    className={`w-6 h-6 text-primary transition-transform ${activeFaq === index ? 'rotate-180' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -517,8 +516,8 @@ function App() {
                   </svg>
                 </button>
                 {activeFaq === index && (
-                  <div className="px-6 pb-4">
-                    <p className="text-muted-foreground text-sm leading-relaxed">{faq.answer}</p>
+                  <div className="px-8 pt-3 pb-5">
+                    <p className="text-muted-foreground text-base leading-relaxed">{faq.answer}</p>
                   </div>
                 )}
               </Card>
@@ -528,79 +527,34 @@ function App() {
       </section>
 
       {/* Contact Section */}
-      <section id="contact" className="py-16 bg-background">
+      <section id="contact" className="pt-16 pb-10 bg-gray-900 text-white">
         <div className="container max-w-app mx-auto px-6">
           <h2 className="text-4xl font-bold text-center mb-12">Get in Touch</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <div className="max-w-3xl mx-auto text-center">
             <div>
               <h3 className="text-2xl font-bold mb-4">Have questions?</h3>
-              <p className="text-muted-foreground mb-6">We're here to help you optimize your steel fabrication process.</p>
-              <div className="flex items-center gap-3 text-sm">
-                <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                <span>support@cutwise.pro</span>
+              <p className="text-gray-300 mb-6">We're here to help you optimize your steel fabrication process.</p>
+              <div className="inline-flex flex-col items-center gap-3 rounded-[36px] border border-[#194327] bg-[#00FF9F]/10 text-white px-10 py-6">
+                <div className="w-14 h-14 rounded-full bg-[#00FF9F]/20 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <p className="text-sm uppercase tracking-wide text-[#00FF9F]/90">Email us</p>
+                <a href="mailto:Hello@cutwise.pro" className="text-lg font-semibold text-white hover:text-[#00FF9F] transition-colors">
+                  Hello@cutwise.pro
+                </a>
               </div>
             </div>
-            <Card className="border shadow-sm">
-              <CardContent className="pt-6">
-                <form className="space-y-4">
-                  <input
-                    type="text"
-                    placeholder="Your Name"
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    required
-                  />
-                  <input
-                    type="email"
-                    placeholder="Your Email"
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    required
-                  />
-                  <input
-                    type="text"
-                    placeholder="Company (optional)"
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                  <textarea
-                    placeholder="Your Message"
-                    rows={4}
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-                    required
-                  />
-                  <Button type="submit" className="w-full rounded-lg">Send Message</Button>
-                </form>
-              </CardContent>
-            </Card>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
+      <footer className="bg-gray-900 text-white pt-2 pb-12">
         <div className="container max-w-app mx-auto px-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-            <div className="md:col-span-2">
-              <div className="text-2xl font-bold mb-2">Cutwise</div>
-              <p className="text-gray-400 text-sm">Cut smarter. Waste less.</p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-3 text-sm">Product</h4>
-              <div className="space-y-2">
-                <a href="#features" className="block text-gray-400 hover:text-[#00FF9F] text-sm transition-colors">Features</a>
-                <a href="#pricing" className="block text-gray-400 hover:text-[#00FF9F] text-sm transition-colors">Pricing</a>
-                <a href="https://app.cutwise.pro/signup" className="block text-gray-400 hover:text-[#00FF9F] text-sm transition-colors">Sign Up</a>
-              </div>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-3 text-sm">Support</h4>
-              <div className="space-y-2">
-                <a href="#faq" className="block text-gray-400 hover:text-[#00FF9F] text-sm transition-colors">FAQ</a>
-                <a href="#contact" className="block text-gray-400 hover:text-[#00FF9F] text-sm transition-colors">Contact</a>
-              </div>
-            </div>
-          </div>
-          <div className="border-t border-gray-800 pt-6 text-center">
+          <div className="border-t border-gray-800 pt-8 text-center">
+            <img src="/Icons/cutwise manu logo.svg" alt="Cutwise" className="h-10 mx-auto mb-4" />
             <p className="text-gray-500 text-xs">&copy; 2026 Cutwise. All rights reserved.</p>
           </div>
         </div>
