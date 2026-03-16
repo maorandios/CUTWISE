@@ -8,9 +8,9 @@ export const BOMPreview = () => {
   }, [])
 
   return (
-    <div className="w-full h-full bg-transparent flex items-center justify-center p-12">
+    <div className="w-full h-full bg-transparent flex items-center justify-center p-4 md:p-12">
       <div 
-        className={`w-full max-w-3xl transition-all duration-1000 ${
+        className={`w-full max-w-[90%] md:max-w-3xl transition-all duration-1000 ${
           isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
         }`}
         style={{ transform: 'scale(0.9)', transformOrigin: 'center' }}

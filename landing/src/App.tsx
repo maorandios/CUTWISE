@@ -8,9 +8,14 @@ import { ModelViewerPreview } from './components/ModelViewerPreview'
 
 function App() {
   const [activeFaq, setActiveFaq] = useState<number | null>(null)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const toggleFaq = (index: number) => {
     setActiveFaq(activeFaq === index ? null : index)
+  }
+
+  const closeMobileMenu = () => {
+    setMobileMenuOpen(false)
   }
 
   const faqs = [
@@ -41,12 +46,15 @@ function App() {
       {/* Header + Hero + Video - All in dark green background */}
       <div className="relative overflow-hidden bg-gradient-to-br from-primary to-primary/90 text-primary-foreground min-h-screen flex flex-col">
         {/* Header */}
-        <header className="sticky top-0 z-50 w-full">
+        <header className="sticky top-0 z-50 w-full bg-primary/95 backdrop-blur-sm">
           <div className="container flex h-16 items-center justify-between max-w-app mx-auto px-6">
+            {/* Logo */}
             <div className="flex items-center gap-2">
               <img src="/Icons/cutwise manu logo.svg" alt="Cutwise" className="h-10" />
             </div>
-            <nav className="flex items-center gap-6">
+
+            {/* Desktop Navigation */}
+            <nav className="hidden md:flex items-center gap-6">
               <a href="#about" className="text-sm font-medium text-white/70 hover:text-white transition-colors">About us</a>
               <a href="#features" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Powerful features</a>
               <a href="#pricing" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Pricing</a>
@@ -56,7 +64,72 @@ function App() {
                 <Button className="rounded-full bg-[#111827] text-[#00FF9F] hover:bg-white hover:text-gray-800 h-11 px-7 text-sm font-bold shadow-lg">Start Free</Button>
               </a>
             </nav>
+
+            {/* Mobile Menu Toggle */}
+            <button
+              className="md:hidden flex items-center justify-center w-10 h-10 rounded-lg hover:bg-white/10 transition-colors"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? (
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
+            </button>
           </div>
+
+          {/* Mobile Navigation Menu */}
+          {mobileMenuOpen && (
+            <div className="md:hidden bg-primary/98 backdrop-blur-sm border-t border-white/10">
+              <nav className="container max-w-app mx-auto px-6 py-4 flex flex-col gap-4">
+                <a 
+                  href="#about" 
+                  className="text-base font-medium text-white/70 hover:text-white transition-colors py-2 text-center"
+                  onClick={closeMobileMenu}
+                >
+                  About us
+                </a>
+                <a 
+                  href="#features" 
+                  className="text-base font-medium text-white/70 hover:text-white transition-colors py-2 text-center"
+                  onClick={closeMobileMenu}
+                >
+                  Powerful features
+                </a>
+                <a 
+                  href="#pricing" 
+                  className="text-base font-medium text-white/70 hover:text-white transition-colors py-2 text-center"
+                  onClick={closeMobileMenu}
+                >
+                  Pricing
+                </a>
+                <a 
+                  href="#faq" 
+                  className="text-base font-medium text-white/70 hover:text-white transition-colors py-2 text-center"
+                  onClick={closeMobileMenu}
+                >
+                  Faq&apos;s
+                </a>
+                <a 
+                  href="#contact" 
+                  className="text-base font-medium text-white/70 hover:text-white transition-colors py-2 text-center"
+                  onClick={closeMobileMenu}
+                >
+                  Contact
+                </a>
+                <a href="https://app.cutwise.pro/signup" className="mt-2">
+                  <Button className="w-full rounded-full bg-[#111827] text-[#00FF9F] hover:bg-white hover:text-gray-800 h-12 px-7 text-base font-bold shadow-lg">
+                    Start Free
+                  </Button>
+                </a>
+              </nav>
+            </div>
+          )}
         </header>
 
         {/* Hero Section */}
@@ -96,7 +169,7 @@ function App() {
             </a>
           </div>
           <div className="mt-[25px] flex justify-center">
-            <div className="flex max-w-full items-center gap-3 overflow-x-auto pb-1">
+            <div className="flex flex-col md:flex-row max-w-full items-center gap-3">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white whitespace-nowrap">
                 <svg className="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path d="M13 7l5 5-5 5M6 7l5 5-5 5" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
@@ -173,12 +246,12 @@ function App() {
 
       {/* Features Section */}
       <section id="features" className="py-20 bg-[#002D2A] text-white">
-        <div className="container max-w-app mx-auto px-6">
+        <div className="container max-w-app mx-auto px-3 md:px-6">
           <h2 className="text-4xl md:text-5xl font-bold text-center mb-14 tracking-[-1.3px]">Powerful Features</h2>
 
           <div className="space-y-12 md:space-y-16">
             <div className="space-y-6 border-b border-[#084242] pb-12 md:pb-16">
-              <div className="max-w-3xl mx-auto text-center">
+              <div className="max-w-3xl mx-auto text-center px-2 md:px-0">
                 <div className="mb-4">
                   <div className="w-14 h-14 rounded-full bg-white/10 border border-white/20 flex items-center justify-center mx-auto mb-4">
                     <svg className="w-7 h-7 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -192,13 +265,13 @@ function App() {
                   Generate practical cut patterns automatically, so your team spends less time planning and more time producing.
                 </p>
               </div>
-              <div className="overflow-hidden">
+              <div className="overflow-hidden w-[90vw] md:w-full mx-auto">
                 <NestingPreview />
               </div>
             </div>
 
             <div className="space-y-6 border-b border-[#084242] pb-12 md:pb-16">
-              <div className="max-w-3xl mx-auto text-center">
+              <div className="max-w-3xl mx-auto text-center px-2 md:px-0">
                 <div className="mb-4">
                   <div className="w-14 h-14 rounded-full bg-white/10 border border-white/20 flex items-center justify-center mx-auto mb-4">
                     <svg className="w-7 h-7 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -212,13 +285,13 @@ function App() {
                   Get a clear bill of materials with quantities, stock requirements, and leftovers ready for purchasing decisions.
                 </p>
               </div>
-              <div className="overflow-hidden">
+              <div className="overflow-hidden w-[90vw] md:w-full mx-auto">
                 <BOMPreview />
               </div>
             </div>
 
             <div className="space-y-6 border-b border-[#084242] pb-12 md:pb-16">
-              <div className="max-w-3xl mx-auto text-center">
+              <div className="max-w-3xl mx-auto text-center px-2 md:px-0">
                 <div className="mb-4">
                   <div className="w-14 h-14 rounded-full bg-white/10 border border-white/20 flex items-center justify-center mx-auto mb-4">
                     <svg className="w-7 h-7 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -232,13 +305,13 @@ function App() {
                   Validate parts directly in a model context, improving confidence before cutting and reducing shop-floor mistakes.
                 </p>
               </div>
-              <div className="overflow-hidden">
+              <div className="overflow-hidden w-[90vw] md:w-full mx-auto">
                 <ModelViewerPreview />
               </div>
             </div>
 
             <div className="space-y-6">
-              <div className="max-w-3xl mx-auto text-center">
+              <div className="max-w-3xl mx-auto text-center px-2 md:px-0">
                 <div className="mb-4">
                   <div className="w-14 h-14 rounded-full bg-white/10 border border-white/20 flex items-center justify-center mx-auto mb-4">
                     <svg className="w-7 h-7 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -251,7 +324,7 @@ function App() {
                   See how every profile is arranged to reduce offcuts and maximize usable steel from each stock length.
                 </p>
               </div>
-              <div className="overflow-hidden">
+              <div className="overflow-hidden w-[90vw] md:w-full mx-auto">
                 <WasteOptimizationPreview />
               </div>
             </div>
