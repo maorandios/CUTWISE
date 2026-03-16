@@ -1,0 +1,37 @@
+# Environment files (use Railway environment variables instead)
+.env
+.env.local
+.env.*.local
+api/.env
+web/.env
+
+# Node modules (will be installed in container)
+node_modules/
+web/node_modules/
+
+# Build artifacts
+dist/
+build/
+*.tsbuildinfo
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Large files
+*.rar
+*.zip
+*.7z
