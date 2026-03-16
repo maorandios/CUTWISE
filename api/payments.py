@@ -28,6 +28,18 @@ paypalrestsdk.configure({
     "client_secret": PAYPAL_CLIENT_SECRET
 })
 
+# Helper function to get correct PayPal API base URL
+def get_paypal_base_url() -> str:
+    """Get the correct PayPal API base URL based on mode.
+    
+    Sandbox: https://api-m.sandbox.paypal.com
+    Live: https://api-m.paypal.com (NOT api-m.live.paypal.com!)
+    """
+    if PAYPAL_MODE == "sandbox":
+        return "https://api-m.sandbox.paypal.com"
+    else:
+        return "https://api-m.paypal.com"
+
 # Pricing plans
 PLANS = {
     "single": {"credits": 1, "price": 29.00, "currency": "EUR", "name": "Single Use"},
@@ -55,7 +67,8 @@ class CaptureOrderResponse(BaseModel):
 
 def get_paypal_access_token() -> str:
     """Get PayPal access token for API calls"""
-    url = f"https://api-m.{PAYPAL_MODE}.paypal.com/v1/oauth2/token"
+    base_url = get_paypal_base_url()
+    url = f"{base_url}/v1/oauth2/token"
     
     response = requests.post(
         url,
@@ -93,7 +106,8 @@ async def create_paypal_order(
         print("[PayPal] Access token obtained")
         
         # Create PayPal order
-        url = f"https://api-m.{PAYPAL_MODE}.paypal.com/v2/checkout/orders"
+        base_url = get_paypal_base_url()
+        url = f"{base_url}/v2/checkout/orders"
         
         order_data = {
             "intent": "CAPTURE",
@@ -177,7 +191,8 @@ async def capture_paypal_order(
         print("[PayPal] Got access token for capture", flush=True)
         
         # First, get the order details to retrieve custom_id
-        get_order_url = f"https://api-m.{PAYPAL_MODE}.paypal.com/v2/checkout/orders/{request.order_id}"
+        base_url = get_paypal_base_url()
+        get_order_url = f"{base_url}/v2/checkout/orders/{request.order_id}"
         print(f"[PayPal] Fetching order details from: {get_order_url}", flush=True)
         
         get_response = requests.get(
@@ -209,7 +224,7 @@ async def capture_paypal_order(
         print(f"[PayPal] Plan: {plan_type}, Credits: {credits_to_add}", flush=True)
         
         # Now capture the order
-        capture_url = f"https://api-m.{PAYPAL_MODE}.paypal.com/v2/checkout/orders/{request.order_id}/capture"
+        capture_url = f"{base_url}/v2/checkout/orders/{request.order_id}/capture"
         print(f"[PayPal] Capturing order at: {capture_url}", flush=True)
         
         capture_response = requests.post(
