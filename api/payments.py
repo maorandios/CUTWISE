@@ -42,7 +42,7 @@ def get_paypal_base_url() -> str:
 
 # Pricing plans
 PLANS = {
-    "single": {"credits": 1, "price": 1.00, "currency": "EUR", "name": "Single Use"},
+    "single": {"credits": 1, "price": 29.00, "currency": "EUR", "name": "Single Use"},
     "pack_20": {"credits": 20, "price": 499.00, "currency": "EUR", "name": "20 Uses Pack"},
     "pack_50": {"credits": 50, "price": 999.00, "currency": "EUR", "name": "50 Uses Pack"}
 }
