@@ -52,7 +52,7 @@ export function PaymentModal({ isOpen, onClose, credits = 0 }: PaymentModalProps
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
               {/* Single Use */}
               <div 
-                onClick={() => setSelectedPlan({type: 'single', credits: 1, amount: 29.00, name: 'Single Use'})}
+                onClick={() => setSelectedPlan({type: 'single', credits: 1, amount: 1.00, name: 'Single Use'})}
                 className="group relative bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200 rounded-2xl p-6 cursor-pointer hover:border-gray-900 hover:shadow-xl transition-all duration-300"
               >
                 <div className="space-y-4">
@@ -68,7 +68,7 @@ export function PaymentModal({ isOpen, onClose, credits = 0 }: PaymentModalProps
 
                   <div className="border-t border-gray-200 pt-4">
                     <div className="flex items-baseline gap-2 mb-4">
-                      <span className="text-4xl font-bold text-gray-900">€29</span>
+                      <span className="text-4xl font-bold text-gray-900">€1</span>
                     </div>
                     <div className="mb-3">
                       <div className="flex items-center gap-2 mb-2">
