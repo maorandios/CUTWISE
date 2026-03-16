@@ -44,11 +44,6 @@ yarn-error.log*
 build/
 *.tsbuildinfo
 
-# Environment variables
-.env
-.env.local
-.env.*.local
-
 # Large files
 *.rar
 *.zip
