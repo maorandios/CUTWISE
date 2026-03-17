@@ -1,14 +1,29 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/card'
 import { WasteOptimizationPreview } from './components/WasteOptimizationPreview'
 import { NestingPreview } from './components/NestingPreview'
 import { BOMPreview } from './components/BOMPreview'
 import { ModelViewerPreview } from './components/ModelViewerPreview'
-
+import { GroupedByProfilePreview } from './components/GroupedByProfilePreview'
+import { OrganizedPerStockBarPreview } from './components/OrganizedPerStockBarPreview'
+import { ReadyForSawOperatorsPreview } from './components/ReadyForSawOperatorsPreview'
+import { EasyToExportSharePreview } from './components/EasyToExportSharePreview'
+import { RealWorldConstraintsPreview } from './components/RealWorldConstraintsPreview'
+import { ConsistentOutputsPreview } from './components/ConsistentOutputsPreview'
+import { SimpleProcessPreview } from './components/SimpleProcessPreview'
+import { OutputsSection } from './components/OutputsSection'
 function App() {
   const [activeFaq, setActiveFaq] = useState<number | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [shopFloorTopic, setShopFloorTopic] = useState(0)
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setShopFloorTopic((s) => (s === 3 ? 0 : s + 1))
+    }, 4000)
+    return () => clearInterval(interval)
+  }, [])
 
   const toggleFaq = (index: number) => {
     setActiveFaq(activeFaq === index ? null : index)
@@ -133,25 +148,30 @@ function App() {
         </header>
 
         {/* Hero Section */}
-        <section className="container max-w-app mx-auto px-6 py-10 md:py-12 text-center flex-1 flex flex-col justify-center">
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-[-1.3px] leading-tight mb-4 md:mb-6">
-            Optimizing Steel Cutting Plans for{' '}
+        <section className="container max-w-app mx-auto px-6 py-10 md:py-12 text-center flex-1 flex flex-col justify-center min-h-0">
+          <span className="inline-flex items-center gap-2.5 justify-center rounded-full border border-white/30 bg-white/10 pl-4 pr-5 py-2.5 text-sm font-medium text-primary-foreground/90 backdrop-blur-sm mb-6 md:mb-8 max-w-xl mx-auto">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#00FF9F] opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-[#00FF9F]" />
+            </span>
+            Built for structural steel fabricators using real-world workflows.
+          </span>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-[-1.3px] leading-tight mb-4 md:mb-6">
+            Plan Your Steel{' '}
             <span className="relative inline-block">
-              Maximum
+              Before
               <span className="absolute left-0 -bottom-1 h-1 w-full rounded-full bg-orange-400/90" aria-hidden="true" />
             </span>{' '}
-            Material Use,{' '}
-            <span className="relative inline-block">
-              Minimum
-              <span className="absolute left-0 -bottom-1 h-1 w-full rounded-full bg-orange-400/90" aria-hidden="true" />
-            </span>{' '}
-            Waste
+            You Order It.
           </h1>
-          <p className="text-xl md:text-xl text-primary-foreground/90 mb-6 md:mb-8 max-w-3xl mx-auto">
-            Turn complex steel jobs into a clear plan-optimizing materials usage while minimizing waste from the first cut.
+          <p className="text-xl md:text-2xl text-primary-foreground/90 mb-6 md:mb-8 max-w-3xl mx-auto leading-relaxed">
+            Turn IFC models into exact stock bar requirements and cutting plans — in minutes.
+          </p>
+          <p className="text-lg md:text-xl text-primary-foreground/80 font-medium mb-6 md:mb-8">
+            No Excel <span className="mx-2 text-primary-foreground/50">·</span> No guesswork <span className="mx-2 text-primary-foreground/50">·</span> No over-ordering
           </p>
           <div id="video" className="w-full max-w-4xl mx-auto mb-6 md:mb-8">
-            <div className="w-full h-[220px] md:h-[360px] bg-gray-900/90 rounded-[15px] shadow-2xl flex items-center justify-center">
+            <div className="w-full h-[200px] md:h-[320px] bg-gray-900/90 rounded-[15px] shadow-2xl flex items-center justify-center">
               <div className="text-center text-white">
                 <svg className="w-20 h-20 mx-auto mb-4 text-[#2B6E54]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <circle cx="12" cy="12" r="10" strokeWidth="2"/>
@@ -161,38 +181,17 @@ function App() {
               </div>
             </div>
           </div>
-          <div className="flex justify-center">
+          <div className="flex flex-wrap justify-center items-center gap-3 md:gap-4">
             <a href="https://app.cutwise.pro">
-              <Button className="rounded-full bg-[#111827] text-[#00FF9F] hover:bg-white hover:text-gray-800 h-[60px] px-10 text-lg font-bold shadow-lg">
-                Start Free
+              <Button className="rounded-full bg-[#00FF9F] text-[#002D2A] hover:bg-white h-[56px] px-10 text-lg font-bold shadow-lg shrink-0">
+                Upload IFC
               </Button>
             </a>
-          </div>
-          <div className="mt-[25px] flex justify-center">
-            <div className="flex flex-col md:flex-row max-w-full items-center gap-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white whitespace-nowrap">
-                <svg className="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path d="M13 7l5 5-5 5M6 7l5 5-5 5" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                <span>Faster Optimization</span>
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white whitespace-nowrap">
-                <svg className="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path d="M17 7.5a6 6 0 1 0 0 9" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M7 10h8M7 14h8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                <span>Lower Material Costs</span>
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-2 text-sm font-medium text-white whitespace-nowrap">
-                <svg className="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <rect x="3" y="5" width="6" height="6" rx="1.25" strokeWidth="1.8"/>
-                  <rect x="15" y="5" width="6" height="6" rx="1.25" strokeWidth="1.8"/>
-                  <rect x="9" y="13" width="6" height="6" rx="1.25" strokeWidth="1.8"/>
-                  <path d="M9 8h6M12 11v2" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                <span>Automated Cutting Plans</span>
-              </div>
-            </div>
+            <a href="#video">
+              <Button variant="outline" className="rounded-full border-2 border-white/50 bg-transparent text-primary-foreground hover:bg-white/10 hover:border-white hover:text-white h-[56px] px-10 text-lg font-bold shrink-0">
+                Watch full demo
+              </Button>
+            </a>
           </div>
         </section>
 
@@ -201,48 +200,329 @@ function App() {
       {/* Advantages Section */}
       <section id="about" className="py-16 bg-background">
         <div className="container max-w-app mx-auto px-6">
-          <div className="max-w-6xl mx-auto mb-16 px-8 md:px-14">
+          <div className="max-w-6xl mx-auto mb-12 px-8 md:px-14">
             <p className="text-center text-3xl md:text-5xl font-semibold leading-[1.35] tracking-[-1.3px] text-[#002D2A]">
-              Cutwise converts IFC models into production-ready cutting plans in seconds—reducing material waste, lowering steel costs, and automating nesting, reporting, and purchasing in one workflow.
+              CutWise helps steel fabricators move from model to material —
+              with clear, reliable plans for purchasing and production.
             </p>
+            <div className="flex justify-center mt-10">
+              <span className="inline-flex items-center rounded-full border border-[#002D2A]/20 bg-[#002D2A]/[0.02] px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-[#002D2A]/80">
+                What you get
+              </span>
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-0 md:divide-x md:divide-border">
-            <Card className="border-0 shadow-none rounded-none bg-transparent md:px-6">
-              <CardContent className="pt-6 flex flex-col items-center text-center">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 md:gap-0 max-w-4xl mx-auto">
+            <Card className="border-0 shadow-none rounded-none bg-transparent md:px-5 py-4">
+              <CardContent className="pt-4 flex flex-col items-center text-center">
                 <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                   <svg className="w-7 h-7 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </div>
-                <h3 className="text-xl font-bold mb-3">Advanced Algorithms</h3>
-                <p className="text-muted-foreground">Sophisticated optimization algorithms that find the best cutting patterns to minimize material waste</p>
+                <h3 className="text-xl font-bold mb-3">Exact Stock Quantities</h3>
+                <p className="text-muted-foreground max-w-[320px] mx-auto">Know exactly how many stock bars to order. CutWise calculates precise quantities so you never overbuy or run short.</p>
               </CardContent>
             </Card>
-            <Card className="border-0 shadow-none rounded-none bg-transparent md:px-6">
-              <CardContent className="pt-6 flex flex-col items-center text-center">
+            <Card className="border-0 md:border-l border-[#002D2A]/15 shadow-none rounded-none bg-transparent md:px-5 py-4">
+              <CardContent className="pt-4 flex flex-col items-center text-center">
                 <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                   <svg className="w-7 h-7 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path d="M13 10V3L4 14h7v7l9-11h-7z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </div>
-                <h3 className="text-xl font-bold mb-3">Fast Processing</h3>
-                <p className="text-muted-foreground">Generate optimal nesting reports in seconds, not hours. Upload your IFC file and get results instantly</p>
+                <h3 className="text-xl font-bold mb-3">Production-Ready Cutting Plans</h3>
+                <p className="text-muted-foreground max-w-[320px] mx-auto">Clean cutting plans ready for the shop floor. No extra formatting or manual cleanup—just print and produce.</p>
               </CardContent>
             </Card>
-            <Card className="border-0 shadow-none rounded-none bg-transparent md:px-6">
-              <CardContent className="pt-6 flex flex-col items-center text-center">
+            <Card className="border-0 md:border-t border-[#002D2A]/15 shadow-none rounded-none bg-transparent md:px-5 py-4">
+              <CardContent className="pt-4 flex flex-col items-center text-center">
                 <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                   <svg className="w-7 h-7 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </div>
-                <h3 className="text-xl font-bold mb-3">Detailed Reports</h3>
-                <p className="text-muted-foreground">Comprehensive cutting plans with bill of materials, stock requirements, and waste analysis</p>
+                <h3 className="text-xl font-bold mb-3">Full Stock Bar Visibility</h3>
+                <p className="text-muted-foreground max-w-[320px] mx-auto">See exactly how every stock bar is utilized across your projects. Track each cut&apos;s origin and destination for full traceability.</p>
               </CardContent>
             </Card>
+            <Card className="border-0 md:border-l md:border-t border-[#002D2A]/15 shadow-none rounded-none bg-transparent md:px-5 py-4">
+              <CardContent className="pt-4 flex flex-col items-center text-center">
+                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                  <svg className="w-7 h-7 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold mb-3">Clear Outputs for All Teams</h3>
+                <p className="text-muted-foreground max-w-[320px] mx-auto">Outputs designed for purchasers and operators. The right information in the right format for ordering and production.</p>
+              </CardContent>
+            </Card>
+          </div>
+          <p className="text-center text-lg font-medium text-[#002D2A]/80 mt-8">
+            No interpretation needed. Just execution.
+          </p>
+        </div>
+      </section>
+
+      {/* Why It Matters Section */}
+      <section id="why-it-matters" className="py-16 md:py-20 bg-background">
+        <div className="container max-w-app mx-auto px-6">
+          <div className="max-w-5xl mx-auto">
+            <div className="flex justify-center mb-8">
+              <span className="inline-flex items-center rounded-full border border-[#002D2A]/20 bg-[#002D2A]/[0.02] px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-[#002D2A]/80">
+                Why it matters
+              </span>
+            </div>
+            <h2 className="text-3xl md:text-4xl font-bold text-center text-[#002D2A] mb-20 tracking-[-1px]">
+              Stop Planning Steel in Excel
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-y-4 md:gap-y-0 mb-20 md:divide-x md:divide-[#002D2A]/15">
+              <div className="px-6 py-9 rounded-none text-center">
+                <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold mb-3">Estimate stock manually</h3>
+                <p className="text-muted-foreground max-w-[320px] mx-auto">Guesswork leads to wrong quantities and wasted time.</p>
+              </div>
+              <div className="px-6 py-9 rounded-none text-center">
+                <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold mb-3">Over-order to stay safe</h3>
+                <p className="text-muted-foreground max-w-[320px] mx-auto">Extra buffer means extra cost and tied-up capital.</p>
+              </div>
+              <div className="px-6 py-9 rounded-none text-center">
+                <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold mb-3">Spend hours planning cuts</h3>
+                <p className="text-muted-foreground max-w-[320px] mx-auto">Manual planning eats into your production capacity.</p>
+              </div>
+            </div>
+            <div className="flex flex-col items-center gap-6">
+              <svg className="w-8 h-8 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14m0 0l-7-7m7 7l7-7"/>
+              </svg>
+              <div className="rounded-2xl px-8 md:px-10 py-12 md:py-16 text-center max-w-4xl mx-auto">
+                <p className="text-xl md:text-2xl font-semibold text-[#002D2A] leading-relaxed">
+                  CutWise replaces that process with a clear, structured plan — based directly on your model, with exact stock quantities and production-ready cutting plans.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
+
+      {/* CTA Section */}
+      <section id="cta" className="relative overflow-hidden bg-gradient-to-br from-primary to-primary/90 text-primary-foreground py-20 md:py-24">
+        <div className="container max-w-app mx-auto px-6 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 tracking-[-1px]">
+            Start Planning Smarter
+          </h2>
+          <p className="text-white/80 text-lg md:text-xl mb-10 max-w-xl mx-auto">
+            Upload your IFC model and get your first plan in minutes.
+          </p>
+          <a href="https://app.cutwise.pro/signup">
+            <Button className="rounded-full bg-[#00FF9F] text-[#002D2A] hover:bg-white h-14 px-10 text-base font-bold shadow-lg">
+              Upload IFC
+            </Button>
+          </a>
+          <div className="flex flex-wrap justify-center gap-6 md:gap-10 mt-12">
+            <div className="flex items-center gap-2.5 text-white/90 text-sm font-medium">
+              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <span>No credit card required</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-white/90 text-sm font-medium">
+              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <span>3 projects free on signup</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-white/90 text-sm font-medium">
+              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <span>Cost saving from the first use</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Built for Shop Floor Section */}
+      <section id="shop-floor" className="py-20 bg-background">
+        <div className="container max-w-app mx-auto px-6">
+          <div className="flex justify-center mb-6">
+            <span className="inline-flex items-center rounded-full border border-[#002D2A]/20 bg-[#002D2A]/[0.02] px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-[#002D2A]/80">
+              Built for the shop floor
+            </span>
+          </div>
+          <h2 className="text-3xl md:text-4xl font-bold text-center text-[#002D2A] mb-4 tracking-[-1px]">
+            Designed Around How Fabricators Actually Work
+          </h2>
+          <p className="text-center text-muted-foreground text-lg mb-12 max-w-2xl mx-auto">
+            Cutwise outputs match real workflows.
+          </p>
+
+          {/* Topic carousel */}
+          {(() => {
+            const topics = [
+              {
+                title: 'Grouped by profile',
+                explainer: 'All cuts organized by section type — IPE, HEB, UPN, and more. No hunting through mixed lists. Each profile gets its own clear section with cut counts and stock bar requirements.',
+                ui: <GroupedByProfilePreview />,
+              },
+              {
+                title: 'Organized per stock bar',
+                explainer: 'Each stock bar shows exactly how it’s used — cuts, lengths, and waste. Perfect for saw operators who need to know what to cut next.',
+                ui: <OrganizedPerStockBarPreview />,
+              },
+              {
+                title: 'Ready for saw operators',
+                explainer: 'Clear cut lists with lengths and positions. No interpretation needed — just follow the plan and cut.',
+                ui: <ReadyForSawOperatorsPreview />,
+              },
+              {
+                title: 'Easy to export and share',
+                explainer: 'Export to Excel or PDF. Share with purchasing, planning, or the shop floor. Everyone gets the same clear output.',
+                ui: <EasyToExportSharePreview />,
+              },
+            ]
+            const t = topics[shopFloorTopic]
+            return (
+              <div className="max-w-4xl mx-auto">
+                <div className="h-[560px] flex flex-col">
+                  <div
+                    key={shopFloorTopic}
+                    className="flex flex-col items-center gap-1 flex-1 min-h-0 animate-shop-floor-in"
+                  >
+                    <div className="text-center h-[100px] flex flex-col justify-center shrink-0">
+                      <h3 className="text-2xl md:text-3xl font-bold text-[#002D2A] mb-2">{t.title}</h3>
+                      <p className="text-muted-foreground text-lg leading-relaxed max-w-xl mx-auto">
+                        {t.explainer}
+                      </p>
+                    </div>
+                    <div className="w-full flex justify-center items-center flex-1 min-h-[360px]">
+                      {t.ui}
+                    </div>
+                  </div>
+                  {/* Carousel pagination */}
+                  <div className="flex justify-center gap-2 shrink-0 pt-2">
+                  {topics.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setShopFloorTopic(i)}
+                      className={`w-2.5 h-2.5 rounded-full transition-colors ${
+                        i === shopFloorTopic ? 'bg-primary' : 'bg-[#002D2A]/20 hover:bg-[#002D2A]/40'
+                      }`}
+                      aria-label={`Go to topic ${i + 1}`}
+                    />
+                  ))}
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
+          <p className="text-center text-[#002D2A]/60 font-medium mt-12">
+            No learning curve. No new system.
+          </p>
+        </div>
+      </section>
+
+      {/* Precision Without Complexity Section */}
+      <section id="precision" className="py-20 bg-background">
+        <div className="container max-w-app mx-auto px-6">
+          <div className="flex justify-center mb-6">
+            <span className="inline-flex items-center rounded-full border border-gray-300 bg-gray-100 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-gray-600">
+              Precision without complexity
+            </span>
+          </div>
+          <h2 className="text-3xl md:text-4xl font-bold text-center text-gray-900 mb-4 tracking-[-1px]">
+            Reliable Results, Without Overengineering
+          </h2>
+
+          <div className="flex flex-col gap-6 md:gap-8 mt-12 max-w-4xl mx-auto">
+            {/* Card 1: Text left, UI right */}
+            <div className="flex flex-col md:flex-row items-stretch gap-6 md:gap-10 py-8 md:py-12 min-h-[200px] md:min-h-[240px]">
+              <div className="flex-1 flex flex-col gap-2 text-center md:text-left order-2 md:order-1 justify-center">
+                <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center mb-1 mx-auto md:mx-0">
+                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl md:text-3xl font-bold text-gray-900">Handles real-world constraints</h3>
+                <p className="text-gray-600 text-lg leading-relaxed">
+                  Kerf, trim, tolerance, and miter from your project — no oversimplification. Cutwise works with the actual parameters you use on the shop floor.
+                </p>
+              </div>
+              <div className="flex shrink-0 order-1 md:order-2 flex items-center justify-center md:items-stretch md:justify-end">
+                <div className="aspect-square w-[180px] h-[180px] md:w-[240px] md:h-[240px]">
+                  <RealWorldConstraintsPreview />
+                </div>
+              </div>
+            </div>
+
+            {/* Card 2: Text left, UI right */}
+            <div className="flex flex-col md:flex-row items-stretch gap-6 md:gap-10 py-8 md:py-12 min-h-[200px] md:min-h-[240px]">
+              <div className="flex-1 flex flex-col gap-2 text-center md:text-left order-2 md:order-1 justify-center">
+                <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center mb-1 mx-auto md:mx-0">
+                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl md:text-3xl font-bold text-gray-900">Produces consistent, repeatable outputs</h3>
+                <p className="text-gray-600 text-lg leading-relaxed">
+                  Same input, same output — every time. No surprises. Your team can trust the plans and focus on production.
+                </p>
+              </div>
+              <div className="flex shrink-0 order-1 md:order-2 flex items-center justify-center md:items-stretch md:justify-end">
+                <div className="aspect-square w-[180px] h-[180px] md:w-[240px] md:h-[240px]">
+                  <ConsistentOutputsPreview />
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: Text left, UI right */}
+            <div className="flex flex-col md:flex-row items-stretch gap-6 md:gap-10 py-8 md:py-12 min-h-[200px] md:min-h-[240px]">
+              <div className="flex-1 flex flex-col gap-2 text-center md:text-left order-2 md:order-1 justify-center">
+                <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center mb-1 mx-auto md:mx-0">
+                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl md:text-3xl font-bold text-gray-900">Keeps the process simple and fast</h3>
+                <p className="text-gray-600 text-lg leading-relaxed">
+                  Upload your model, get your plan. No complex setup or lengthy configuration. Fast enough for tight deadlines.
+                </p>
+              </div>
+              <div className="flex shrink-0 order-1 md:order-2 flex items-center justify-center md:items-stretch md:justify-end">
+                <div className="aspect-square w-[180px] h-[180px] md:w-[240px] md:h-[240px]">
+                  <SimpleProcessPreview />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-center text-gray-500 font-medium mt-12">
+            You stay in control — with better data.
+          </p>
+        </div>
+      </section>
+
+      <OutputsSection />
 
       {/* Features Section */}
       <section id="features" className="py-20 bg-[#002D2A] text-white">
