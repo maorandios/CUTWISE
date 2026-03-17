@@ -12,7 +12,7 @@ import { EasyToExportSharePreview } from './components/EasyToExportSharePreview'
 import { RealWorldConstraintsPreview } from './components/RealWorldConstraintsPreview'
 import { ConsistentOutputsPreview } from './components/ConsistentOutputsPreview'
 import { SimpleProcessPreview } from './components/SimpleProcessPreview'
-import { OutputsSection } from './components/OutputsSection'
+import { PositioningSection } from './components/PositioningSection'
 function App() {
   const [activeFaq, setActiveFaq] = useState<number | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -71,7 +71,10 @@ function App() {
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-6">
               <a href="#about" className="text-sm font-medium text-white/70 hover:text-white transition-colors">About us</a>
-              <a href="#features" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Powerful features</a>
+              <a href="#why-it-matters" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Why it matters</a>
+              <a href="#shop-floor" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Shop floor</a>
+              <a href="#precision" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Precision</a>
+              <a href="#positioning" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Positioning</a>
               <a href="#pricing" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Pricing</a>
               <a href="#faq" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Faq&apos;s</a>
               <a href="#contact" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Contact</a>
@@ -110,11 +113,32 @@ function App() {
                   About us
                 </a>
                 <a 
-                  href="#features" 
+                  href="#why-it-matters" 
                   className="text-base font-medium text-white/70 hover:text-white transition-colors py-2 text-center"
                   onClick={closeMobileMenu}
                 >
-                  Powerful features
+                  Why it matters
+                </a>
+                <a 
+                  href="#shop-floor" 
+                  className="text-base font-medium text-white/70 hover:text-white transition-colors py-2 text-center"
+                  onClick={closeMobileMenu}
+                >
+                  Shop floor
+                </a>
+                <a 
+                  href="#precision" 
+                  className="text-base font-medium text-white/70 hover:text-white transition-colors py-2 text-center"
+                  onClick={closeMobileMenu}
+                >
+                  Precision
+                </a>
+                <a 
+                  href="#positioning" 
+                  className="text-base font-medium text-white/70 hover:text-white transition-colors py-2 text-center"
+                  onClick={closeMobileMenu}
+                >
+                  Positioning
                 </a>
                 <a 
                   href="#pricing" 
@@ -483,9 +507,9 @@ function App() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                 </div>
-                <h3 className="text-2xl md:text-3xl font-bold text-gray-900">Produces consistent, repeatable outputs</h3>
+                <h3 className="text-2xl md:text-3xl font-bold text-gray-900">Reliability - Plans You Can Rely On</h3>
                 <p className="text-gray-600 text-lg leading-relaxed">
-                  Same input, same output — every time. No surprises. Your team can trust the plans and focus on production.
+                  Clear, structured outputs that your team can follow without second-guessing — from purchasing to cutting.
                 </p>
               </div>
               <div className="flex shrink-0 order-1 md:order-2 flex items-center justify-center md:items-stretch md:justify-end">
@@ -522,10 +546,10 @@ function App() {
         </div>
       </section>
 
-      <OutputsSection />
+      <PositioningSection />
 
       {/* Features Section */}
-      <section id="features" className="py-20 bg-[#002D2A] text-white">
+      <section id="features" className="hidden py-20 bg-[#002D2A] text-white">
         <div className="container max-w-app mx-auto px-3 md:px-6">
           <h2 className="text-4xl md:text-5xl font-bold text-center mb-14 tracking-[-1.3px]">Powerful Features</h2>
 
@@ -615,6 +639,11 @@ function App() {
       {/* Pricing Section */}
       <section id="pricing" className="py-16 bg-[#F4F6F9]">
         <div className="container max-w-app mx-auto px-6">
+          <div className="flex justify-center mb-6">
+            <span className="inline-flex items-center rounded-full border border-gray-300 bg-gray-100 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-gray-600">
+              Pricing
+            </span>
+          </div>
           <h2 className="text-4xl font-bold text-center mb-2 text-[#111827]">Pricing</h2>
           <p className="text-center text-[#4B5563] mb-10">Select the perfect credit package for your needs</p>
 
@@ -850,6 +879,11 @@ function App() {
       {/* FAQ Section */}
       <section id="faq" className="py-20 bg-[#F4F6F9]">
         <div className="container max-w-app mx-auto px-6">
+          <div className="flex justify-center mb-6">
+            <span className="inline-flex items-center rounded-full border border-gray-300 bg-gray-100 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-gray-600">
+              Faq&apos;s
+            </span>
+          </div>
           <h2 className="text-5xl font-bold text-center mb-14">Frequently Asked Questions</h2>
           <div className="max-w-4xl mx-auto space-y-4">
             {faqs.map((faq, index) => (
