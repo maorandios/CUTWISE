@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/card'
 import { WasteOptimizationPreview } from './components/WasteOptimizationPreview'
@@ -13,7 +14,12 @@ import { RealWorldConstraintsPreview } from './components/RealWorldConstraintsPr
 import { ConsistentOutputsPreview } from './components/ConsistentOutputsPreview'
 import { SimpleProcessPreview } from './components/SimpleProcessPreview'
 import { PositioningSection } from './components/PositioningSection'
-function App() {
+import { BlogSection } from './components/BlogSection'
+import { Footer } from './components/Footer'
+import { BlogPage } from './pages/BlogPage'
+import { BlogPostPage } from './pages/BlogPostPage'
+
+function HomePage() {
   const [activeFaq, setActiveFaq] = useState<number | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [shopFloorTopic, setShopFloorTopic] = useState(0)
@@ -76,6 +82,7 @@ function App() {
               <a href="#precision" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Precision</a>
               <a href="#positioning" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Positioning</a>
               <a href="#pricing" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Pricing</a>
+              <Link to="/blog" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Blog</Link>
               <a href="#faq" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Faq&apos;s</a>
               <a href="#contact" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Contact</a>
               <a href="https://app.cutwise.pro/signup">
@@ -147,6 +154,13 @@ function App() {
                 >
                   Pricing
                 </a>
+                <Link 
+                  to="/blog" 
+                  className="text-base font-medium text-white/70 hover:text-white transition-colors py-2 text-center"
+                  onClick={closeMobileMenu}
+                >
+                  Blog
+                </Link>
                 <a 
                   href="#faq" 
                   className="text-base font-medium text-white/70 hover:text-white transition-colors py-2 text-center"
@@ -186,11 +200,11 @@ function App() {
               Before
               <span className="absolute left-0 -bottom-1 h-1 w-full rounded-full bg-orange-400/90" aria-hidden="true" />
             </span>{' '}
-            You Order It.
+            You Order It
           </h1>
-          <p className="text-xl md:text-2xl text-primary-foreground/90 mb-6 md:mb-8 max-w-3xl mx-auto leading-relaxed">
-            Turn IFC models into exact stock bar requirements and cutting plans — in minutes.
-          </p>
+          <h2 className="text-xl md:text-2xl text-primary-foreground/90 mb-6 md:mb-8 max-w-3xl mx-auto leading-relaxed font-semibold">
+            Turn IFC Models into Stock Bar Orders and Cutting Plans
+          </h2>
           <p className="text-lg md:text-xl text-primary-foreground/80 font-medium mb-6 md:mb-8">
             No Excel <span className="mx-2 text-primary-foreground/50">·</span> No guesswork <span className="mx-2 text-primary-foreground/50">·</span> No over-ordering
           </p>
@@ -225,7 +239,10 @@ function App() {
       <section id="about" className="py-16 bg-background">
         <div className="container max-w-app mx-auto px-6">
           <div className="max-w-6xl mx-auto mb-12 px-8 md:px-14">
-            <p className="text-center text-3xl md:text-5xl font-semibold leading-[1.35] tracking-[-1.3px] text-[#002D2A]">
+            <h2 className="text-center text-3xl md:text-5xl font-semibold leading-[1.35] tracking-[-1.3px] text-[#002D2A]">
+              Built for Structural Steel Fabricators
+            </h2>
+            <p className="text-center text-xl md:text-2xl text-[#002D2A]/80 mt-6 max-w-3xl mx-auto">
               CutWise helps steel fabricators move from model to material —
               with clear, reliable plans for purchasing and production.
             </p>
@@ -297,7 +314,7 @@ function App() {
               </span>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold text-center text-[#002D2A] mb-20 tracking-[-1px]">
-              Stop Planning Steel in Excel
+              Know Exactly What to Order — Without Excel
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-y-4 md:gap-y-0 mb-20 md:divide-x md:divide-[#002D2A]/15">
               <div className="px-6 py-9 rounded-none text-center">
@@ -346,7 +363,7 @@ function App() {
       <section id="cta" className="relative overflow-hidden bg-gradient-to-br from-primary to-primary/90 text-primary-foreground py-20 md:py-24">
         <div className="container max-w-app mx-auto px-6 text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4 tracking-[-1px]">
-            Start Planning Smarter
+            From Model to Production in Minutes
           </h2>
           <p className="text-white/80 text-lg md:text-xl mb-10 max-w-xl mx-auto">
             Upload your IFC model and get your first plan in minutes.
@@ -876,6 +893,8 @@ function App() {
         </div>
       </section>
 
+      <BlogSection />
+
       {/* FAQ Section */}
       <section id="faq" className="py-20 bg-[#F4F6F9]">
         <div className="container max-w-app mx-auto px-6">
@@ -913,40 +932,20 @@ function App() {
         </div>
       </section>
 
-      {/* Contact Section */}
-      <section id="contact" className="pt-16 pb-10 bg-gray-900 text-white">
-        <div className="container max-w-app mx-auto px-6">
-          <h2 className="text-4xl font-bold text-center mb-12">Get in Touch</h2>
-          <div className="max-w-3xl mx-auto text-center">
-            <div>
-              <h3 className="text-2xl font-bold mb-4">Have questions?</h3>
-              <p className="text-gray-300 mb-6">We're here to help you optimize your steel fabrication process.</p>
-              <div className="inline-flex flex-col items-center gap-3 rounded-[36px] border border-[#194327] bg-[#00FF9F]/10 text-white px-10 py-6">
-                <div className="w-14 h-14 rounded-full bg-[#00FF9F]/20 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-                <p className="text-sm uppercase tracking-wide text-[#00FF9F]/90">Email us</p>
-                <a href="mailto:Hello@cutwise.pro" className="text-lg font-semibold text-white hover:text-[#00FF9F] transition-colors">
-                  Hello@cutwise.pro
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white pt-2 pb-12">
-        <div className="container max-w-app mx-auto px-6">
-          <div className="border-t border-gray-800 pt-8 text-center">
-            <img src="/Icons/cutwise manu logo.svg" alt="Cutwise" className="h-10 mx-auto mb-4" />
-            <p className="text-gray-500 text-xs">&copy; 2026 Cutwise. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
+  )
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/blog" element={<BlogPage />} />
+        <Route path="/blog/:slug" element={<BlogPostPage />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 
