@@ -76,9 +76,10 @@ function HomePage() {
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-6">
-              <a href="#about" className="text-sm font-medium text-white/70 hover:text-white transition-colors">About us</a>
-              <a href="#why-it-matters" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Why it matters</a>
+              <a href="#about" className="text-sm font-medium text-white/70 hover:text-white transition-colors">What you get</a>
               <a href="#shop-floor" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Shop floor</a>
+              <a href="#cta" className="text-sm font-medium text-white/70 hover:text-white transition-colors">CTA</a>
+              <a href="#why-it-matters" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Why it matters</a>
               <a href="#precision" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Precision</a>
               <a href="#positioning" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Positioning</a>
               <a href="#pricing" className="text-sm font-medium text-white/70 hover:text-white transition-colors">Pricing</a>
@@ -117,14 +118,7 @@ function HomePage() {
                   className="text-base font-medium text-white/70 hover:text-white transition-colors py-2 text-center"
                   onClick={closeMobileMenu}
                 >
-                  About us
-                </a>
-                <a 
-                  href="#why-it-matters" 
-                  className="text-base font-medium text-white/70 hover:text-white transition-colors py-2 text-center"
-                  onClick={closeMobileMenu}
-                >
-                  Why it matters
+                  What you get
                 </a>
                 <a 
                   href="#shop-floor" 
@@ -132,6 +126,20 @@ function HomePage() {
                   onClick={closeMobileMenu}
                 >
                   Shop floor
+                </a>
+                <a 
+                  href="#cta" 
+                  className="text-base font-medium text-white/70 hover:text-white transition-colors py-2 text-center"
+                  onClick={closeMobileMenu}
+                >
+                  CTA
+                </a>
+                <a 
+                  href="#why-it-matters" 
+                  className="text-base font-medium text-white/70 hover:text-white transition-colors py-2 text-center"
+                  onClick={closeMobileMenu}
+                >
+                  Why it matters
                 </a>
                 <a 
                   href="#precision" 
@@ -304,104 +312,6 @@ function HomePage() {
         </div>
       </section>
 
-      {/* Why It Matters Section */}
-      <section id="why-it-matters" className="py-16 md:py-20 bg-background">
-        <div className="container max-w-app mx-auto px-6">
-          <div className="max-w-5xl mx-auto">
-            <div className="flex justify-center mb-8">
-              <span className="inline-flex items-center rounded-full border border-[#002D2A]/20 bg-[#002D2A]/[0.02] px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-[#002D2A]/80">
-                Why it matters
-              </span>
-            </div>
-            <h2 className="text-3xl md:text-4xl font-bold text-center text-[#002D2A] mb-20 tracking-[-1px]">
-              Know Exactly What to Order — Without Excel
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-y-4 md:gap-y-0 mb-20 md:divide-x md:divide-[#002D2A]/15">
-              <div className="px-6 py-9 rounded-none text-center">
-                <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold mb-3">Estimate stock manually</h3>
-                <p className="text-muted-foreground max-w-[320px] mx-auto">Guesswork leads to wrong quantities and wasted time.</p>
-              </div>
-              <div className="px-6 py-9 rounded-none text-center">
-                <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold mb-3">Over-order to stay safe</h3>
-                <p className="text-muted-foreground max-w-[320px] mx-auto">Extra buffer means extra cost and tied-up capital.</p>
-              </div>
-              <div className="px-6 py-9 rounded-none text-center">
-                <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold mb-3">Spend hours planning cuts</h3>
-                <p className="text-muted-foreground max-w-[320px] mx-auto">Manual planning eats into your production capacity.</p>
-              </div>
-            </div>
-            <div className="flex flex-col items-center gap-6">
-              <svg className="w-8 h-8 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 5v14m0 0l-7-7m7 7l7-7"/>
-              </svg>
-              <div className="rounded-2xl px-8 md:px-10 py-12 md:py-16 text-center max-w-4xl mx-auto">
-                <p className="text-xl md:text-2xl font-semibold text-[#002D2A] leading-relaxed">
-                  CutWise replaces that process with a clear, structured plan — based directly on your model, with exact stock quantities and production-ready cutting plans.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section id="cta" className="relative overflow-hidden bg-gradient-to-br from-primary to-primary/90 text-primary-foreground py-20 md:py-24">
-        <div className="container max-w-app mx-auto px-6 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4 tracking-[-1px]">
-            From Model to Production in Minutes
-          </h2>
-          <p className="text-white/80 text-lg md:text-xl mb-10 max-w-xl mx-auto">
-            Upload your IFC model and get your first plan in minutes.
-          </p>
-          <a href="https://app.cutwise.pro/signup">
-            <Button className="rounded-full bg-[#00FF9F] text-[#002D2A] hover:bg-white h-14 px-10 text-base font-bold shadow-lg">
-              Upload IFC
-            </Button>
-          </a>
-          <div className="flex flex-wrap justify-center gap-6 md:gap-10 mt-12">
-            <div className="flex items-center gap-2.5 text-white/90 text-sm font-medium">
-              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                <svg className="w-4 h-4 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <span>No credit card required</span>
-            </div>
-            <div className="flex items-center gap-2.5 text-white/90 text-sm font-medium">
-              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                <svg className="w-4 h-4 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <span>3 projects free on signup</span>
-            </div>
-            <div className="flex items-center gap-2.5 text-white/90 text-sm font-medium">
-              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                <svg className="w-4 h-4 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <span>Cost saving from the first use</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* Built for Shop Floor Section */}
       <section id="shop-floor" className="py-20 bg-background">
         <div className="container max-w-app mx-auto px-6">
@@ -480,6 +390,104 @@ function HomePage() {
           <p className="text-center text-[#002D2A]/60 font-medium mt-12">
             No learning curve. No new system.
           </p>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section id="cta" className="relative overflow-hidden bg-gradient-to-br from-primary to-primary/90 text-primary-foreground py-20 md:py-24">
+        <div className="container max-w-app mx-auto px-6 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 tracking-[-1px]">
+            From Model to Production in Minutes
+          </h2>
+          <p className="text-white/80 text-lg md:text-xl mb-10 max-w-xl mx-auto">
+            Upload your IFC model and get your first plan in minutes.
+          </p>
+          <a href="https://app.cutwise.pro/signup">
+            <Button className="rounded-full bg-[#00FF9F] text-[#002D2A] hover:bg-white h-14 px-10 text-base font-bold shadow-lg">
+              Upload IFC
+            </Button>
+          </a>
+          <div className="flex flex-wrap justify-center gap-6 md:gap-10 mt-12">
+            <div className="flex items-center gap-2.5 text-white/90 text-sm font-medium">
+              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <span>No credit card required</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-white/90 text-sm font-medium">
+              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <span>3 projects free on signup</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-white/90 text-sm font-medium">
+              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4 text-[#00FF9F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <span>Cost saving from the first use</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Why It Matters Section */}
+      <section id="why-it-matters" className="py-16 md:py-20 bg-background">
+        <div className="container max-w-app mx-auto px-6">
+          <div className="max-w-5xl mx-auto">
+            <div className="flex justify-center mb-8">
+              <span className="inline-flex items-center rounded-full border border-[#002D2A]/20 bg-[#002D2A]/[0.02] px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-[#002D2A]/80">
+                Why it matters
+              </span>
+            </div>
+            <h2 className="text-3xl md:text-4xl font-bold text-center text-[#002D2A] mb-20 tracking-[-1px]">
+              Know Exactly What to Order — Without Excel
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-y-4 md:gap-y-0 mb-20 md:divide-x md:divide-[#002D2A]/15">
+              <div className="px-6 py-9 rounded-none text-center">
+                <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold mb-3">Estimate stock manually</h3>
+                <p className="text-muted-foreground max-w-[320px] mx-auto">Guesswork leads to wrong quantities and wasted time.</p>
+              </div>
+              <div className="px-6 py-9 rounded-none text-center">
+                <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold mb-3">Over-order to stay safe</h3>
+                <p className="text-muted-foreground max-w-[320px] mx-auto">Extra buffer means extra cost and tied-up capital.</p>
+              </div>
+              <div className="px-6 py-9 rounded-none text-center">
+                <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold mb-3">Spend hours planning cuts</h3>
+                <p className="text-muted-foreground max-w-[320px] mx-auto">Manual planning eats into your production capacity.</p>
+              </div>
+            </div>
+            <div className="flex flex-col items-center gap-6">
+              <svg className="w-8 h-8 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14m0 0l-7-7m7 7l7-7"/>
+              </svg>
+              <div className="rounded-2xl px-8 md:px-10 py-12 md:py-16 text-center max-w-4xl mx-auto">
+                <p className="text-xl md:text-2xl font-semibold text-[#002D2A] leading-relaxed">
+                  CutWise replaces that process with a clear, structured plan — based directly on your model, with exact stock quantities and production-ready cutting plans.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

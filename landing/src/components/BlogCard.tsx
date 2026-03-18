@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { BlogPost } from '@/data/blogPosts'
+import { getBlogImage } from '@/data/blogImages'
 import { getBlogIllustration } from '@/components/blogIllustrations'
 
 interface BlogCardProps {
@@ -14,12 +15,19 @@ const formatDate = (dateStr: string) =>
   })
 
 export const BlogCard = ({ post }: BlogCardProps) => {
+  const localImage = getBlogImage(post.slug, '')
   const Illustration = getBlogIllustration(post.slug)
 
   return (
   <article className="flex flex-col rounded-xl border border-gray-200 bg-white overflow-hidden h-full">
     <div className="aspect-video w-full shrink-0 overflow-hidden bg-gray-100">
-      {Illustration ? (
+      {localImage ? (
+        <img
+          src={localImage}
+          alt={post.title}
+          className="w-full h-full object-cover"
+        />
+      ) : Illustration ? (
         <Illustration className="w-full h-full" />
       ) : (
         <img

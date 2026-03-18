@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 
 const navLinks = [
-  { href: '/#about', label: 'About us' },
-  { href: '/#why-it-matters', label: 'Why it matters' },
+  { href: '/#about', label: 'What you get' },
   { href: '/#shop-floor', label: 'Shop floor' },
+  { href: '/#cta', label: 'CTA' },
+  { href: '/#why-it-matters', label: 'Why it matters' },
   { href: '/#precision', label: 'Precision' },
   { href: '/#positioning', label: 'Positioning' },
   { href: '/#pricing', label: 'Pricing' },

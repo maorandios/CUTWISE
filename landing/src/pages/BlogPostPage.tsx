@@ -3,6 +3,7 @@ import { Footer } from '@/components/Footer'
 import { BlogContent } from '@/components/BlogContent'
 import { BlogHeader } from '@/components/BlogHeader'
 import { getBlogIllustration } from '@/components/blogIllustrations'
+import { getBlogImage } from '@/data/blogImages'
 import { blogPosts } from '@/data/blogPosts'
 
 const formatDate = (dateStr: string) =>
@@ -47,10 +48,21 @@ export const BlogPostPage = () => {
           </Link>
           <div className="rounded-xl overflow-hidden mb-8 aspect-video bg-gray-100">
             {(() => {
+              const localImage = getBlogImage(post.slug, '')
               const Illustration = getBlogIllustration(post.slug)
-              return Illustration ? (
-                <Illustration className="w-full h-full" />
-              ) : (
+              if (localImage) {
+                return (
+                  <img
+                    src={localImage}
+                    alt={post.title}
+                    className="w-full h-full object-cover"
+                  />
+                )
+              }
+              if (Illustration) {
+                return <Illustration className="w-full h-full" />
+              }
+              return (
                 <img
                   src={post.image}
                   alt={post.title}
