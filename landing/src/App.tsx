@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -23,12 +23,79 @@ function HomePage() {
   const [activeFaq, setActiveFaq] = useState<number | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [shopFloorTopic, setShopFloorTopic] = useState(0)
+  const [videoPlaying, setVideoPlaying] = useState(false)
+  const [videoStarted, setVideoStarted] = useState(false)
+  const [videoCurrentTime, setVideoCurrentTime] = useState(0)
+  const [videoDuration, setVideoDuration] = useState(0)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const videoContainerRef = useRef<HTMLDivElement>(null)
+
+  const formatTime = (s: number) => {
+    if (!isFinite(s) || isNaN(s)) return '0:00'
+    const m = Math.floor(s / 60)
+    const sec = Math.floor(s % 60)
+    return `${m}:${sec.toString().padStart(2, '0')}`
+  }
+
+  const handleVideoStop = () => {
+    const v = videoRef.current
+    if (v) {
+      v.pause()
+      v.currentTime = 0
+      setVideoPlaying(false)
+      setVideoCurrentTime(0)
+    }
+  }
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = videoRef.current
+    const t = parseFloat(e.target.value)
+    if (v) {
+      v.currentTime = t
+      setVideoCurrentTime(t)
+    }
+  }
+
+  const handleFullscreen = () => {
+    const el = videoContainerRef.current
+    if (!el) return
+    if (document.fullscreenElement) {
+      document.exitFullscreen()
+    } else {
+      el.requestFullscreen()
+    }
+  }
 
   useEffect(() => {
     const interval = setInterval(() => {
       setShopFloorTopic((s) => (s === 3 ? 0 : s + 1))
     }, 4000)
     return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    if (videoStarted) {
+      videoRef.current?.play()
+    }
+  }, [videoStarted])
+
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    const onTimeUpdate = () => setVideoCurrentTime(v.currentTime)
+    const onLoadedMetadata = () => setVideoDuration(v.duration)
+    const onDurationChange = () => setVideoDuration(v.duration)
+    const onSeeked = () => setVideoCurrentTime(v.currentTime)
+    v.addEventListener('timeupdate', onTimeUpdate)
+    v.addEventListener('loadedmetadata', onLoadedMetadata)
+    v.addEventListener('durationchange', onDurationChange)
+    v.addEventListener('seeked', onSeeked)
+    return () => {
+      v.removeEventListener('timeupdate', onTimeUpdate)
+      v.removeEventListener('loadedmetadata', onLoadedMetadata)
+      v.removeEventListener('durationchange', onDurationChange)
+      v.removeEventListener('seeked', onSeeked)
+    }
   }, [])
 
   const toggleFaq = (index: number) => {
@@ -217,25 +284,115 @@ function HomePage() {
             No Excel <span className="mx-2 text-primary-foreground/50">·</span> No guesswork <span className="mx-2 text-primary-foreground/50">·</span> No over-ordering
           </p>
           <div id="video" className="w-full max-w-4xl mx-auto mb-6 md:mb-8">
-            <div className="w-full h-[200px] md:h-[320px] bg-gray-900/90 rounded-[15px] shadow-2xl flex items-center justify-center">
-              <div className="text-center text-white">
-                <svg className="w-20 h-20 mx-auto mb-4 text-[#2B6E54]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="10" strokeWidth="2"/>
-                  <polygon points="10 8 16 12 10 16 10 8" fill="currentColor"/>
-                </svg>
-                <p className="text-lg">Video coming soon</p>
+            <div
+              ref={videoContainerRef}
+              className="relative w-full bg-gray-900 rounded-[15px] shadow-2xl overflow-hidden group"
+              style={{ aspectRatio: '16/9' }}
+            >
+              {!videoStarted ? (
+                <>
+                  <img
+                    src="/Video thumbnail.png"
+                    alt="Video thumbnail"
+                    className="w-full h-full object-contain"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setVideoStarted(true)}
+                    className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors cursor-pointer"
+                    aria-label="Play video"
+                  >
+                    <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-white/95 flex items-center justify-center shadow-xl hover:scale-110 transition-transform group-hover:scale-105">
+                      <svg className="w-8 h-8 md:w-10 md:h-10 text-[#002D2A] ml-1" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </div>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <video
+                    ref={videoRef}
+                    src="/intro video.mp4"
+                    poster="/Video thumbnail.png"
+                    className="w-full h-full object-contain"
+                    playsInline
+                    onPlay={() => setVideoPlaying(true)}
+                    onPause={() => setVideoPlaying(false)}
+                    onEnded={() => setVideoPlaying(false)}
+                  />
+                  {!videoPlaying && (
+                    <button
+                      type="button"
+                      onClick={() => videoRef.current?.play()}
+                      className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors cursor-pointer"
+                      aria-label="Play video"
+                    >
+                      <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-white/95 flex items-center justify-center shadow-xl hover:scale-110 transition-transform group-hover:scale-105">
+                        <svg className="w-8 h-8 md:w-10 md:h-10 text-[#002D2A] ml-1" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      </div>
+                    </button>
+                  )}
+                  {/* Video controls bar - only when video has been started */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => (videoRef.current?.paused ? videoRef.current?.play() : videoRef.current?.pause())}
+                  className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center hover:bg-white transition-colors shrink-0"
+                  aria-label={videoPlaying ? 'Pause' : 'Play'}
+                >
+                  {videoPlaying ? (
+                    <svg className="w-4 h-4 text-gray-900" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4 text-gray-900 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleVideoStop}
+                  className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center hover:bg-white transition-colors shrink-0"
+                  aria-label="Stop"
+                >
+                  <svg className="w-4 h-4 text-gray-900" fill="currentColor" viewBox="0 0 24 24">
+                    <rect x="6" y="6" width="12" height="12" />
+                  </svg>
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={videoDuration || 1}
+                  value={videoCurrentTime}
+                  onChange={handleSeek}
+                  className="flex-1 h-1.5 bg-white/30 rounded-full appearance-none cursor-pointer accent-[#00FF9F] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#00FF9F] [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[#00FF9F] [&::-moz-range-thumb]:border-0"
+                />
+                <span className="text-white/90 text-sm font-medium tabular-nums shrink-0 min-w-[4.5rem]">
+                  {formatTime(videoCurrentTime)} / {formatTime(videoDuration)}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleFullscreen}
+                  className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center hover:bg-white transition-colors shrink-0"
+                  aria-label="Fullscreen"
+                >
+                  <svg className="w-4 h-4 text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                  </svg>
+                </button>
               </div>
+                </>
+              )}
             </div>
           </div>
           <div className="flex flex-wrap justify-center items-center gap-3 md:gap-4">
             <a href="https://app.cutwise.pro">
               <Button className="rounded-full bg-[#00FF9F] text-[#002D2A] hover:bg-white h-[56px] px-10 text-lg font-bold shadow-lg shrink-0">
                 Upload IFC
-              </Button>
-            </a>
-            <a href="#video">
-              <Button variant="outline" className="rounded-full border-2 border-white/50 bg-transparent text-primary-foreground hover:bg-white/10 hover:border-white hover:text-white h-[56px] px-10 text-lg font-bold shrink-0">
-                Watch full demo
               </Button>
             </a>
           </div>
